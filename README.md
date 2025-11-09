@@ -1,6 +1,5 @@
 # GodPlan
 
-# TODO List du Projet d'Algo Trading
 
 Cette liste regroupe les tâches nécessaires pour la mise en place et le développement de l'algorithme de trading.
 
