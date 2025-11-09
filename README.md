@@ -29,6 +29,7 @@ Cette section décrit l'état actuel de la stratégie et de l'architecture du pr
 
 ## Folder Structure 
 
+```bash
 trading_framework/
 │
 ├── README.md
@@ -65,4 +66,5 @@ trading_framework/
 │
 └── notebooks/
     └── .../
+```
 
