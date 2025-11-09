@@ -31,6 +31,7 @@ Cette section décrit l'état actuel de la stratégie et de l'architecture du pr
 
 ```markdown
 ```tree
+
 trading_framework/
 │
 ├── README.md
