@@ -5,7 +5,29 @@
 - [ ] Trier le contenu du SSD pour dédier le Mac entièrement au projet
 
 ## Stratégie et Conception
-- [ ] Transformer le résumé de la stratégie de sélection d’actif en diagramme couvrant tous les éléments nécessaires à un algorithme de trading
+- [ ] Transformer le résumé de la stratégie de sélection d’actif en diagramme couvrant tous les éléments nécessaires à un algorithme de trading, en définissant la liste des nœuds à inclure, par exemple :  
+
+### Composants à considérer pour le diagramme
+- **Data**
+  - Stockage Data
+- **Analyse**
+  - Analyse Technique
+  - Analyse Fondamentale
+  - Machine Learning
+- **Stratégie**
+  - Génération Signaux
+  - Optimisation Portfolio
+  - Backtest
+- **Exécution**
+  - Passage Ordres
+  - Suivi Positions
+  - Gestion Transactions
+- **Risque**
+  - Contrôle Risques
+  - Stop-Loss
+  - Diversification
+ 
+## Lectures et Inspirations
 - [ ] Lire la liste de lectures et annoter les concepts inconnus ou inspirants
 
 ## Data
