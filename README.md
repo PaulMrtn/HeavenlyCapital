@@ -30,8 +30,6 @@ Cette section décrit l'état actuel de la stratégie et de l'architecture du pr
 ## Folder Structure 
 
 ```markdown
-```tree
-
 trading_framework/
 │
 ├── README.md
