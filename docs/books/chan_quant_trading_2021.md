@@ -5,6 +5,7 @@
 
 ## Note
 - Metalabeling en finance : un model de ML qui predit la qualite de l oupout du modele master (cf. Marcos Lopez Prado)
+  https://en.wikipedia.org/wiki/Meta-Labeling
 - 
 
 ## Liens et références
