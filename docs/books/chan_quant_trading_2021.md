@@ -13,6 +13,8 @@
 
 - NASDAQ API :  https://data.nasdaq.com/databases/SEP
 
+- Intégrer le ratio d’information dans les métriques en définissant un benchmark adapté, contrairement au ratio de Sharpe qui suppose une stratégie currency neutral et utilise le taux sans risque comme référence
+
 
 
 ## Liens et références
