@@ -15,6 +15,8 @@
 
 - Intégrer le ratio d’information dans les métriques en définissant un benchmark adapté, contrairement au ratio de Sharpe qui suppose une stratégie currency neutral et utilise le taux sans risque comme référence
 
+- La stratégie doit rester positive selon les échelles de temps, avec un Sharpe ≥ 1 annuel, ≥ 2 mensuel et ≥ 3 journalier.
+
 
 
 ## Liens et références
