@@ -31,6 +31,16 @@
 
 - En règle générale, il est recommandé de ne pas utiliser plus de cinq paramètres dans un modèle (toute constante confondu).
 
+- **Parameterless Trading Model (86/256)**  
+  - **Parameterless models** : privilégier des modèles sans paramètres ou à faible complexité pour réduire le risque de **overfitting**.  
+  - **Conditional Parameter Optimization (CPO)** : utiliser des approches de *machine learning* pour ajuster dynamiquement les paramètres selon les conditions de marché.  
+  - **Sensitivity Analysis** : vérifier la **robustesse** du modèle en testant de légères variations de paramètres — ils doivent être peu sensibles au résultat final.  
+  - **Model Simplification** : chercher en permanence à **simplifier le modèle** ; évaluer l’impact de la suppression de chaque condition sur la performance globale.  
+  - **Capital Allocation across parameter sets** : répartir le capital entre différentes combinaisons de paramètres avec un **poids défini en backtest**, pour diversifier le risque de sur-optimisation.  
+
+
+-  
+
 
 ## Liens et références
 - [Lien vers le livre](https://mega.nz/file/WPABhCDa#Ynh7CnAPXfUaa9VtpckLmiAjzp_GNb7fCtssEw4FIdk)
