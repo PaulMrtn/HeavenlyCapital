@@ -1,6 +1,7 @@
 # Quantitative Trading: How to Build Your Own Algorithmic Trading Business
 
-**Auteur :** Ernest P. Chan 
+**Auteur :** Ernest P. Chan  
+
 **Année :** 2021  
 
 ## Note
@@ -15,7 +16,7 @@
 
 - Intégrer le ratio d’information dans les métriques en définissant un benchmark adapté, contrairement au ratio de Sharpe qui suppose une stratégie currency neutral et utilise le taux sans risque comme référence
 
-- La stratégie doit rester positive selon les échelles de temps, avec un Sharpe ≥ 1 annuel, ≥ 2 mensuel et ≥ 3 journalier.
+- La stratégie doit rester positive selon les échelles de temps, avec un Sharpe ≥ 1 annuel, ≥ 2 mensuel et ≥ 3 journalier. il n'est pas necssaire de soustraire le taux sans risque, sauf si financement par emprunt.
   
 - Intégration des métriques de **drawdown** et de **watermark** pour suivre les pertes maximales et le capital de référence le plus élevé.
 
