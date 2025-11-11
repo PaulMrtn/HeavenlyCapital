@@ -19,8 +19,9 @@
   
 - Intégration des métriques de **drawdown** et de **watermark** pour suivre les pertes maximales et le capital de référence le plus élevé.
 
-- Does the strategy lose steam in recent years compared to its ear-
-lier years?
+- Does the strategy lose steam in recent years compared to its earlier years?
+
+- Sur les données OHLCV, les valeurs High et Low sont peu fiables car fortement influencées par le bruit du marché, les anomalies de cotation et les mouvements ponctuels à faible volume.
 
 
 
