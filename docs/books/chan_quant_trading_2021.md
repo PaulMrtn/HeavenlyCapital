@@ -55,6 +55,4 @@
   
 -  Il faut **continuer le paper trading** pour tester des **stratégies alternatives** et identifier celles qui pourraient **remplacer ou améliorer la stratégie utilisée sur le compte réel**.
 
-
-
-
+### Money and Risk Management
