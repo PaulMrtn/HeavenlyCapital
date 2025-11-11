@@ -29,6 +29,8 @@
 
 - Seules les données des dix dernières années sont réellement pertinentes pour la construction de modèles prédictifs, attention à un changement de régime soudain, qui peut rendre les données historiques obsolètes
 
+- En règle générale, il est recommandé de ne pas utiliser plus de cinq paramètres dans un modèle (toute constante confondu).
+
 
 ## Liens et références
 - [Lien vers le livre](https://mega.nz/file/WPABhCDa#Ynh7CnAPXfUaa9VtpckLmiAjzp_GNb7fCtssEw4FIdk)
