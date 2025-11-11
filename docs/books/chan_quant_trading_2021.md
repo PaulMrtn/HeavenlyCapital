@@ -38,7 +38,7 @@
   - **Model Simplification** : chercher en permanence à **simplifier le modèle** ; évaluer l’impact de la suppression de chaque condition sur la performance globale.  
   - **Capital Allocation across parameter sets** : répartir le capital entre différentes combinaisons de paramètres avec un **poids défini en backtest**, pour diversifier le risque de sur-optimisation.  
 
-- **Strategy Adaptation** : Si la stratégie tend à devenir **moins rentable**, ajuster légèrement certaines **conditions** ou **paramètres**, notamment l’**univers d’investissement**, afin d’explorer de nouvelles zones de performance et d’éviter la dégradation structurelle du modèle.  
+- **Strategy Adaptation** : Si la stratégie tend à devenir **moins rentable**, ajuster légèrement certaines **conditions** ou **paramètres**, notamment l’**univers d’investissement**
 
 
 ## Liens et références
