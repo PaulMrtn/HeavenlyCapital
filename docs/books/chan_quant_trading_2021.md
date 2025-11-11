@@ -5,6 +5,9 @@
 **Année :** 2021  
 
 ## Note
+
+### Introduction
+
 - Metalabeling en finance : un model de ML qui predit la qualite de l oupout du modele master (cf. Marcos Lopez Prado)
   https://en.wikipedia.org/wiki/Meta-Labeling
 
@@ -13,6 +16,8 @@
 - Capital disponible influence le delta hedging : avec moins de capital, il devient difficile de couvrir efficacement les expositions sur le marché et les devises (FX), ce qui augmente le risque.
 
 - Data Feeder : NASDAQ API (https://data.nasdaq.com/databases/SEP) et Algoseek (https://www.algoseek.com/data-drive.html), les sources sans survivorship bias.
+
+### Backtesting
 
 - Intégrer le ratio d’information dans les métriques en définissant un benchmark adapté, contrairement au ratio de Sharpe qui suppose une stratégie currency neutral et utilise le taux sans risque comme référence
 
