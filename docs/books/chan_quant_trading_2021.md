@@ -52,6 +52,9 @@
 -  Le slippage provient du contrôle de risque du broker, de la latence entre le broker et la bourse, et d’un accès limité à la liquidité (ex. absence de dark pools).
 
 -  IBKR propose d’abord un **compte démo** pour tester la plateforme et l’API avec des prix fictifs, puis un **paper trading** pour simuler le trading sur le marché réel sans risque, avant de passer au **compte réel** pour trader avec son capital.
+- 
+-  Il faut **continuer le paper trading** pour tester des **stratégies alternatives** et identifier celles qui pourraient **remplacer ou améliorer la stratégie utilisée sur le compte réel**.
+
 
 
 
