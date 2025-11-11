@@ -45,6 +45,7 @@
 
 - **Strategy Adaptation** : Si la stratégie tend à devenir **moins rentable**, ajuster légèrement certaines **conditions** ou **paramètres**, notamment l’**univers d’investissement**
 
+### Execution Systems
 
 ## Liens et références
 - [Lien vers le livre](https://mega.nz/file/WPABhCDa#Ynh7CnAPXfUaa9VtpckLmiAjzp_GNb7fCtssEw4FIdk)
