@@ -11,7 +11,7 @@
   
 - Capital disponible influence le delta hedging : avec moins de capital, il devient difficile de couvrir efficacement les expositions sur le marché et les devises (FX), ce qui augmente le risque.
 
-- NASDAQ API :  https://data.nasdaq.com/databases/SEP
+- DATA FEEDER (NASDAQ API : https://data.nasdaq.com/databases/SEP); https://www.algoseek.com/data-drive.html > FREE SURVIVORSHIP BIAS
 
 - Intégrer le ratio d’information dans les métriques en définissant un benchmark adapté, contrairement au ratio de Sharpe qui suppose une stratégie currency neutral et utilise le taux sans risque comme référence
 
