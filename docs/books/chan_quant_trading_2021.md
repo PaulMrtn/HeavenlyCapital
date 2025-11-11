@@ -27,7 +27,7 @@
 
 - Sur les données OHLCV, les valeurs High et Low sont peu fiables car fortement influencées par le bruit du marché, les anomalies de cotation et les mouvements ponctuels à faible volume.
 
-- Seules les données des dix dernières années sont réellement pertinentes pour la construction de modèles prédictifs.
+- Seules les données des dix dernières années sont réellement pertinentes pour la construction de modèles prédictifs, attention à un changement de régime soudain, qui peut rendre les données historiques obsolètes
 
 
 ## Liens et références
