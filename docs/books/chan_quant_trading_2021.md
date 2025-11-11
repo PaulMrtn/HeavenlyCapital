@@ -19,6 +19,9 @@
   
 - Intégration des métriques de **drawdown** et de **watermark** pour suivre les pertes maximales et le capital de référence le plus élevé.
 
+- Does the strategy lose steam in recent years compared to its ear-
+lier years?
+
 
 
 ## Liens et références
