@@ -61,6 +61,6 @@
 
 - Si la ruine peut survenir avec une probabilité non nulle à un moment donné, la richesse à long terme est nécessairement nulle, tout comme le taux de croissance de la richesse à long terme.
 
-- le risque réduit toujours le taux de croissance à long terme
+- le risque, soit la volatilite réduit toujours le taux de croissance à long terme
 
 - Mettre à jour quotidiennement l’allocation de capital et recalculer F* à partir de la moyenne et de l’écart-type des rendements des six derniers mois
