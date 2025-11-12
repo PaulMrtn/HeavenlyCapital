@@ -56,3 +56,9 @@
 -  Il faut **continuer le paper trading** pour tester des **stratégies alternatives** et identifier celles qui pourraient **remplacer ou améliorer la stratégie utilisée sur le compte réel**.
 
 ### Money and Risk Management
+
+- La formule de Kelly permet de déterminer l’allocation optimale du capital et le levier à utiliser afin de trouver le juste équilibre entre gestion du risque et maximisation de la croissance.
+
+- Si la ruine peut survenir avec une probabilité non nulle à un moment donné, la richesse à long terme est nécessairement nulle, tout comme le taux de croissance de la richesse à long terme.
+
+- le risque réduit toujours le taux de croissance à long terme
