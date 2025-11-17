@@ -66,3 +66,6 @@
 - Mettre à jour quotidiennement l’allocation de capital et recalculer F* à partir de la moyenne et de l’écart-type des rendements des six derniers mois
 
 - Un investisseur doit calibrer son levier en comparant la perte maximale tolérable de son capital à la perte historique maximale, ce ratio servant à déterminer si même un levier fractionné du critère de Kelly (tel que le demi-Kelly) demeure excessif au regard de son profil de risque.
+
+- Nécessité de répliquer indépendamment les résultats de backtests afin d’en vérifier la robustesse et d’écarter tout biais méthodologique.
+
