@@ -69,3 +69,6 @@
 
 - Nécessité de répliquer indépendamment les résultats de backtests afin d’en vérifier la robustesse et d’écarter tout biais méthodologique.
 
+### Special Topics in Quantitative Trading ###
+
+- 
