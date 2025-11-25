@@ -1,5 +1,6 @@
-# GodPlan
-
+<p align="center">
+  <img src="GodPlan/docs/HEAVENLY_CAPITAL.png" alt="HEAVENLY CAPITAL" width="300">
+</p>
 
 ## Présentation
 
