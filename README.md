@@ -1,7 +1,7 @@
-<p align="center">
-  <img src="docs/ HEAVENLY_CAPITAL.png" alt="HEAVENLY CAPITAL" width="300">
-</p>
 
+<p align="center">
+  <img src="docs/ HEAVENLY_CAPITAL.png" alt="HEAVENLY CAPITAL" style="max-width: 100%; height: auto;">
+</
 ## Présentation
 
 Cette section décrit l'état actuel de la stratégie et de l'architecture du projet.
