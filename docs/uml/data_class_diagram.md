@@ -1,6 +1,6 @@
 ## Diagramme de Classes de Données UML
 
-Ce document fournit la documentation complète du modèle de données UML (classes, énumérations et relations entre entités).
+Ce document fournit la documentation du modèle de données UML (classes, énumérations et relations entre entités) de la station de trading.
 
 ### 1. Entités fondamentales de l’architecture de la station de trading
 
