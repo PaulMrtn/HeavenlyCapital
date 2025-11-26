@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Logo" width="800">
+  <img src="docs/logo.png" alt="Logo" width="600">
 </p>
 
-Cette section décrit l'état actuel de la stratégie et de l'architecture du projet.
+---
 
 ### Stratégie de Sélection d'Actifs (`AssetSelectionStrategy`)
 - Basée sur le **momentum** avec différentes périodes (1 semaine à 12 mois)  
