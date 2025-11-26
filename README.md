@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Logo" width="600">
+  <img src="docs/logo.png" alt="Logo" width="1200">
 </p>
 
 Cette section décrit l'état actuel de la stratégie et de l'architecture du projet.
