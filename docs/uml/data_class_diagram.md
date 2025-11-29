@@ -653,8 +653,63 @@ Journal de tous les événements critiques du système.
 * `EventLog` 0..* --- 1 `TradingSession`
   - Chaque événement peut appartenir à une session.
 
+#### 7.2. `SystemMetric`
 
+`SystemMetric` représente une mesure unique et atomique de performance ou de santé d'un composant du système (latence, utilisation mémoire, taux de succès). Ces métriques sont collectées de manière asynchrone (Fire-and-Forget).
 
+**Attributs :**
+
+* **`metric_id`** (`UUID`, *Primary Key*): Identifiant unique de cette mesure.
+* `session_id_ref` (`UUID`, *Foreign Key*): Vers `TradingSession.session_id`.
+* `timestamp` (`DateTime`): Date et heure précises de la mesure.
+* `component_name` (`string`): Nom du module émetteur (ex: 'OrderManager', 'LiveDataHub', 'JobExecutor').
+* `metric_name` (`MetricName`): Type de la métrique mesurée (ex: 'ORDER_EXECUTION_LATENCY', 'PRICE_FETCH_TIME').
+* `metric_type` (`MetricType`): Catégorie de la métrique (Latence, Compteur, ...).
+* `value` (`float`): La valeur numérique de la mesure.
+* `unit` (`string`): Unité de la mesure (ex: 'ms', 'count', 'bytes').
+* `tags` (`JSON`): Contient des informations contextuelles pour la jointure logique et l'analyse (ex: `{"execution_id": "UUID"}`).
+
+**Énumérations :**
+
+* `MetricName` : (`ORDER_EXECUTION_LATENCY`, `PRICE_FETCH_TIME`, `JOB_RUN_TIME`, `SIMULATED_FILL_RATE`, `DB_QUERY_TIME`, `MEMORY_USAGE`)
+* `MetricType` : (`LATENCY`, `COUNTER`, `GAUGE`, `RATE`)
+
+**Relations entre entités :**
+
+* `SystemMetric` 0..* --- 1 `TradingSession`
+    * Chaque mesure de performance est liée à une session.
+* `SystemMetric` 0..* --- 1 `MetricSnapshot` (Relation logique/Agrégation)
+    * Plusieurs mesures individuelles sont agrégées dans un seul instantané. La liaison est basée sur le temps et les tags sans clé étrangère physique.
+
+---
+
+#### 7.3. `MetricSnapshot`
+
+`MetricSnapshot` représente le conteneur agrégé de plusieurs `SystemMetric` sur une période définie (ex: 1 minute). Il est utilisé par le Monitoring Module pour consolider les données brutes en indicateurs clés pour l'analyse hors ligne ou l'affichage sur le tableau de bord.
+
+**Attributs :**
+
+* **`snapshot_id`** (`UUID`, *Primary Key*): ID unique de cet instantané agrégé.
+* `session_id_ref` (`UUID`, *Foreign Key*): Vers `TradingSession.session_id`.
+* `start_timestamp` (`DateTime`): Début de la période d'agrégation.
+* `end_timestamp` (`DateTime`): Fin de la période d'agrégation.
+* `interval` (`string`): Intervalle de temps de l'agrégation (ex: '1m', '5m').
+* `metric_name` (`MetricName`): Le type de métrique agrégée.
+* `component_name` (`string`): Nom du module concerné par l'agrégation.
+* `count` (`integer`): Nombre de `SystemMetric` agrégées dans ce snapshot.
+* `average_value` (`float`): La valeur moyenne sur l'intervalle.
+* `min_value` (`float`): La valeur minimale enregistrée.
+* `max_value` (`float`): La valeur maximale enregistrée.
+* `p95_value` (`float`): Le 1er percentile de la valeur.
+* `p99_value` (`float`): Le 99ème percentile de la valeur.
+* `aggregated_tags` (`JSON`): Agrégation ou échantillonnage des tags contextuels pertinents.
+
+**Relations entre entités :**
+
+* `MetricSnapshot` 0..* --- 1 `TradingSession`
+    * Chaque instantané agrégé est lié à une session.
+* `MetricSnapshot` 1 --- 0..* `SystemMetric` (Composition/Agrégation)
+    * Un instantané agrège l'ensemble des mesures brutes (`SystemMetric`) qui tombent dans son intervalle de temps.
 ---
 
 
