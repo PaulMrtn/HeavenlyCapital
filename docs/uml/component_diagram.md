@@ -176,7 +176,7 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 
 ## IV. System Core
 
-#### **Session Manager**
+### **Session Manager**
 
 **Description :** Le **Session Manager** est le composant responsable de la gestion de l'état et du cycle de vie de chaque session d'exécution (`TradingSession`). Une session modélise l'exécution d'une stratégie sur un portefeuille et peut opérer en mode **LIVE**, **PAPER** ou **BACKTEST**. Il gère la création, le démarrage, la mise en pause et l'arrêt (status) des sessions, et fournit le contexte d'exécution (mode, priorité) aux autres composants du système.
 
@@ -189,7 +189,7 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 * **Data Classes :**
     * **TradingSession** : Modélise l'unité centrale de l'exécution, définissant le contexte, le mode d'exécution (`LIVE`, `PAPER`), le statut, et les relations avec l'ensemble des données de trading.
 
-### Notes
+#### Notes
 
 * **Gestion de la Priorité d'Exécution :** Définir et appliquer une **règle de priorité** basée sur le `mode` de la session (ex: `LIVE` > `PAPER`). L'`IExecutionContextProvider` doit exposer la priorité pour les composants critiques comme l'**Order Manager** et le **Job Manager**.
 
