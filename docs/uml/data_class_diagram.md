@@ -511,6 +511,38 @@ Il est créé lors de la fermeture d’un lot d’acquisition au travers d’un 
 * `Trade` 0..* --- 1 `TradingSession`              
   - Une ou plusieurs trades appartient à une session.
 
+#### 5.5. `RiskSnapshot`
+
+`RiskSnapshot` représente l'état des **positions actives** et les **limites de risque individuelles** associées à ces positions, au moment du snapshot. Le **Risk Monitor** utilise cette structure pour évaluer si les cotations du marché en temps réel déclenchent un seuil de risque spécifique (Stop-Loss, etc.) sur chaque position active.
+
+**Attributs :**
+
+* **`snapshot_id`** (`UUID`, *Primary Key*): Identifiant unique de cet instantané de risque.
+* `session_id_ref` (`UUID`, *Foreign Key*): Vers `TradingSession.session_id`
+* `timestamp` (`DateTime`): Date et heure de la création/mise à jour du snapshot.
+* `position_id_ref` (`UUID`, *Foreign Key*): Vers `Position.position_id`, l'ID de la position surveillée.
+* `asset_id_ref` (`UUID`, *Foreign Key*): Vers `Asset.asset_id`, l'actif concerné.
+* `current_qty` (`float`): Quantité actuelle de la position à l'instant du snapshot.
+* `average_cost` (`float`): Coût moyen ajusté de la position.
+* `side` (`TradeSide`): Sens du trade (`LONG` ou `SHORT`).
+* `stop_loss_price` (`float`): Le prix au marché qui déclenche le Stop-Loss (absolu, NULL si non défini).
+* `take_profit_price` (`float`): Le prix au marché qui déclenche le Take-Profit (absolu, NULL si non défini).
+* `trailing_stop_offset` (`float`): Valeur du décalage pour un Stop-Loss suiveur (NULL si non appliqué).
+* `max_unrealized_loss_pct` (`float`): Pourcentage de perte latent maximal toléré (relatif au prix d'entrée).
+* `last_market_price` (`float`): Prix de marché le plus récent connu pour cet actif au moment du snapshot.
+
+**Énumérations :**
+
+* `MarketPhase` : (`OPEN`, `CLOSED`, `PRE_MARKET`, `POST_MARKET`, `HALTED`)
+
+**Relations entre entités :**
+
+* `RiskSnapshot` 0..* --- 1 `TradingSession`
+  - Chaque instantané de risque est enregistré dans le contexte d'une session.
+* `RiskSnapshot` 0..* --- 1 `Position`
+  - Chaque ligne d'instantané est associée à une unique position surveillée.
+* `RiskSnapshot` 0..* --- 1 `Asset`
+  - Chaque ligne d'instantané est associée à l'actif de la position.
 
 ---
 
