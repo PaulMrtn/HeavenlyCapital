@@ -73,6 +73,24 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 ---
 ## II. Real-Time Core
 
+## II. 🌐 Interactive Broker API
+
+#### **IBKR Gateway**
+
+**Description :** Le composant **IBKR Gateway** sert de **couche d'abstraction (wrapper)** au-dessus de la librairie d'accès API (`ib_async`). Il est le point de contact **unique et résilient** avec l'API d'Interactive Brokers, gérant toutes les communications. Il est responsable de la **Gestion Centralisée des Connexions** et de la **Gestion des Rate Limits** du courtier. Il fournit deux interfaces pour séparer les flux : l'envoi d'ordres et la réception de données. Il intègre également des fonctions de simulation (*mocking*) pour les tests de résilience.
+
+* **Interfaces Fournies / Requises :**
+    * **IBKR Order Sender** : **Interface fournie** pour l'envoi des ordres au courtier (utilisée par le **Job Manager**).
+    * **IBKR Data Interface** : **Interface fournie** pour la transmission des flux de *tick* et des données temps réel au **Live Data Hub**.
+    * *ib\_async* : **Package/Framework requis** pour la gestion asynchrone de la connexion à l'API de courtage.
+
+### Notes
+* **Gestion Centralisée des Connexions et Résilience :** Le *Gateway* doit assurer la **reconnexion automatique** et la gestion des échecs de connexion pour garantir une disponibilité maximale des flux de données et d'ordres.
+* **Gestion des Rate Limits :** Implémentation d'un **mécanisme de *throttling*** interne pour s'assurer que le nombre total de requêtes (temps réel, historiques, ordres) transmises à l'API d'IBKR ne dépasse jamais les limites contractuelles du courtier.
+* **Simulation et *Mocking* pour les Tests :** Le *Gateway* doit être facilement substituable par une version de **Mock** pour permettre le test en isolation du **Job Manager** et du **Live Data Hub**, simulant les réponses et les latences de l'API.
+* **Composant de Réconciliation (Note de Sécurité) :** Bien que l'**IBKR Gateway** lise l'état du compte IBKR, un **Reconciliation Module** dédié est nécessaire pour comparer périodiquement l'état interne du **Portfolio State Manager** avec l'état réel du compte courtier, afin de détecter tout écart et d'assurer la sécurité.
+  
+
 ### **Order Manager**
 
 Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ordres**. Il reçoit les **requêtes de création d'ordre** provenant de différents émetteurs (**Portfolio State Manager** pour le rééquilibrage, **Risk Monitor** pour les ordres d'urgence comme le *stop loss*). Il crée l'objet **Order** structuré et le transmet pour exécution au **Job Manager**. Il est également responsable de la mise à jour du statut de l'ordre tout au long de son cycle via une fonction `updateStatus`.
