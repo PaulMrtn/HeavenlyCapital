@@ -681,8 +681,6 @@ Journal de tous les événements critiques du système.
 * `SystemMetric` 0..* --- 1 `MetricSnapshot` (Relation logique/Agrégation)
     * Plusieurs mesures individuelles sont agrégées dans un seul instantané. La liaison est basée sur le temps et les tags sans clé étrangère physique.
 
----
-
 #### 7.3. `MetricSnapshot`
 
 `MetricSnapshot` représente le conteneur agrégé de plusieurs `SystemMetric` sur une période définie (ex: 1 minute). Il est utilisé par le Monitoring Module pour consolider les données brutes en indicateurs clés pour l'analyse hors ligne ou l'affichage sur le tableau de bord.
