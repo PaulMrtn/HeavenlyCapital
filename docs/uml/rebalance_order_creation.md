@@ -64,7 +64,7 @@ Si la persistance **réussit** :
 
 | Étape | De | À | Message | Description |
 | :---: | :--- | :--- | :--- | :--- |
-| **10** | `Order Manager` | `Log Service` | `LogEvent(ORDER_CREATED_&_QUEUED)` | Enregistre le succès de la création et de la mise en file d'attente. |
+| **10** | `Order Manager` | `Log Service` | `LogEvent(ORDER_CREATED)` | Enregistre le succès de la création et de la mise en file d'attente. |
 | **11** | `Order Manager` | `Order Manager` (Implicite) | `addToQueue(Order.id)` | Ajoute l'identifiant de la commande à une file d'attente interne (système *Execution Queue*). |
 
 ### D. Résultat Final
@@ -81,8 +81,5 @@ Si la persistance **réussit** :
 * Il est prévu d'ajouter un attribut de **`priority`** à la classe de données **`Order`** pour une meilleure gestion de l'exécution en file d'attente.
 
 ### B. Gestion de la File d'Attente (À Retirer)
-* L'étape **11** (`addToQueue`) et la référence `_QUEUED` dans le log **10** sont destinées à être **retirées**.
+* L'étape **11** (`addToQueue`) dans le log **10** sont destinées à être **retirées**.
 * Le système futur lira les ordres pour exécution **directement depuis la base de données** après la persistance (Étape 6).
-
-### C. Clarification Nominale de la Persistance (Recommandation)
-* Bien que `Data Feeder Interface` agisse comme une couche de persistance, son renommage en **`OrderRepository`** ou **`PersistenceService`** est suggéré pour mieux s'aligner sur les conventions d'architecture logicielles et améliorer la clarté.
