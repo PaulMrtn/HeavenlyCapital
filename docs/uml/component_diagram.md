@@ -176,6 +176,25 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 
 ## IV. System Core
 
+### **System Manager (Trading System)**
+
+Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorité centrale de l'application. Sa responsabilité principale est de gérer l'**état opérationnel global** (`TradingSystem`) et les dépendances fondamentales. Il orchestre le démarrage de l'ensemble des services, surveille la **santé des connexions** critiques (DB, IBKR), maintient la version du système, et sert de référent pour les ressources partagées, comme l'**état des *snapshots* de données** (`SnapshotHeader`).
+
+* **Interfaces Fournies / Requises :**
+    * **ISystemMonitor** : **Interface fournie** pour exposer l'état de santé du système (statuts des connexions, version, `SystemStatus`).
+    * **ISnapshotProvider** : **Interface fournie** pour fournir l'accès au `SnapshotHeader` unique et global.
+    * **IConnectionMonitor** : **Interface requise** (exposée par le Database Connector) pour interroger le statut de la connexion DB (`db_conn_status`).
+    * **IBKRStatusChecker** : **Interface requise** (exposée par l'IBKR Gateway) pour interroger le statut de la connexion au courtier (`ibkr_conn_status`).
+    * **ISessionManager** : **Interface requise** (exposée par le Session Manager) pour commander le démarrage ou l'arrêt des sessions.
+
+* **Data Classes :**
+    * **TradingSystem** : Représente l'instance unique du système de trading, supervisant son état opérationnel, l'état des connexions (DB, IBKR), la version et orchestrant les `TradingSession`.
+
+#### Notes
+
+* **Mécanisme de Démarrage Séquencé (Bootstrapping) :** Le *System Manager* doit gérer le démarrage des services dans un **ordre séquentiel strict** : Connexion DB $\rightarrow$ Connexion IBKR $\rightarrow$ Chargement Config Globale $\rightarrow$ Démarrage des Sessions.
+* **Gestion des Échecs Critiques :** Définir une politique claire en cas d'échec d'une dépendance critique (ex: perte de connexion DB en cours de marché) et ordonner au **Job Manager** de déclencher le *Kill Switch* et de basculer en mode `STOPPED`.
+
 ### **Session Manager**
 
 **Description :** Le **Session Manager** est le composant responsable de la gestion de l'état et du cycle de vie de chaque session d'exécution (`TradingSession`). Une session modélise l'exécution d'une stratégie sur un portefeuille et peut opérer en mode **LIVE**, **PAPER** ou **BACKTEST**. Il gère la création, le démarrage, la mise en pause et l'arrêt (status) des sessions, et fournit le contexte d'exécution (mode, priorité) aux autres composants du système.
