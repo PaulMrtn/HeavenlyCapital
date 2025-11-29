@@ -266,7 +266,7 @@ Le **Log Service** est le composant d'audit central qui garantit la **traçabili
 #### TODO
 * **Notification Manager** : Envoie des alertes aux utilisateurs ou aux systèmes externes.
 #### TODO
-
+* **Config, Path, Params** : **Interfaces/Paramètres**
 ---
 
 
@@ -294,15 +294,3 @@ Ce cœur est dédié à l'évaluation des performances des stratégies sur des d
 
 ---
 
-
-
-### Interfaces et Connecteurs Clés
-
-Ces éléments définissent les contrats de communication ou les dépendances technologiques entre les composants.
-
-* **Ib\_async** : **Interface/Bibliothèque** fournie pour gérer la communication asynchrone avec l'API Interactive Brokers.
-* **IBKR Order Sender** : **Interface fournie** par l'API de courtage pour l'envoi des ordres, utilisée par l'Order Manager.
-* **IBKR Data Interface** : **Interface fournie** par l'API pour récupérer les données de marché, utilisée par le Live Data Hub.
-* **IDatabaseWriter** : **Interface fournie** pour écrire des données de manière abstraite dans le stockage persistant.
-* **SQL Alchemy** : **Bibliothèque/ORM** (Object-Relational Mapping) utilisée pour l'accès aux bases de données relationnelles.
-* **Config, Path, Params** : **Interfaces/Paramètres** génériques pour la configuration, les chemins de fichiers et les données d'entrée.
