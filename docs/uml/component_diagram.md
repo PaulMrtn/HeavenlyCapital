@@ -176,7 +176,7 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 
 ## IV. System Core
 
-### **System Manager (Trading System)**
+### **System Manager**
 
 Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorité centrale de l'application. Sa responsabilité principale est de gérer l'**état opérationnel global** (`TradingSystem`) et les dépendances fondamentales. Il orchestre le démarrage de l'ensemble des services, surveille la **santé des connexions** critiques (DB, IBKR), maintient la version du système, et sert de référent pour les ressources partagées, comme l'**état des *snapshots* de données** (`SnapshotHeader`).
 
