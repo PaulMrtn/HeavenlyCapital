@@ -1,13 +1,63 @@
-### I. Data Management (Gestion des Données)
+### I. Data Management
 
 Ce cœur est responsable de l'ingestion, du nettoyage, de la persistance et de la mise à disposition des données.
 
-* **Data Preprocessor** : Nettoie et normalise les flux de données brutes avant l'ingestion.
 * **Data Ingestion Layer** : Point d'entrée pour toutes les données externes (flux de marché, fichiers, etc.).
 * **Live Data Hub** : Maintient un cache des données de marché en temps réel pour un accès rapide.
 * **Data Access Layer** : Fournit une interface unifiée pour l'accès aux données persistantes.
-* **Database Connector** : Gère les connexions et les transactions vers la base de données.
 
+#### **Data Preprocessor**
+  
+Ce composant assure la sanitisation et la normalisation des payloads de données brutes. Il est invoqué par le Data Ingestion Layer en amont de toute opération de persistance. Il opère comme une unité de transformation interne garantissant la cohérence du schema des données.
+
+#### **Data Ingestion Layer (DIL)**
+
+Le DIL est l'orchestrateur de la persistance des *data sets. Sa responsabilité principale est de fournir un set de méthodes d'écriture pour injecter l'intégralité des flux de données dans le système de stockage persistant. Il assure la séquence des opérations : appel au Data Preprocessor pour la standardisation des données, puis mapping et écriture.
+
+* **Interfaces Fournies / Requises :**
+    * **IDatabaseWriter** : **Interface de persistance fournie** par le DIL, constituant le **contrat de service** pour les composants tiers souhaitant stocker des données (e.g., **Live Data Hub**).
+    * **Database Connector** : **Composant requis** pour la gestion du *pool* de connexions et des sessions de transaction vers le *data store*.
+    * **Data Preprocessor** : **Composant requis** pour standardiser le *payload* de données.
+    * *SQL Alchemy* : **Package/Framework requis** (ORM) utilisé pour l'abstraction et l'efficacité des opérations CRUD.
+
+#### **Database Connector**
+
+Ce composant est l'interface du système avec la base de données relationnelle. Sa fonction principale est de gérer le cycle de vie des connexions : établir, maintenir, et clore les sessions. Il gère la **résilience** de la connexion, la **lecture sécurisée** des identifiants, et fournit des métriques de **surveillance** au système.
+
+* **Interfaces Fournies / Requises :**
+    * **IConnectionFactory** : **Interface fournie** par le `Database Connector` pour instancier et retourner un objet de connexion ou une session de base de données.
+    * *SQL Alchemy* : **Package/Framework requis** (ORM) pour la gestion technique du *pool* de connexions.
+    * **Config / Secret Vault** : **Composant/Source requis** pour l'extraction sécurisée des identifiants de connexion (*secrets*).
+    * **Monitoring Module** : **Composant requis** pour rapporter l'état des connexions et la latence I/O.
+
+#### Notes
+
+* **Résilience :** Implémente une **logique de *retry*** pour rétablir automatiquement la connexion à la base de données en cas de défaillance temporaire du réseau.
+* **Sécurité :** Construit l'URI de connexion en lisant les identifiants à partir d'une source sécurisée (**Secret Vault**) et non d'un simple fichier de configuration.
+* **Performance/Monitoring :** Transmet des métriques de performance et de santé de la base de données au **Monitoring Module** (e.g., temps de réponse, taux de succès des connexions) pour une surveillance proactive.
+
+
+#### **Live Data Hub**
+
+Ce composant est l'**écouteur central** des flux de prix marché. Il écoute les *triggers* de prix en temps réel via l'**IBKR Gateway** pour créer des **snapshots de marché** réguliers. Ces données sont mises en cache via l'**Interface Cache** et mises en file d'attente pour la persistance via l'**Interface Buffer**.
+
+* **Interfaces Fournies / Requises :**
+    * **IBKR Data Interface** : **Interface requise** via **IBKR Gateway** pour recevoir les mises à jour de prix (*market data stream*).
+    * **Cache Interface** : **Interface fournie** pour l'écriture des données en cache.
+    * **Buffer Interface** : **Interface fournie** pour la mise en file d'attente des données destinées à la persistance asynchrone.
+    * *ib\_async* : **Package/Framework requis** pour la gestion de l'écoute asynchrone des événements de l'API de courtage.
+
+* **Data Classes :**
+    * **TickData** : Représente l'état instantané d'un actif (bid/ask, dernière transaction, volumes). C'est la donnée brute du marché.
+    * **SnapshotHeader** : Représente l'en-tête d'un instantané global du marché à une fréquence donnée (ex: '1m', '5m').
+    * **MarketQuote** : Représente la cotation consolidée d'un actif au sein d'un SnapshotHeader pour une période donnée.
+
+#### Notes
+
+* **Cohérence des Ticks :** Inclusion d'un mécanisme de vérification pour détecter les **sauts (gaps)** ou les incohérences dans la séquence des *ticks* reçus, afin de garantir la qualité des **SnapshotHeader** générés.
+* **Suivi de Latence :** Enregistrement du **`receive_timestamp`** (temps de réception par le *Hub*) en plus du `timestamp` du marché. Cela permet de calculer la latence entre le courtier et le système et d'auditer la performance.
+
+  
 ---
 
 ### II. Real-Time Core (Noyau Temps Réel)
