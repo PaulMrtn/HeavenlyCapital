@@ -71,14 +71,52 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 
 
 ---
+## II. Real-Time Core
 
-### II. Real-Time Core (Noyau Temps Réel)
+### **Order Manager**
 
+Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ordres**. Il reçoit les **requêtes de création d'ordre** provenant de différents émetteurs (**Portfolio State Manager** pour le rééquilibrage, **Risk Monitor** pour les ordres d'urgence comme le *stop loss*). Il crée l'objet **Order** structuré et le transmet pour exécution au **Job Manager**. Il est également responsable de la mise à jour du statut de l'ordre tout au long de son cycle via une fonction `updateStatus`.
+
+* **Interfaces Fournies / Requises :**
+    * **IOrderCreator** : **Interface fournie** pour la réception des requêtes de création d'ordre (utilisée par **Portfolio State Manager** et **Risk Monitor**).
+    * **IJobSubmission** : **Interface requise** pour l'envoi de l'ordre nouvellement créé vers le **Job Manager** pour l'exécution asynchrone.
+
+* **Data Classes :**
+    * **Order** : Représente une instruction d’achat ou de vente d’un actif, définissant son type, sa quantité, son prix et son statut. Elle centralise les relations avec l’actif, les exécutions et les événements.
+
+#### Notes
+
+* **Gestion des IDs :** Maintenir un *mapping* fiable entre l'**ID interne** (`order_id`) de l'objet `Order` et l'**ID du courtier** (`broker_order_id`). Cette correspondance est vitale pour la traçabilité, la gestion des exécutions et les opérations d'annulation (*cancelation*) via l'API de courtage.
 Ce cœur gère les opérations critiques nécessitant une faible latence, notamment l'exécution d'ordres et la surveillance immédiate.
 
-* **Order Manager** : Traque le statut de tous les ordres ouverts et exécutés, en interaction directe avec l'API de courtage.
+  
 * **Portfolio State Manager** : Maintient l'état actuel et précis du portefeuille (positions, liquidités, P&L).
 * **Risk Monitor** : Effectue des contrôles de risque pré- et post-trade en temps réel.
+
+
+### **Portfolio State Manager (PSM)**
+
+**Description :** Le PSM est le composant pivot qui maintient l'état financier et les métriques de performance du portefeuille. Il consolide les mouvements (entrées/sorties de *cash*, exécutions d'ordres lues via la base) pour générer l'état actuel (agrégé par lot). Il exécute la fonction de rééquilibrage : il compare l'état actuel à un état cible (futur) pour générer les **requêtes d'ordres** (*rebalancing*), assurant la gestion des lignes de *cash* et l'émission des ordres via l'**Order Manager**.
+
+* **Interfaces Fournies / Requises :**
+    * **IPortfolioStateReader** : **Interface fournie** pour exposer l'état actuel et les métriques de performance.
+    * **IOrderCreator** : **Interface requise** pour soumettre les ordres de rééquilibrage à l'**Order Manager**.
+    * **IDataReader** : **Interface requise** pour récupérer l'état des exécutions et les données de marché nécessaires.
+
+* **Data Classes :**
+    * **Portfolio** : Représente le conteneur de l'état global du portefeuille (liquidités, capital initial, devise).
+    * **CashFlow** : Représente un mouvement de liquidité (dépôt, retrait) affectant la ligne de trésorerie.
+    * **Position** : Représente la quantité agrégée d'un actif détenu.
+
+#### Notes
+
+* **Simulation de l'État Cible (Lookahead) :** Le PSM doit être capable de **simuler** l'état futur (`Portfolio`) en intégrant les ordres de rééquilibrage, les coûts de transaction et le *slippage* anticipé **avant** de soumettre les ordres.
+* **Gestion de l'Atomicité du Rééquilibrage :** Les requêtes d'ordres générées par le rééquilibrage doivent être traitées comme une **transaction atomique**. Si l'ensemble des requêtes ne peut pas être soumis ou validé, aucune partie des ordres ne doit être envoyée.
+
+
+
+
+
 
 ---
 
