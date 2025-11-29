@@ -245,7 +245,30 @@ Le **Monitoring Module** est le service central responsable de la collecte et de
 * **Isolation de la Collecte (Fire-and-Forget) :** L'implémentation doit garantir que l'appel à l'`IMetricPublisher` est **non bloquant** et s'exécute dans un *thread* séparé, de façon à ce que la collecte n'introduise **aucune latence** dans le flux d'exécution critique.
 * **Support à la Calibration :** La structure des `SystemMetric` doit prioriser les données pertinentes pour la calibration (ex: **latence inter-module**, **taux de remplissage des ordres simulés**) afin de faciliter la validation du système avant le passage en mode LIVE.
 
---
+
+### **Log Service**
+
+Le **Log Service** est le composant d'audit central qui garantit la **traçabilité complète** du système. Il enregistre les objets `EventLog` structurés pour tous les événements critiques et majeurs générés. Le service est conçu pour fonctionner de manière **asynchrone et non-bloquante** (`ILogger.log()`) afin de ne pas impacter la latence d'exécution des modules. Il garantit la **persistance immédiate** en base de données pour l'audit et publie simultanément les événements filtrés vers une console pour la consultation en temps réel.
+
+* **Interfaces Fournies / Requises :**
+    * **ILogger** : **Interface fournie** pour l'enregistrement des nouveaux objets `EventLog`.
+    * **ILogReader** : **Interface fournie** pour permettre aux consoles ou aux outils d'analyse de récupérer l'historique des événements.
+    * **IDatabaseWriter** : **Interface requise** (via DIL) pour la persistance des enregistrements `EventLog`.
+
+* **Data Classes :**
+    * **EventLog** : Journal structuré de tous les événements critiques du système, liant l'événement à sa session, son type d'entité, et fournissant un *payload* de détails complet.
+
+---
+
+### VI. Utilitaires
+
+* **Reporting Manager** : Génère des rapports de performance et d'activité du système.
+#### TODO
+* **Notification Manager** : Envoie des alertes aux utilisateurs ou aux systèmes externes.
+#### TODO
+
+---
+
 
 
 ### III. Pipeline Core (Noyau de Pipeline)
@@ -271,19 +294,7 @@ Ce cœur est dédié à l'évaluation des performances des stratégies sur des d
 
 ---
 
-### V. Utilitaires & Infrastructure
 
-Composants transversaux et d'infrastructure pour le bon fonctionnement et la surveillance du système.
-
-* **Session Manager** : Gère l'état et le cycle de vie des sessions utilisateur ou d'exécution.
-* **Thread Manager** : Contrôle l'allocation et la gestion des threads d'exécution.
-* **Concurrency Manager** : Gère les mécanismes de parallélisme et de concurrence.
-* **Log Manager** : Centralise et formate les journaux (logs) du système.
-* **Reporting Manager** : Génère des rapports de performance et d'activité du système.
-* **Monitoring Module** : Collecte des métriques sur la santé et les performances du système en temps réel.
-* **Notification Manager** : Envoie des alertes aux utilisateurs ou aux systèmes externes.
-
----
 
 ### Interfaces et Connecteurs Clés
 
