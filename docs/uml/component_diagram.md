@@ -73,9 +73,7 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 ---
 ## II. Real-Time Core
 
-## II. 🌐 Interactive Broker API
-
-#### **IBKR Gateway**
+### **IBKR Gateway**
 
 **Description :** Le composant **IBKR Gateway** sert de **couche d'abstraction (wrapper)** au-dessus de la librairie d'accès API (`ib_async`). Il est le point de contact **unique et résilient** avec l'API d'Interactive Brokers, gérant toutes les communications. Il est responsable de la **Gestion Centralisée des Connexions** et de la **Gestion des Rate Limits** du courtier. Il fournit deux interfaces pour séparer les flux : l'envoi d'ordres et la réception de données. Il intègre également des fonctions de simulation (*mocking*) pour les tests de résilience.
 
@@ -84,7 +82,7 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
     * **IBKR Data Interface** : **Interface fournie** pour la transmission des flux de *tick* et des données temps réel au **Live Data Hub**.
     * *ib\_async* : **Package/Framework requis** pour la gestion asynchrone de la connexion à l'API de courtage.
 
-### Notes
+#### Notes
 * **Gestion Centralisée des Connexions et Résilience :** Le *Gateway* doit assurer la **reconnexion automatique** et la gestion des échecs de connexion pour garantir une disponibilité maximale des flux de données et d'ordres.
 * **Gestion des Rate Limits :** Implémentation d'un **mécanisme de *throttling*** interne pour s'assurer que le nombre total de requêtes (temps réel, historiques, ordres) transmises à l'API d'IBKR ne dépasse jamais les limites contractuelles du courtier.
 * **Simulation et *Mocking* pour les Tests :** Le *Gateway* doit être facilement substituable par une version de **Mock** pour permettre le test en isolation du **Job Manager** et du **Live Data Hub**, simulant les réponses et les latences de l'API.
