@@ -174,6 +174,12 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 
 ---
 
+## IV. System Core
+
+
+
+---
+
 ### III. Pipeline Core (Noyau de Pipeline)
 
 Le cœur de la stratégie, exécutant la logique complexe de sélection d'actifs, d'optimisation et d'évaluation du risque.
