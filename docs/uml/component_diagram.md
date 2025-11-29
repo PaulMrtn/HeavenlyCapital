@@ -34,7 +34,11 @@ Le DIL est l'orchestrateur de la persistance des *data sets. Sa responsabilité 
     * **Data Preprocessor** : **Composant requis** pour standardiser le *payload* de données.
     * *SQL Alchemy* : **Package/Framework requis** (ORM) utilisé pour l'abstraction et l'efficacité des opérations CRUD.
 
+#### Notes
 
+* **Isolation de la Transaction (Atomicité) :** Le DIL doit garantir que chaque appel à l'`IDatabaseWriter` est traité comme une **transaction atomique** (ACID). Ceci est critique pour l'intégrité des données financières (soit l'écriture est complète, soit elle est annulée).
+* **Mécanismes de Sauvegarde (Batching) :** Implémentation de mécanismes de **mise en lot (Batching)** pour les écritures à haut débit (ex: *ticks* de prix ou journaux agrégés). Cela réduit la charge d'I/O sur la base de données en groupant les insertions dans une seule transaction.
+  
 ### **Data Access Layer (DAL)**
 
 Le DAL est la couche d'**abstraction de la lecture** qui fournit des méthodes simplifiées et optimisées pour requêter l'intégralité des *data sets* stockés. Il agit comme un **intermédiaire de service** permettant aux composants clients (stratégies, *risk monitors*) de consommer des données sans connaissance directe du *schema* ou de la complexité du **Database Connector**.
