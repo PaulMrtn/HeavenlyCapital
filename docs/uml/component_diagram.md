@@ -212,6 +212,18 @@ Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorit
 
 * **Gestion de la Priorité d'Exécution :** Définir et appliquer une **règle de priorité** basée sur le `mode` de la session (ex: `LIVE` > `PAPER`). L'`IExecutionContextProvider` doit exposer la priorité pour les composants critiques comme l'**Order Manager** et le **Job Manager**.
 
+
+### **Thread Manager**
+
+Le **Thread Manager** est la couche d'abstraction qui gère la **concurrence** au sein du système. Il est responsable de l'**allocation des ressources physiques** (threads/processus) et des **mécanismes logiques de synchronisation**. Ses objectifs principaux sont :
+1.  **Partition des Ressources :** Création de **pools de ressources séparés** (ex: Pool I/O vs Pool CPU) pour empêcher qu'une tâche intensive en calcul ne bloque les threads des ordres d'urgence, garantissant ainsi une faible latence.
+2.  **Synchronisation Sécurisée :** Fournir les outils d'abstraction (verrous, sémaphores) nécessaires aux composants clients pour **éviter les conditions de course (*race conditions*)** lors de l'accès aux données partagées (ex: *cache* de prix).
+
+* **Interfaces Fournies / Requises :**
+    * **IThreadPoolExecutor** : **Interface fournie** pour soumettre une fonction ou une tâche au *thread pool* pour une exécution asynchrone non bloquante.
+    * **IJobSubmission** : **Interface requise** pour orchestrer l'exécution des ordres et des tâches planifiées qui ont été parallélisées.
+    * *Primitives de Concurrence* : **Package/Framework requis** pour l'implémentation de la logique de parallélisation (ex: verrous, sémaphores, futures).
+
 ---
 
 ### III. Pipeline Core (Noyau de Pipeline)
