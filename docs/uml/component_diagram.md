@@ -89,10 +89,6 @@ Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ord
 * **Gestion des IDs :** Maintenir un *mapping* fiable entre l'**ID interne** (`order_id`) de l'objet `Order` et l'**ID du courtier** (`broker_order_id`). Cette correspondance est vitale pour la traçabilité, la gestion des exécutions et les opérations d'annulation (*cancelation*) via l'API de courtage.
 Ce cœur gère les opérations critiques nécessitant une faible latence, notamment l'exécution d'ordres et la surveillance immédiate.
 
-  
-* **Portfolio State Manager** : Maintient l'état actuel et précis du portefeuille (positions, liquidités, P&L).
-* **Risk Monitor** : Effectue des contrôles de risque pré- et post-trade en temps réel.
-
 
 ### **Portfolio State Manager (PSM)**
 
@@ -114,8 +110,50 @@ Ce cœur gère les opérations critiques nécessitant une faible latence, notamm
 * **Gestion de l'Atomicité du Rééquilibrage :** Les requêtes d'ordres générées par le rééquilibrage doivent être traitées comme une **transaction atomique**. Si l'ensemble des requêtes ne peut pas être soumis ou validé, aucune partie des ordres ne doit être envoyée.
 
 
+### **Risk Monitor**
+
+Ce composant est actif **uniquement durant l'ouverture du marché**. Son rôle est de surveiller en continu l'état du marché par rapport aux positions actives et aux limites de risque prédéfinies. Il lit les prix les plus récents depuis l'**Interface Cache** du **Live Data Hub**. Si une métrique de risque (ex: niveau de stop-loss atteint, dépassement de la tolérance maximale) est déclenchée, il génère des **requêtes d'ordres d'urgence** qui sont envoyées à l'**Order Manager** pour une exécution rapide.
+
+* **Interfaces Fournies / Requises :**
+    * **ICacheReader** : **Interface requise** pour lire les cotations de prix marché en temps réel depuis le **Live Data Hub**.
+    * **IPortfolioStateReader** : **Interface requise** pour lire l'état actuel du portefeuille (valorisation, marges, etc.) du **Portfolio State Manager**.
+    * **IOrderCreator** : **Interface requise** pour émettre des ordres d'urgence (*stop loss* ou de couverture) vers l'**Order Manager**.
+    * **IDataReader** : **Interface requise** (utilisée en phase de *post-market*) pour charger le `RiskSnapshot` initial depuis la base de données.
+
+* **Data Classes :**
+    * **RiskSnapshot** : Data Class interne qui contient, après chargement initial, l'ensemble des données de risque nécessaires à la surveillance en temps réel (positions, stop-loss, tolérances maximales par actif, etc.).
+
+#### Notes
+
+* **Priorisation d'Urgence :** Les requêtes d'ordres émises par le *Risk Monitor* doivent inclure un **attribut de priorité maximale** pour garantir que l'**Order Manager** soumette l'ordre sans délai (*fast-lane*).
+* **Robustesse aux Inputs Extrêmes :** Le module doit faire l'objet de **tests unitaires rigoureux** simulant des scénarios extrêmes (ex: chute de prix soudaine, prix nul/négatif) afin d'assurer que la logique de déclenchement d'urgence est robuste et stable.
+* **Filtrage du Bruit (*Noise Filtering*) :** Intégration d'une **logique de confirmation** des seuils de risque (ex: seuil atteint sur deux *ticks* consécutifs ou maintenu pendant une durée minimale) pour éviter les faux déclenchements basés sur des bruits de marché éphémères.
+* **Mécanisme de *Kill Switch* :** Le *Risk Monitor* doit être capable de déclencher un **mécanisme d'arrêt d'urgence global** en cas de défaillance critique, qui comprend l'annulation de tous les ordres actifs et la désactivation des algorithmes de trading.
 
 
+### **Job Manager**
+
+Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workflow** du système. Ses objectifs principaux sont :
+1.  **Orchestration :** Il est cadencé par les événements du **Market Clock** et gère l'exécution des tâches selon leur planification et leurs **dépendances** prédéfinies (`ScheduledJob`).
+2.  **Files d'Attente :** Il implémente un **mécanisme de file d'attente prioritaire** pour traiter les ordres urgents (Risk Monitor) devant les tâches régulières (Rebalancing).
+3.  **Tolérance aux Pannes et Reprise :** Il assure la **tolérance aux pannes** et la **reprise** des tâches non-terminales en cas d'échec, en utilisant l'historique de `JobExecution`.
+
+* **Interfaces Fournies / Requises :**
+    * **IJobSubmission** : **Interface fournie** pour recevoir les requêtes de tâches immédiates ou prioritaires (ex: Ordres du **Order Manager**).
+    * **IMarketEventSubscriber** : **Interface requise** pour écouter les événements de cadencement du **Market Clock**.
+    * **IDatabaseWriter** : **Interface requise** (via le DIL) pour la persistance des statuts d'exécution et d'ordres.
+    * **ILogService** : **Interface requise** pour journaliser les détails de l'exécution (`JobExecution`).
+
+* **Data Classes :**
+    * **ScheduledJob** : Représente la définition d'une tâche planifiée au sein du système.
+    * **JobExecution** : Représente une instance unique de l'exécution d'une tâche (historique, statut, horodatages).
+
+###  Notes
+
+* **Gestion des Dépendances (Workflow) :** Mise en œuvre d'un moteur de *workflow* permettant de définir des **dépendances strictes** entre les tâches (ex: Tâche B ne s'exécute que si Tâche A a le statut `COMPLETED_SUCCESS`).
+* **Mécanisme de File d'Attente Prioritaire :** La file d'attente doit garantir que les ordres urgents (avec l'attribut de priorité maximale) sont traités et soumis à l'**IBKR Gateway** avant toutes les autres tâches, y compris l'envoi en masse d'ordres de *rebalancing*.
+* **Tolérance aux Pannes et Reprise :** Implémentation d'une **logique de *retry*** limitée pour les échecs transitoires, ainsi qu'un mécanisme de notification critique pour les échecs non récupérables, en se basant sur le statut de `JobExecution`.
+* **Atomicité de l'Ordre :** Lors de la soumission d'ordres (via `IJobSubmission`), le Job Manager doit s'assurer que l'intégralité du *payload* d'ordres est bien transmise à l'**IBKR Order Sender** pour maintenir le principe d'**Atomicité du Rééquilibrage** défini dans le PSM.
 
 
 ---
