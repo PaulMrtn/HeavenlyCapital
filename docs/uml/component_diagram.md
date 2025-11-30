@@ -275,8 +275,8 @@ Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence de
     * **ILogger** : **Interface requise** (via le Log Service) pour journaliser les événements clés, les échecs d'étape, et la latence d'exécution.
     * **Asset Selection / Filter Manager / Portfolio Optimizer / Risk Manager / Data Integrity Engine** : **Composants requis** pour l'exécution séquentielle.
 
-
-#### **Pipeline Data Object Transfer (PipelineDOT)**
+#### Version provisoire :
+### **Pipeline Data Object Transfer (PipelineDOT)**
 
 Le PipelineDOT est l'objet de données centralisé qui transite entre tous les composants du Pipeline Core. Il assure l'atomicité et la traçabilité des données à chaque étape de transformation.
 
@@ -284,6 +284,7 @@ Le PipelineDOT est l'objet de données centralisé qui transite entre tous les c
 | :--- | :--- | :--- | :--- |
 | **`pipeline_id`** | UUID | Identifiant unique de l'exécution du Pipeline. | Généré par le Strategy Engine |
 | **`execution_timestamp`** | DateTime | Horodatage de début de l'exécution. | Généré par le Strategy Engine |
+| **`execution_mode`** | Enum (VECTORIZED, ITERATIVE) | Définit le mode de calcul utilisé (Vectorisé pour la vitesse, Itératif pour la précision). | Généré par le Strategy Engine |
 | **`strategy_parameters`** | StrategyParams Object | Ensemble complet des règles et des contraintes d'exécution. | Lecture par tous |
 | **`market_data_snapshot`** | MarketData Object | Conteneur des données de marché brutes (prix, volumes) et des structures de risque/rendement. **Source : Couche de Données (Database).** | Data Layer |
 | **`eligible_assets`** | List<AssetID> | Liste des actifs présélectionnés pour l'analyse. | Asset Selection |
@@ -292,12 +293,6 @@ Le PipelineDOT est l'objet de données centralisé qui transite entre tous les c
 | **`risk_diagnostics`** | RiskMetrics Object | Ensemble des métriques et du statut de conformité calculés (VaR, statut $\sum w$, etc.). | Risk Manager |
 | **`integrity_status`** | Enum (Status) | Statut final du contrôle d'intégrité et de réconciliation (`VALID`, `WARNING`, `CRITICAL_FAILURE`). | Data Integrity Engine |
 
-#### Version provisoire 
-* **PipelineDOT** : Conteneur principal des données et des résultats circulant entre les étapes. Il inclut :
-    * `execution_mode` (Enum : `VECTORIZED` ou `ITERATIVE`).
-    * `market_data_snapshot` : Les données de marché, potentiellement matricielles ($T \times N$).
-    * `strategy_parameters` : La configuration des étapes internes.
-    * `portfolio_target` : Le résultat final de l'allocation.
 
 #### Notes
 
