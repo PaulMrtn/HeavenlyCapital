@@ -287,7 +287,7 @@ Le PipelineDOT est l'objet de données centralisé qui transite entre tous les c
 | :--- | :--- | :--- | :--- |
 | **`pipeline_id`** | UUID | Identifiant unique de l'exécution du Pipeline. | Strategy Engine |
 | **`execution_timestamp`** | DateTime | Horodatage de début de l'exécution. | Strategy Engine |
-| **`execution_mode`** | Enum (VECTORIZED, ITERATIVE) | Définit le mode de calcul utilisé (Vectorisé, Itératif). | Backtest Engine \ Strategy Engine |
+| **`execution_mode`** | Enum (VECTORIZED, ITERATIVE) | Définit le mode de calcul utilisé (Vectorisé, Itératif). | Backtest Engine / Strategy Engine |
 | **`strategy_parameters`** | StrategyParams Object | Ensemble complet de paramètres pour l'ensemble des composants de la pipeline. | Lecture par tous |
 | **`market_data_snapshot`** | MarketData Object | Conteneur des données de marché. (Source : Database) | Data Access Layer |
 | **`eligible_assets`** | List<AssetID> | Liste des actifs sélectionnés pour l'analyse. | Asset Selection |
