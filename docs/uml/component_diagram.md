@@ -288,6 +288,12 @@ Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence de
 
 * **Monitoring :** L'exécution du **Pipeline Manager** doit rapporter au `Monitoring Module` le temps d'exécution total de la Pipeline (latence de décision).
 
+### **Asset Selection**
+
+L'*Asset Selection* est la première étape de transformation dans le Pipeline. Son rôle est de réduire l'univers d'actifs disponibles aux seuls actifs éligibles. Les critères sont structurellement prédéfinis par la stratégie mais leurs seuils sont variables pour permettre l'optimisation paramétrique.
+
+* **Interfaces Fournies / Requises :**
+    * **ISelector** : **Interface fournie** par le `Asset Selection` pour appliquer les critères de sélection et mettre à jour le `PipelineDOT`.
 
 ---
   
