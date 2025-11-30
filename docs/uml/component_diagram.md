@@ -370,7 +370,7 @@ Le but principal de ce composant est d'**étudier les métriques de performance 
     * **IBacktestRunner** : **Interface fournie** regroupant l'ensemble des méthodes pour contrôler la simulation (lancer, mettre en pause, arrêter, configurer).
     * **IDatabaseWriter** : **Interface requise** pour enregistrer et persister les résultats finaux de la simulation de backtest.
 
-#### ** BacktestRunODT** : 
+#### **BacktestRunODT** : 
 
 | Attribut | Type de Donnée | Définition |
 | :--- | :--- | :--- |
