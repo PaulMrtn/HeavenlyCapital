@@ -262,20 +262,8 @@ Le **Log Service** est le composant d'audit central qui garantit la **traçabili
 * **Data Classes :**
     * **EventLog** : Journal structuré de tous les événements critiques du système, liant l'événement à sa session, son type d'entité, et fournissant un *payload* de détails complet.
 
----
 
-### VI. Utilitaires
-
-* **Reporting Manager** : Génère des rapports de performance et d'activité du système.
-#### TODO
-* **Notification Manager** : Envoie des alertes aux utilisateurs ou aux systèmes externes.
-#### TODO
-* **Config, Path, Params** : **Interfaces/Paramètres**
----
-
-
-
-### III. Pipeline Core (Noyau de Pipeline)
+### VI. Pipeline Core (Noyau de Pipeline)
 
 ### **Pipeline Manager**
 
@@ -300,6 +288,8 @@ Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence de
 
 * **Monitoring :** L'exécution du **Pipeline Manager** doit rapporter au `Monitoring Module` le temps d'exécution total de la Pipeline (latence de décision).
 
+
+---
   
 * **Asset Selection** : Applique des critères d'éligibilité pour sélectionner l'univers d'actifs.
 * **Filter Manager** : Applique des filtres basés sur des indicateurs techniques ou fondamentaux.
@@ -319,3 +309,11 @@ Ce cœur est dédié à l'évaluation des performances des stratégies sur des d
 
 ---
 
+### VI. Utilitaires
+
+* **Reporting Manager** : Génère des rapports de performance et d'activité du système.
+#### TODO
+* **Notification Manager** : Envoie des alertes aux utilisateurs ou aux systèmes externes.
+#### TODO
+* **Config, Path, Params** : **Interfaces/Paramètres**
+---
