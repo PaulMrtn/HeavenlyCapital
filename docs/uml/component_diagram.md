@@ -388,6 +388,23 @@ Le **Backtest Engine** permet la simulation des stratégies sur des données his
 * **Walk-Forward**: Le moteur intégrera un mécanisme de séparation des données d'entraînement/validation, permettant à l'utilisateur de choisir les dates de *split*.
 * **Multi-Treading et Throttling** : Support d'un mode sans tête (*headless mode*) et d'un *Throttling* pour optimiser la vitesse lors des exécutions parallélisées.
 
+### **Parametric Optimizer**
+
+Le **Parametric Optimizer** est une extension optionnelle du **Backtest Engine**. Son objectif est de trouver la combinaison optimale de paramètres (*`strategy_parameters`*) pour une stratégie donnée, en maximisant une metric sur une période d'entraînement (In-Sample). Il accomplit ceci en ajustant itérativement les paramètres de la pipeline et en lançant des simulations via le **Backtest Engine**. Les méthodes utilisées incluent le **Balayage (Grid Search)**, l'**Optimisation Bayésienne** (optuna). 
+
+* **Interfaces Fournies / Requises :**
+    * **IParameterOptimizer** : **Interface fournie** pour configurer l'espace de recherche, la fonction objectif et lancer l'optimisation.
+    * **IBacktestRunner** : **Interface requise** pour exécuter les simulations du Pipeline pour chaque combinaison de paramètres testée.
+    * **IDatabaseWriter** : **Interface requise** pour enregistrer l'historique de l'optimisation.
+
+#### Data Classes
+
+* **OptimizationResult** : Contient le meilleur jeu de paramètres trouvé, le score de la fonction objectif associé, et la performance Out-of-Sample correspondante.
+
+#### Notes
+
+* **Gestion du Parallelisme** :Le composant doit implémenter un système de **Worker Pool** pour exécuter les tests de paramètres en **parallèle** (multiprocessing ou distribué).
+* **Visualisation en Temps Réel (Monitoring)** : Fournir une interface pour visualiser la progression de l'optimisation en temps réel (ex: convergence Bayésienne, score du meilleur paramètre).
 ---
 
 ### VI. Utilitaires
