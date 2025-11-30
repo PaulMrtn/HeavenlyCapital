@@ -277,9 +277,30 @@ Le **Log Service** est le composant d'audit central qui garantit la **traçabili
 
 ### III. Pipeline Core (Noyau de Pipeline)
 
-Le cœur de la stratégie, exécutant la logique complexe de sélection d'actifs, d'optimisation et d'évaluation du risque.
+### **Pipeline Manager**
 
-* **Pipeline Manager** : Orchestre l'exécution séquentielle des étapes de la stratégie.
+Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence des étapes de transformation** englobant le processus de **sélection d'actif**, le **filtrage** sur l'univers, l'**optimisation** des composants et le **contrôle du risque** qui détermineront le **Portefeuille Cible**. Il permet le choix de la **procédure de calcul**  (`Vectorisé` ou `Itératif`).
+
+* **Interfaces Fournies / Requises :**
+    * **IPipelineExecutor** : **Interface fournie** par le `Pipeline Manager` pour lancer l'exécution du Pipeline, prenant le `PipelineDOT` en entrée.
+    * **IDatabaseWriter** : **Interface requise** (via le DIL) pour la persistance des résultats finaux (Portefeuille Cible) et des diagnostics de la Pipeline.
+    * **ILogger** : **Interface requise** (via le Log Service) pour journaliser les événements clés, les échecs d'étape, et la latence d'exécution.
+    * **Asset Selection / Filter Manager / Portfolio Optimizer / Risk Manager / Data Integrity Engine** : **Composants requis** pour l'exécution séquentielle.
+
+#### Data Classes
+
+#### Version provisoire 
+* **PipelineDOT** : Conteneur principal des données et des résultats circulant entre les étapes. Il inclut :
+    * `execution_mode` (Enum : `VECTORIZED` ou `ITERATIVE`).
+    * `market_data_snapshot` : Les données de marché, potentiellement matricielles ($T \times N$).
+    * `strategy_parameters` : La configuration des étapes internes.
+    * `portfolio_target` : Le résultat final de l'allocation.
+
+#### Notes
+
+* **Monitoring :** L'exécution du **Pipeline Manager** doit rapporter au `Monitoring Module` le temps d'exécution total de la Pipeline (latence de décision).
+
+  
 * **Asset Selection** : Applique des critères d'éligibilité pour sélectionner l'univers d'actifs.
 * **Filter Manager** : Applique des filtres basés sur des indicateurs techniques ou fondamentaux.
 * **Portfolio Optimizer** : Calcule les poids optimaux des actifs sélectionnés pour le portefeuille.
