@@ -314,10 +314,28 @@ Le **Portfolio Optimizer** est la **troisième étape de transformation** dans l
 #### Notes
 
 * **Format de Sortie pour le Strategy Engine :** Le `portfolio_target` doit embarquer les informations necessaire en plus des poids $\mathbf{w}_{\text{cible}}$ afin d'effectuer les calculs de rééquilibrage, de frictions et de conformité effectués par le Portfolio State Manager, utilisé par le Strategy Engine.
-  
+
+
+### **Risk Manager**
+
+Le **Risk Manager** est la **quatrième étape de transformation** dans le Pipeline. Il agit comme un **Contrôleur de Conformité et de Contraintes (Compliance and Constraint Checker)** sur le Portefeuille Cible théorique ($\mathbf{w}_{\text{cible}}$) généré par le **Portfolio Optimizer**.
+
+Son rôle est de :
+1.  **Évaluer le risque** : Calculer les métriques de risque globales (ex: VaR, Stress-Test, Drawdown Max anticipé) du portefeuille cible proposé.
+2.  **Appliquer les contraintes** : Vérifier la conformité de ce portefeuille aux **mandats de risque externes** et aux **limites de trading**, **ce qui inclut la vérification que la somme des poids du portefeuille est conforme au capital alloué.**
+3.  **Valider ou Rejeter** : Si le risque est jugé acceptable, le portefeuille est validé et transmis. Si les contraintes sont violées (en mode production), le Manager **rejette la solution complète et génère une erreur critique.**
+
+* **Interfaces Fournies / Requises :**
+    * **IRiskEvaluator** : **Interface fournie** par le `Risk Manager` pour lancer l'évaluation et la conformité du Portefeuille Cible.
+
+#### Notes
+
+* **Implémentation de Modes de Risque :** Le Manager doit proposer des modes de calcul de risque configurables (**Fast-Check** pour le mode LIVE) afin de garantir que l'étape n'introduise pas de latence excessive en production.
+* **Audit et Traçabilité :** En cas de rejet critique, le Manager doit générer un **rapport de diagnostic détaillé** persistant, spécifiant la contrainte exacte violée pour faciliter l'audit.
+
+
 ---
 
-* **Risk Manager** : Évalue et contraint le risque global généré par l'optimisation.
 * **Data Integrity Engine** : Assure que les données utilisées par le pipeline sont valides et non corrompues.
 
 ---
