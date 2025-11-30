@@ -275,7 +275,22 @@ Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence de
     * **ILogger** : **Interface requise** (via le Log Service) pour journaliser les événements clés, les échecs d'étape, et la latence d'exécution.
     * **Asset Selection / Filter Manager / Portfolio Optimizer / Risk Manager / Data Integrity Engine** : **Composants requis** pour l'exécution séquentielle.
 
-#### Data Classes
+
+#### **Pipeline Data Object Transfer (PipelineDOT)**
+
+Le PipelineDOT est l'objet de données centralisé qui transite entre tous les composants du Pipeline Core. Il assure l'atomicité et la traçabilité des données à chaque étape de transformation.
+
+| Attribut | Type de Donnée | Description | Composant Clé (Responsable) |
+| :--- | :--- | :--- | :--- |
+| **`pipeline_id`** | UUID | Identifiant unique de l'exécution du Pipeline. | Généré par le Strategy Engine |
+| **`execution_timestamp`** | DateTime | Horodatage de début de l'exécution. | Généré par le Strategy Engine |
+| **`strategy_parameters`** | StrategyParams Object | Ensemble complet des règles et des contraintes d'exécution. | Lecture par tous |
+| **`market_data_snapshot`** | MarketData Object | Conteneur des données de marché brutes (prix, volumes) et des structures de risque/rendement. **Source : Couche de Données (Database).** | Data Layer |
+| **`eligible_assets`** | List<AssetID> | Liste des actifs présélectionnés pour l'analyse. | Asset Selection |
+| **`filtered_assets`** | List<AssetID> | Liste finale des actifs ayant passé le filtrage binaire (ACCEPTED / REJECTED). | Filter Manager |
+| **`portfolio_target`** | PortfolioTarget Object | **Portefeuille Cible final** avec les poids ($\mathbf{w}_{\text{cible}}$), créé par l'Optimizer et validé/mis à jour par le Risk Manager. | Portfolio Optimizer / Risk Manager |
+| **`risk_diagnostics`** | RiskMetrics Object | Ensemble des métriques et du statut de conformité calculés (VaR, statut $\sum w$, etc.). | Risk Manager |
+| **`integrity_status`** | Enum (Status) | Statut final du contrôle d'intégrité et de réconciliation (`VALID`, `WARNING`, `CRITICAL_FAILURE`). | Data Integrity Engine |
 
 #### Version provisoire 
 * **PipelineDOT** : Conteneur principal des données et des résultats circulant entre les étapes. Il inclut :
