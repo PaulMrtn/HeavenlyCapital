@@ -1,3 +1,5 @@
+# Diagramme des Composants UML
+
 ## I. Data Management
 
 Ce cœur est responsable de l'ingestion, du nettoyage, de la persistance et de la mise à disposition des données.
