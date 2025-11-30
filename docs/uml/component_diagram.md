@@ -403,8 +403,24 @@ Le **Parametric Optimizer** est une extension optionnelle du **Backtest Engine**
 
 #### Notes
 
-* **Gestion du Parallelisme** :Le composant doit implémenter un système de **Worker Pool** pour exécuter les tests de paramètres en **parallèle** (multiprocessing ou distribué).
-* **Visualisation en Temps Réel (Monitoring)** : Fournir une interface pour visualiser la progression de l'optimisation en temps réel (ex: convergence Bayésienne, score du meilleur paramètre).
+* **Gestion du Parallelisme** : Le composant doit implémenter un système de **Worker Pool** pour exécuter les tests de paramètres en **parallèle** (multiprocessing ou distribué).
+* **Visualisation en Temps Réel** : Fournir une interface pour visualiser la progression de l'optimisation en temps réel (ex: convergence Bayésienne, score du meilleur paramètre).
+
+### **Shock Simulator**
+
+Le **Shock Simulator** est une extension optionnelle du **Backtest Engine** dédiée à l'analyse de robustesse et aux *stress-tests*. Ce composant intervient après l'exécution de la Pipeline Core. Il prend le Portefeuille Cible ($\mathbf{w}_{\text{cible}}$) et le soumet à une simulation de crise ou de chocs de marché extrêmes. Le but est d'évaluer la résilience de l'allocation proposée en calculant des métriques de risque sous stress (ex: VaR extrême, Drawdown en cas de krach simulé) sur un choc historique, paramétrique, simulation de décorrélation, etc.
+
+* **Interfaces Fournies / Requises :**
+    * **IShockApplier** : **Interface fournie** pour configurer le scénario de choc et lancer la simulation de stress.
+    * **IDatabaseWriter** : **Interface requise** pour enregistrer et persister les résultats du stress-test.
+
+#### Data Classes
+
+* **ShockScenario** : Objet décrivant le choc à appliquer (type de choc, ampleur, durée, période historique de référence, etc.).
+
+#### Notes
+#### TODO
+
 ---
 
 ### VI. Utilitaires
