@@ -279,7 +279,7 @@ Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence de
     * **Asset Selection / Filter Manager / Portfolio Optimizer / Risk Manager / Data Integrity Engine** : **Composants requis** pour l'exécution séquentielle.
 
 #### Version provisoire :
-### **Pipeline Data Object Transfer (PipelineDOT)**
+#### **Pipeline Data Object Transfer (PipelineDOT)**
 
 Le PipelineDOT est l'objet de données centralisé qui transite entre tous les composants du Pipeline Core. Il assure l'atomicité et la traçabilité des données à chaque étape de transformation.
 
@@ -358,13 +358,37 @@ Le **Data Integrity Engine** est la **cinquième et dernière étape de transfor
 
 ---
 
-### IV. Backtest Core
+### VII. Backtest Core
 
-Ce cœur est dédié à l'évaluation des performances des stratégies sur des données historiques et à la calibration des modèles.
+### **Backtest Engine**
 
-* **Backtest Engine** : Moteur principal d'exécution pour la simulation des stratégies historiques.
-* **Parametric Optimizer** : Réalise l'optimisation des paramètres pour trouver la meilleure performance ajustée au risque.
-* **Shock Simulator** : Permet de réaliser des stress-tests en simulant des chocs de marché (e.g., Krach de 2008).
+Le **Backtest Engine** est le **moteur principal d'exécution** pour la simulation des stratégies sur des données historiques. Il agit comme un **orchestrateur temporel** qui gère l'évolution de l'état financier complet (capital, cash, positions) du portefeuille à travers le temps et intègre la simulation des frictions (fees, slippage) pour chaque ordre exécuté.
+
+Le but principal de ce composant est d'**étudier les métriques de performance et de risque d'un portefeuille sur une période historique donnée**. Avant d'invoquer la Pipeline Core, le Backtest Engine peut intégrer deux extensions optionnelles : le **Parametric Optimizer** et le **Shock Simulator**.
+
+* **Interfaces Fournies / Requises :**
+    * **IBacktestRunner** : **Interface fournie** regroupant l'ensemble des méthodes pour contrôler la simulation (lancer, mettre en pause, arrêter, configurer).
+    * **IDatabaseWriter** : **Interface requise** pour enregistrer et persister les résultats finaux de la simulation de backtest.
+
+#### ** BacktestRunODT** : 
+
+| Attribut | Type de Donnée | Définition |
+| :--- | :--- | :--- |
+| **`backtest_date`** | DateTime | Date actuelle de la simulation en cours (pas de temps). |
+| **`initial_capital`** | Decimal | Montant initial du capital alloué au début de la simulation. |
+| **`current_cash`** | Decimal | Montant actuel de la ligne de trésorerie disponible (cash) dans le portefeuille simulé. |
+| **`positions_snapshot`** | Map<AssetID, Position> | État actuel des positions détenues (quantités et prix d'achat/vente). |
+| **`order_history`** | List<OrderLog> | Historique complet des ordres simulés, avec leurs statuts d'exécution, fees et slippage appliqués. |
+| **`performance_metrics`** | Metrics Object | Structure contenant les métriques de performance cumulées (ex: P&L cumulé, Sharpe Ratio, Volatilité, Max Drawdown). |
+| **`risk_metrics_history`** | List<RiskSnapshot> | Historique séquentiel des métriques de risque calculées (ex: VaR historique, Stress-Test). |
+| **`simulation_settings`** | SimulationSettings | Paramètres spécifiques à la simulation (ex: niveau de slippage appliqué, modèle de coût de transaction). |
+| **`current_pipeline_dot`** | PipelineDOT Object | **L'objet de données de la Pipeline** en cours d'exécution pour le pas de temps actuel. |
+
+#### Notes
+
+* **Vérification de l'Inégalité de Test (Walk-Forward)** 🚶: Le moteur intégrera un mécanisme de séparation des données d'entraînement/validation, permettant à l'utilisateur de choisir les dates de *split* pour prévenir l'Overfitting.
+* **Gestion de la Vitesse et du *Throttling*** ⏱️: Support d'un mode sans tête (*headless mode*) et d'un *Throttling* pour optimiser la vitesse lors des exécutions de masse.
+* **Contrôle de l'Exactitude Temporelle (Time Travel Validation)** 🕰️: Contrôle interne strict pour garantir l'absence de *Lookahead Bias* (utilisation de données futures).
 
 ---
 
