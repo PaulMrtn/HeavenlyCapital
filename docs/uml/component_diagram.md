@@ -333,9 +333,15 @@ Le **Risk Manager** est la **quatrième étape de transformation** dans le Pipel
 * **Audit et Traçabilité :** En cas de rejet critique, le Manager doit générer un **rapport de diagnostic détaillé** persistant, spécifiant la contrainte exacte violée pour faciliter l'audit.
 
 
----
+### **Data Integrity Engine**
 
-* **Data Integrity Engine** : Assure que les données utilisées par le pipeline sont valides et non corrompues.
+Le **Data Integrity Engine** est la **cinquième et dernière étape de transformation** de votre Pipeline. Son rôle principal est de servir de test de réconciliation : il compare le `PortfolioTarget` généré par le mode **Vectorized** avec le résultat du mode **Iterative** pour identifier tout écart critique dû à la différence de méthodologie de calcul.
+
+**Target ID Check** : Lorsque cette option est activée, le DIE effectue un **Contrôle d'Existence et de Statut** sur les actifs du `PortfolioTarget` final.
+
+* **Interfaces Fournies / Requises :**
+    * **IIntegrityChecker** : **Interface fournie** par le `Data Integrity Engine` pour lancer les vérifications de réconciliation ou de sécurité.
+    * **IExchangeStatusProvider** : **Interface requise** (via l'intégration IBKR Gateway ou un service similaire) pour interroger l'état d'existence et de négociabilité des symboles (tickers) du Portefeuille Cible.
 
 ---
 
