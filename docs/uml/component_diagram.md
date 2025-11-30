@@ -264,6 +264,7 @@ Le **Log Service** est le composant d'audit central qui garantit la **traçabili
 * **Data Classes :**
     * **EventLog** : Journal structuré de tous les événements critiques du système, liant l'événement à sa session, son type d'entité, et fournissant un *payload* de détails complet.
 
+---
 
 ### VI. Pipeline Core
 
@@ -357,7 +358,7 @@ Le **Data Integrity Engine** est la **cinquième et dernière étape de transfor
 
 ---
 
-### IV. Backtest Core (Noyau de Backtesting)
+### IV. Backtest Core
 
 Ce cœur est dédié à l'évaluation des performances des stratégies sur des données historiques et à la calibration des modèles.
 
