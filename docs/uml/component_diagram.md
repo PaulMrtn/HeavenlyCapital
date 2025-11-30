@@ -321,7 +321,7 @@ Le **Portfolio Optimizer** est la **troisième étape de transformation** dans l
 Le **Risk Manager** est la **quatrième étape de transformation** dans le Pipeline. Il agit comme un **Contrôleur de Conformité et de Contraintes (Compliance and Constraint Checker)** sur le Portefeuille Cible théorique ($\mathbf{w}_{\text{cible}}$) généré par le **Portfolio Optimizer**.
 
 1.  **Évaluer le risque** : Calculer les métriques de risque globales du portefeuille cible proposé.
-2.  **Appliquer les contraintes** : Vérifier la conformité de ce portefeuille aux contrainte d'intégrité. 
+2.  **Appliquer les contraintes** : Vérifier la conformité de ce portefeuille aux contrainte fondamentale. 
 3.  **Valider ou Rejeter** : Si le risque est jugé acceptable, le portefeuille est validé et transmis. Si les contraintes sont violées (en mode production), le Manager **rejette le portefeuille cible et génère une erreur critique.**
 
 * **Interfaces Fournies / Requises :**
