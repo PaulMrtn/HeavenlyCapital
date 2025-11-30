@@ -295,11 +295,28 @@ L'**Asset Selection** est la première étape de transformation dans le Pipeline
 * **Interfaces Fournies / Requises :**
     * **ISelector** : **Interface fournie** par le `Asset Selection` pour appliquer les critères de sélection et mettre à jour le `PipelineDOT`.
 
----
+### **Filter Manager**
+
+Le **Filter Manager** est la **deuxième étape de transformation** dans le Pipeline. Son rôle est d'appliquer une **chaîne d'évaluations binaires** (`ACCEPTED`/`REJECTED`) sur chaque actif de l'univers sélectionné par l'Asset Selection. Il opère comme un **composent générique** pour les filtres, permettant l'ajout ou le retrait dynamique de sous-composants de filtrage sans altérer l'interface du Pipeline.
+
+* **Interfaces Fournies / Requises :**
+    * **IFilterService** : **Interface fournie** par le `Filter Manager` pour exécuter la séquence de filtres configurée et mettre à jour le `PipelineDOT`.
+    * **IComponentFilter** : **Interface requise/implémentée** par tout sous-composant de filtrage (ex: MacroFilter) pour garantir l'interopérabilité au sein du Manager.
+
+
+### **Portfolio Optimizer**
+
+Le **Portfolio Optimizer** est la **troisième étape de transformation** dans le Pipeline. Son rôle est de calculer la **structure d'allocation optimale** (poids $\mathbf{w}_{\text{cible}}$) des actifs filtrés. Ce composant renvoie le **Portefeuille Cible idéal**, basé sur les objectifs de la stratégie et d'un jeu de contraintes théoriques.
+
+* **Interfaces Fournies / Requises :**
+    * **IOptimizer** : **Interface fournie** par le `Portfolio Optimizer` pour recevoir les données d'entrée (actifs filtrés, matrices de risque) et retourner le `PortfolioTarget`.
+
+#### Notes
+
+* **Format de Sortie pour le Strategy Engine :** Le `portfolio_target` doit embarquer les informations necessaire en plus des poids $\mathbf{w}_{\text{cible}}$ afin d'effectuer les calculs de rééquilibrage, de frictions et de conformité effectués par le Portfolio State Manager, utilisé par le Strategy Engine.
   
-* **Asset Selection** : Applique des critères d'éligibilité pour sélectionner l'univers d'actifs.
-* **Filter Manager** : Applique des filtres basés sur des indicateurs techniques ou fondamentaux.
-* **Portfolio Optimizer** : Calcule les poids optimaux des actifs sélectionnés pour le portefeuille.
+---
+
 * **Risk Manager** : Évalue et contraint le risque global généré par l'optimisation.
 * **Data Integrity Engine** : Assure que les données utilisées par le pipeline sont valides et non corrompues.
 
