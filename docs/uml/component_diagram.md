@@ -283,16 +283,16 @@ Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence de
 
 Le PipelineDOT est l'objet de données centralisé qui transite entre tous les composants du Pipeline Core. Il assure l'atomicité et la traçabilité des données à chaque étape de transformation.
 
-| Attribut | Type de Donnée | Description | Composant Clé (Responsable) |
+| Attribut | Type de Donnée | Description | Composant |
 | :--- | :--- | :--- | :--- |
 | **`pipeline_id`** | UUID | Identifiant unique de l'exécution du Pipeline. | Strategy Engine |
 | **`execution_timestamp`** | DateTime | Horodatage de début de l'exécution. | Strategy Engine |
-| **`execution_mode`** | Enum (VECTORIZED, ITERATIVE) | Définit le mode de calcul utilisé (Vectorisé pour la vitesse, Itératif pour la précision). | Backtest Engine \ Strategy Engine |
-| **`strategy_parameters`** | StrategyParams Object | Ensemble complet des règles et des contraintes d'exécution. | Lecture par tous |
-| **`market_data_snapshot`** | MarketData Object | Conteneur des données de marché brutes (prix, volumes) et des structures de risque/rendement. **Source : Couche de Données (Database).** | Data Access Layer |
-| **`eligible_assets`** | List<AssetID> | Liste des actifs présélectionnés pour l'analyse. | Asset Selection |
+| **`execution_mode`** | Enum (VECTORIZED, ITERATIVE) | Définit le mode de calcul utilisé (Vectorisé, Itératif). | Backtest Engine \ Strategy Engine |
+| **`strategy_parameters`** | StrategyParams Object | Ensemble complet de paramètres pour l'ensemble des composants de la pipeline. | Lecture par tous |
+| **`market_data_snapshot`** | MarketData Object | Conteneur des données de marché. (Source : Database) | Data Access Layer |
+| **`eligible_assets`** | List<AssetID> | Liste des actifs sélectionnés pour l'analyse. | Asset Selection |
 | **`filtered_assets`** | List<AssetID> | Liste finale des actifs ayant passé le filtrage binaire (ACCEPTED / REJECTED). | Filter Manager |
-| **`portfolio_target`** | PortfolioTarget Object | **Portefeuille Cible final** avec les poids ($\mathbf{w}_{\text{cible}}$), créé par l'Optimizer et validé par le Risk Manager. | Portfolio Optimizer / Risk Manager |
+| **`portfolio_target`** | PortfolioTarget Object | **Portefeuille Cible** avec les poids ($\mathbf{w}_{\text{cible}}$), créé par l'Optimizer et validé par le Risk Manager. | Portfolio Optimizer / Risk Manager |
 | **`risk_diagnostics`** | RiskMetrics Object | Ensemble des métriques et du statut de conformité calculés (VaR, statut $\sum w$, etc.). | Risk Manager |
 | **`integrity_status`** | Enum (Status) | Statut final du contrôle d'intégrité et de réconciliation (`VALID`, `WARNING`, `CRITICAL_FAILURE`). | Data Integrity Engine |
 
