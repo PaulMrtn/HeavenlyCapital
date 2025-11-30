@@ -263,11 +263,11 @@ Le **Log Service** est le composant d'audit central qui garantit la **traçabili
     * **EventLog** : Journal structuré de tous les événements critiques du système, liant l'événement à sa session, son type d'entité, et fournissant un *payload* de détails complet.
 
 
-### VI. Pipeline Core (Noyau de Pipeline)
+### VI. Pipeline Core
 
 ### **Pipeline Manager**
 
-Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence des étapes de transformation** englobant le processus de **sélection d'actif**, le **filtrage** sur l'univers, l'**optimisation** des composants et le **contrôle du risque** qui détermineront le **Portefeuille Cible**. Il permet le choix de la **procédure de calcul**  (`Vectorisé` ou `Itératif`).
+Le **Pipeline Manager** est l'unité d'orchestration qui gère la **séquence des étapes de transformation** englobant le processus de **sélection d'actif**, le **filtrage** sur l'univers, l'**optimisation** des composants et le **contrôle du risque** qui détermineront le **Portefeuille Cible**. Il permet le choix de la **procédure de calcul**  (Vectorisé ou Itératif).
 
 * **Interfaces Fournies / Requises :**
     * **IPipelineExecutor** : **Interface fournie** par le `Pipeline Manager` pour lancer l'exécution du Pipeline, prenant le `PipelineDOT` en entrée.
