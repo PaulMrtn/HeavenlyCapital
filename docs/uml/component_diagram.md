@@ -362,14 +362,13 @@ Le **Data Integrity Engine** est la **cinquième et dernière étape de transfor
 
 ### **Backtest Engine**
 
-Le **Backtest Engine** est le **moteur principal d'exécution** pour la simulation des stratégies sur des données historiques. Il agit comme un **orchestrateur temporel** qui gère l'évolution de l'état financier complet (capital, cash, positions) du portefeuille à travers le temps et intègre la simulation des frictions (fees, slippage) pour chaque ordre exécuté.
-
-Le but principal de ce composant est d'**étudier les métriques de performance et de risque d'un portefeuille sur une période historique donnée**. Avant d'invoquer la Pipeline Core, le Backtest Engine peut intégrer deux extensions optionnelles : le **Parametric Optimizer** et le **Shock Simulator**.
+Le **Backtest Engine** permet la simulation des stratégies sur des données historiques, en orchestrant l'évolution de l'état financier complet (capital, cash, positions) du portefeuille à travers le temps et intègre la simulation des frictions (fees, slippage) pour chaque ordre exécuté. Ce composant est un module de recherche quantitative destiné à améliorer la stratégie de trading en déterminant les métriques de performance et les indicateurs de risque optimaux d’un portefeuille. Avant d'invoquer la Pipeline Core, le Backtest Engine peut intégrer deux extensions optionnelles : le **Parametric Optimizer** et le **Shock Simulator**.
 
 * **Interfaces Fournies / Requises :**
-    * **IBacktestRunner** : **Interface fournie** regroupant l'ensemble des méthodes pour contrôler la simulation (lancer, mettre en pause, arrêter, configurer).
+    * **IBacktestRunner** : **Interface fournie** regroupant l'ensemble des méthodes pour contrôler la simulation.
     * **IDatabaseWriter** : **Interface requise** pour enregistrer et persister les résultats finaux de la simulation de backtest.
 
+#### Version provisoire :
 #### **BacktestRunODT** : 
 
 | Attribut | Type de Donnée | Définition |
@@ -386,9 +385,8 @@ Le but principal de ce composant est d'**étudier les métriques de performance 
 
 #### Notes
 
-* **Vérification de l'Inégalité de Test (Walk-Forward)** 🚶: Le moteur intégrera un mécanisme de séparation des données d'entraînement/validation, permettant à l'utilisateur de choisir les dates de *split* pour prévenir l'Overfitting.
-* **Gestion de la Vitesse et du *Throttling*** ⏱️: Support d'un mode sans tête (*headless mode*) et d'un *Throttling* pour optimiser la vitesse lors des exécutions de masse.
-* **Contrôle de l'Exactitude Temporelle (Time Travel Validation)** 🕰️: Contrôle interne strict pour garantir l'absence de *Lookahead Bias* (utilisation de données futures).
+* **Walk-Forward**: Le moteur intégrera un mécanisme de séparation des données d'entraînement/validation, permettant à l'utilisateur de choisir les dates de *split*.
+* **Multi-Treading et Throttling** : Support d'un mode sans tête (*headless mode*) et d'un *Throttling* pour optimiser la vitesse lors des exécutions parallélisées.
 
 ---
 
