@@ -163,6 +163,7 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 * **Interfaces Fournies / Requises :**
     * **IBKR Order Sender** : **Interface fournie** pour l'envoi des ordres au courtier.
     * **IJobSubmission** : **Interface fournie** pour recevoir les requêtes de tâches immédiates ou prioritaires (ex: Ordres du **Order Manager**).
+    * **IThreadPoolExecutor** : **Interface fournie** pour soumettre une fonction ou une tâche au *thread pool* pour une exécution asynchrone non bloquante.
     * **IMarketEventSubscriber** : **Interface requise** pour écouter les événements de cadencement du **Market Clock**.
     * **IDatabaseWriter** : **Interface requise** (via le DIL) pour la persistance des statuts d'exécution et d'ordres.
     * **ILogService** : **Interface requise** pour journaliser les détails de l'exécution (`JobExecution`).
