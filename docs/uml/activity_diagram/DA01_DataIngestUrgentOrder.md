@@ -3,7 +3,7 @@
 Ce processus décrit l'acquisition des données de marché, leur transformation en Snapshots, et la gestion du flux d'exécution d'ordre d'urgence (ex: Stop-Loss), garantissant l'isolation des tâches I/O lentes (persistance) via la gestion des priorités du Thread Manager.
 
 <p align="center">
-  <img src="img/DA01_DataIngestUrgentOrder.svg" alt="diagramme" />
+  <img src="../img/DA01_DataIngestUrgentOrder.svg" alt="diagramme" />
 </p>
 
 ---
