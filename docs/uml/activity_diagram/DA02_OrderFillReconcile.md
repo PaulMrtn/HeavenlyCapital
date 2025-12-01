@@ -2,10 +2,10 @@
 
 Ce processus décrit les étapes critiques qui suivent la réception d'une confirmation d'exécution d'ordre (`Fill`). Il garantit la mise à jour atomique et immédiate de l'état financier critique via le **Portfolio State Manager (PSM)**, et sépare la journalisation d'audit dans un flux asynchrone à basse priorité.
 
-<p align="center">
-  
 </p>
-
+<p align="center">
+  <img src="../img/DA02_OrderFillReconcile.svg" alt="diagramme">
+</p>
 ---
 
 ### 1. Ingestion du Fill et Préparation Critique (Flux C)
