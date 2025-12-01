@@ -67,6 +67,7 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
     * **IBKR Data Interface** : **Interface requise** via **IBKR Gateway** pour recevoir les mises à jour de prix (*market data stream*).
     * **Cache Interface** : **Interface fournie** pour l'écriture des données en cache.
     * **Buffer Interface** : **Interface fournie** pour la mise en file d'attente des données destinées à la persistance asynchrone.
+    * **IMarketEventPublisher** : **Interface fournie** pour notifier les abonnés (comme le Job Manager) de la disponibilité d'un nouveau Snapshot.
     * *ib\_async* : **Package/Framework requis** pour la gestion de l'écoute asynchrone des événements de l'API de courtage.
 
 * **Data Classes :**
