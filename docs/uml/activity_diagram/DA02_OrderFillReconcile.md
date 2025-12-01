@@ -6,6 +6,7 @@ Ce processus décrit les étapes critiques qui suivent la réception d'une confi
 <p align="center">
   <img src="../img/DA02_OrderFillReconcile.svg" alt="diagramme">
 </p>
+
 ---
 
 ### 1. Ingestion du Fill et Préparation Critique (Flux C)
