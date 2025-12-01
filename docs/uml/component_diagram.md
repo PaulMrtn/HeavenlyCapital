@@ -161,6 +161,7 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 3.  **Tolérance aux Pannes et Reprise :** Il assure la **tolérance aux pannes** et la **reprise** des tâches non-terminales en cas d'échec, en utilisant l'historique de `JobExecution`.
 
 * **Interfaces Fournies / Requises :**
+    * **IBKR Order Sender** : **Interface fournie** pour l'envoi des ordres au courtier.
     * **IJobSubmission** : **Interface fournie** pour recevoir les requêtes de tâches immédiates ou prioritaires (ex: Ordres du **Order Manager**).
     * **IMarketEventSubscriber** : **Interface requise** pour écouter les événements de cadencement du **Market Clock**.
     * **IDatabaseWriter** : **Interface requise** (via le DIL) pour la persistance des statuts d'exécution et d'ordres.
