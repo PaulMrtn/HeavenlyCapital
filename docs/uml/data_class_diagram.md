@@ -70,8 +70,6 @@ Elle représente l’unité centrale permettant de gérer et d’orchestrer l’
   - Une session peut contenir plusieurs positions. 
 * `TradingSession` 1 --- 0..* `Trade` 
   - Une session peut contenir plusieurs trades.
-* `TradingSession` 1 --- 0..* `TickData` 
-  - Une session peut contenir plusieurs tick.
 * `TradingSession` 1 --- 0..* `EventLog` 
   - Une session peut contenir plusieurs événements.
 * `TradingSession` 1 --- 0..* `JobExecution` 
