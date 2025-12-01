@@ -1,6 +1,6 @@
-## ✅ Liste des Tâches : Diagrammes de Séquence UML
+## Liste des Tâches : Diagrammes de Séquence UML
 
-| Domaine | N° | Nom du Diagramme de Séquence | Objectif Principal | Optimisation / Concurrence | ⚠️ Notes d'Attention Critique (Conception) |
+| Domaine | N° | Nom du Diagramme de Séquence | Objectif Principal | Optimisation / Concurrence | Notes d'Attention Critique (Conception) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Système** | DS-SYS-01 | Démarrage et Initialisation du Système | Séquence séquentielle de Bootstrapping (Connexions, Config, Sessions). | Séquentiel. | Anticiper la gestion des échecs initiaux de connexion (DB/IBKR) pour basculer en état 'STOPPED' ou 'ERROR'. |
 | **Système** | DS-SYS-02 | Gestion d'une Session de Trading | Cycle de vie de la TradingSession (Créer, Démarrer, Arrêter). | Séquentiel. | Assurer l'attribution correcte de la Priorité d'Exécution (LIVE > PAPER) via l'$IExecutionContextProvider$. |
