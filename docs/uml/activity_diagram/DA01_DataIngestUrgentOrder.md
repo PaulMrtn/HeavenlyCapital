@@ -1,4 +1,4 @@
-## Processus : Ingestion de Données et Ordre d'Urgence (DA-01)
+## Processus : Ingestion des Ticks et Ordre d'Urgence (DA-01)
 
 Ce processus décrit l'acquisition des données de marché, leur transformation en Snapshots, et la gestion du flux d'exécution d'ordre d'urgence (ex: Stop-Loss), garantissant l'isolation des tâches I/O lentes (persistance) via la gestion des priorités du Thread Manager.
 
