@@ -1,6 +1,6 @@
 # Diagramme des Composants UML
 
-<img src="docs/uml/img/component_diagram.svg" alt="Diagramme de composants" width="800">
+<img src="img/component_diagram.svg" alt="Diagramme de composants" width="800">
 
 ## I. Data Management
 
