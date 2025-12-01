@@ -227,7 +227,6 @@ Le **Thread Manager** est la couche d'abstraction qui gère la **concurrence** a
 
 * **Interfaces Fournies / Requises :**
     * **IThreadPoolExecutor** : **Interface fournie** pour soumettre une fonction ou une tâche au *thread pool* pour une exécution asynchrone non bloquante.
-    * **IJobSubmission** : **Interface requise** pour orchestrer l'exécution des ordres et des tâches planifiées qui ont été parallélisées.
     * *Primitives de Concurrence* : **Package/Framework requis** pour l'implémentation de la logique de parallélisation (ex: verrous, sémaphores, futures).
 
 ---
