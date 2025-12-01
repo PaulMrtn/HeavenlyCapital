@@ -41,5 +41,5 @@ Ce chemin est déchargé pour l'audit et utilise le Pool I/O Basse Priorité.
 | **L1** | Log Service | **Génération de l'$EventLog$** structuré (Type `FILL_CREATED`, etc.). |
 | **L2** | Log Service $\rightarrow$ Thread Manager | **Soumission Tâche de Journalisation :** Le Log Service décharge la tâche I/O au Thread Manager. |
 | **L3** | Thread Manager $\rightarrow$ Log Service | Le Thread Manager affecte la tâche au **Pool I/O Basse Priorité** et démarre l'exécution. |
-| **L4** | Log Service $\rightarrow$ DIL | **Soumission de l'$EventLog$ :** Le Log Service initie l'écriture via le DIL (pour garantir l'atomicité). |
-| **L5-L6** | DIL | **Persistance Atomique :** Le DIL effectue l'écriture de l'$EventLog$ et termine le flux asynchrone. |
+| **L4** | Log Service $\rightarrow$ DIL | **Soumission de l'`EventLog` :** Le Log Service initie l'écriture via le DIL (pour garantir l'atomicité). |
+| **L5-L6** | DIL | **Persistance Atomique :** Le DIL effectue l'écriture de l'`EventLog` et termine le flux asynchrone. |
