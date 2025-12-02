@@ -71,4 +71,4 @@
 
 ### Special Topics in Quantitative Trading ###
 
-- 
+- Post–earnings-announcement drift : Etudier ce phenomene (research paper, etc), il est reliee au phnenoe de momentum  https://quantpedia.com/strategies/post-earnings-announcement-effect
