@@ -1,7 +1,7 @@
 # TODO
 
 ## Organisation du Projet
-- [ ] Créer un dépôt GitHub avec la structure de base du projet
+- [X] Créer un dépôt GitHub avec la structure de base du projet
 - [ ] Trier le contenu du SSD pour dédier le Mac entièrement au projet
 
 ## Stratégie et Conception
@@ -31,7 +31,7 @@
 - [ ] Lire la liste de lectures et annoter les concepts inconnus ou inspirants
 
 ## Data
-- [ ] Récupérer la composition historique du S&P 500 depuis 2000
+- [X] Récupérer la composition historique du S&P 500 depuis 2000
 - [ ] Préparer la base de données initiale et prévoir extension progressive
 
 ## Développement et Implémentation
@@ -39,4 +39,4 @@
 
 ## Intégration Broker
 - [ ] Se documenter sur Interactive Brokers, comprendre l’API
-- [ ] Tester le passage d’ordres en trading paper
+- [X] Tester le passage d’ordres en trading paper
