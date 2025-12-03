@@ -72,3 +72,7 @@
 ### Special Topics in Quantitative Trading ###
 
 - Post–earnings-announcement drift : Etudier ce phenomene (research paper, etc), il est reliee au phnenoe de momentum  https://quantpedia.com/strategies/post-earnings-announcement-effect
+  
+- L’auteur conclut que les outils stats/économétrie de Python sont peu fiables.
+
+- L’idée consiste à entraîner un modèle de machine learning en utilisant comme inputs les paramètres de la stratégie de trading ainsi que des indicateurs techniques (Bollinger, MACD, RSI, etc.). L’output est le rendement obtenu avec cette configuration. Une fois le modèle entraîné, on fixe les indicateurs techniques pour une période donnée, puis on effectue un grid search uniquement sur les paramètres de la stratégie : le modèle de ML prédit le rendement associé à chaque combinaison. Cela permet d’identifier rapidement les paramètres optimaux sans recalculer toute la stratégie à chaque test.
