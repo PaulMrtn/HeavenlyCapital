@@ -194,8 +194,8 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 Le **Market Clock** est l'instance unique (Singleton) et globale du système. Ce composant surveille l'heure actuelle en continu (24/7, 365 jours par an). Il est déclenché par l'heure du système et n'a aucune connaissance des jours de fermeture de marché ou des week-ends. Son rôle est de générer l'événement de réveil (Bootstrapping) à une heure prédéfinie chaque jour. Après avoir notifié le System Manager du début de la journée, il continue de surveiller les heures de transition des phases de marché pour le cadencement des processus non liés au trading (monitoring, processus de fin de journée, etc.).
 
 * **Interfaces Fournies / Requises :**
-  * IMarketEventPublisher : **Interface fournie** pour notifier le System Manager de l'événement de réveil (SYSTEM_WAKEUP) et des signaux temporels récurrents (MINUTE_TICK).
-  * Config : **Composant/Source requis** pour charger l'heure de réveil quotidienne (Bootstrapping) et la fréquence d'émission des signaux de cadencement.
+  * **IMarketEventPublisher** : **Interface fournie** pour notifier le System Manager de l'événement de réveil (SYSTEM_WAKEUP) et des signaux temporels récurrents (MINUTE_TICK).
+  * **Config** : **Composant/Source requis** pour charger l'heure de réveil quotidienne (Bootstrapping) et la fréquence d'émission des signaux de cadencement.
 
 * **Data Classes :**
   * **MarketEvent** : Journal structuré de tous les événements temporels critiques (SYSTEM_WAKEUP, MARKET_OPEN, MARKET_CLOSE) avec leur horodatage précis.
