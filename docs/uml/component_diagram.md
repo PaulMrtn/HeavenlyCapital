@@ -189,6 +189,27 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 
 ## IV. System Core
 
+### **Market Clock**
+
+Le **Market Clock** est l'instance unique (Singleton) et globale du système. Ce composant surveille l'heure actuelle en continu (24/7, 365 jours par an). Il est déclenché par l'heure du système et n'a aucune connaissance des jours de fermeture de marché ou des week-ends. Son rôle est de générer l'événement de réveil (Bootstrapping) à une heure prédéfinie chaque jour. Après avoir notifié le System Manager du début de la journée, il continue de surveiller les heures de transition des phases de marché pour le cadencement des processus non liés au trading (monitoring, processus de fin de journée, etc.).
+
+* **Interfaces Fournies / Requises :**
+  * IMarketEventPublisher : **Interface fournie** pour notifier le System Manager de l'événement de réveil (SYSTEM_WAKEUP) et des signaux temporels récurrents (MINUTE_TICK).
+  * Config : **Composant/Source requis** pour charger l'heure de réveil quotidienne (Bootstrapping) et la fréquence d'émission des signaux de cadencement.
+
+* **Data Classes :**
+  * **MarketEvent** : Journal structuré de tous les événements temporels critiques (SYSTEM_WAKEUP, MARKET_OPEN, MARKET_CLOSE) avec leur horodatage précis.
+
+
+ #### Notes
+ 
+* **Global et Singleton** : Garantit une référence temporelle unique pour toutes les parties du système.
+
+* **Déclencheur Quotidien Non Conditionnel** : S'active 365 jours par an pour générer l'événement SYSTEM_WAKEUP et démarrer la séquence d'initialisation. La vérification si c'est un jour de trading est déléguée aux couches supérieures (ex: Session Manager via un Trading Calendar).
+
+* **Cadencement Universel** : Émet des signaux récurrents (ex: MINUTE_TICK) basés sur la fréquence définie dans la configuration pour synchroniser les tâches régulières du Job Manager, y compris celles qui doivent s'exécuter les jours non-ouvrables.
+  
+
 ### **System Manager**
 
 Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorité centrale de l'application. Sa responsabilité principale est de gérer l'**état opérationnel global** (`TradingSystem`) et les dépendances fondamentales. Il orchestre le démarrage de l'ensemble des services, surveille la **santé des connexions** critiques (DB, IBKR), maintient la version du système, et sert de référent pour les ressources partagées, comme l'**état des *snapshots* de données** (`SnapshotHeader`).
