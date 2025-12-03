@@ -145,7 +145,8 @@ Elle conserve l’historique complet des runs d’un job, qu’il soit global ou
 * `JobExecution` 0..* --- 1 `ScheduledJob`
   - Chaque exécution appartient au gestionnaire de tâche.
 
-#### 1.6. `MarketEvent`
+
+#### 1.7. `MarketEvent`
 
 MarketEvent représente un signal temporel critique émis par le Market Clock. Il sert de déclencheur principal pour le System Manager et d'autres composants globaux. Ce signal est indépendant d'une session de trading spécifique mais est fondamental pour l'orchestration des phases de marché.
 
@@ -160,7 +161,7 @@ MarketEvent représente un signal temporel critique émis par le Market Clock. I
 * `MarketPhase` : (`OPEN`, `CLOSED`, `PRE_MARKET`, `POST_MARKET`, `HALTED`)
 
 **Relations entre entités :**
-* `MarketEvent` 1 --- 1 `EventLog` 
+* `MarketEvent` 1 --- 0..1 `EventLog` 
   - Un événement temporel est associé à un événement de journal. 
 * `MarketEvent` 0..* --- 1 `TradingSystem`
   - Un ou plusieurs événements temporel appartienent au système de trading (singleton).
