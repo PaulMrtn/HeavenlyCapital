@@ -2,7 +2,7 @@
 #  Activity diagram  : Cycle de Vie Quotidien 
 
 <p align="center">
-  <img src="../img/DA_00_TradingSystem_ActivityFlow.svg" width="900">
+  <img src="/img/DA_00_TradingSystem_ActivityFlow.svg" width="900">
 </p>
 
 
