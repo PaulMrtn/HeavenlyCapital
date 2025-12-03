@@ -145,6 +145,26 @@ Elle conserve l’historique complet des runs d’un job, qu’il soit global ou
 * `JobExecution` 0..* --- 1 `ScheduledJob`
   - Chaque exécution appartient au gestionnaire de tâche.
 
+#### 1.6. `MarketEvent`
+
+MarketEvent représente un signal temporel critique émis par le Market Clock. Il sert de déclencheur principal pour le System Manager et d'autres composants globaux. Ce signal est indépendant d'une session de trading spécifique mais est fondamental pour l'orchestration des phases de marché.
+
+**Attributs :**
+* **`event_id`** (`UUID`, *Primary Key*): Identifiant unique de l'événement temporel généré par le Market Clock.
+* `publisher_time` (`DateTime`): Horodatage précis de l'émission de l'événement par le Market Clock (heure du système).
+* `event_type` (`MarketEventType`): Le type de signal temporel émis.
+* `market_phase` (`MarketPhase`): Phase de marché associée au moment du déclenchement.
+
+**Énumérations :**
+* `MarketEventType` : (`SYSTEM_WAKEUP`, `PHASE_CHANGE`, `MINUTE_TICK`, `HOUR_TICK`)
+* `MarketPhase` : (`OPEN`, `CLOSED`, `PRE_MARKET`, `POST_MARKET`, `HALTED`)
+
+**Relations entre entités :**
+* `MarketEvent` 1 --- 1 `EventLog` 
+  - Un événement temporel est associé à un événement de journal. 
+* `MarketEvent` 0..* --- 1 `TradingSystem`
+  - Un ou plusieurs événements temporel appartienent au système de trading (singleton).
+
 ---
 
 ### 2. Entités de gestion des données
@@ -528,10 +548,6 @@ Il est créé lors de la fermeture d’un lot d’acquisition au travers d’un 
 * `trailing_stop_offset` (`float`): Valeur du décalage pour un Stop-Loss suiveur (NULL si non appliqué).
 * `max_unrealized_loss_pct` (`float`): Pourcentage de perte latent maximal toléré (relatif au prix d'entrée).
 * `last_market_price` (`float`): Prix de marché le plus récent connu pour cet actif au moment du snapshot.
-
-**Énumérations :**
-
-* `MarketPhase` : (`OPEN`, `CLOSED`, `PRE_MARKET`, `POST_MARKET`, `HALTED`)
 
 **Relations entre entités :**
 
