@@ -125,7 +125,8 @@ Ce cœur gère les opérations critiques nécessitant une faible latence, notamm
     * **IPortfolioStateReader** : **Interface fournie** pour exposer l'état actuel et les métriques de performance.
     * **IOrderCreator** : **Interface requise** pour soumettre les ordres de rééquilibrage à l'**Order Manager**.
     * **IDataReader** : **Interface requise** pour récupérer l'état des exécutions et les données de marché nécessaires.
-
+    * **IPortfolioTargetSubmitter : Interface fournie**  Reçois le `PortfolioTarget` final depuis **Strategy Engine** pour le processus de rééquilibrage.
+      
 * **Data Classes :**
     * **Portfolio** : Représente le conteneur de l'état global du portefeuille (liquidités, capital initial, devise).
     * **CashFlow** : Représente un mouvement de liquidité (dépôt, retrait) affectant la ligne de trésorerie.
@@ -398,10 +399,10 @@ Son rôle est d'**initier et d'orchestrer le processus de rééquilibrage** :
 
 #### Interfaces Fournies / Requises
 
-* **IStrategyEvaluator : Interface fournie** par le Strategy Engine. Permet d'interroger le moteur pour l'état de la stratégie et la nécessité d'un rééquilibrage.
+* **IStrategyProvider : Interface fournie** par le Strategy Engine. Permet d'interroger le moteur pour l'état de la stratégie et la nécessité d'un rééquilibrage.
 * **IExecutionContextProvider : Interface requise** (via le Session Manager). Nécessaire pour obtenir le contexte d'exécution (`session_id`, `mode`, `priorité`) et charger les paramètres spécifiques à la stratégie.
 * **IPipelineExecutor : Interface requise** (via le Pipeline Manager). Lance la **Pipeline Core** pour calculer l'allocation optimale.
-* **IPortfolioStateCommander : Interface requise** (via le PSM). Soumet le `PortfolioTarget` final au **PSM** pour le processus de rééquilibrage.
+* **IPortfolioTargetSubmitter : Interface requise** (via le PSM). Soumet le `PortfolioTarget` final au **PSM** pour le processus de rééquilibrage.
 * **IDataReader : Interface requise** (via le DAL). Accède aux données historiques ou fondamentales pour l'évaluation du déclencheur.
 
 #### Version provisoire :
