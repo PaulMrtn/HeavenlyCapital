@@ -385,7 +385,43 @@ Le **Data Integrity Engine** est la **cinquième et dernière étape de transfor
 
 ---
 
-### VII. Backtest Core
+
+### VIII. Strategy Engine
+
+Le **Strategy Engine** est le cœur décisionnel du système, chargé d'encapsuler la **logique d'investissement** sous la forme d'un algorithme paramétrable. Le composant doit supporter et gérer plusieurs stratégies simultanément. Il est toujours exécuté dans le **contexte d'une session unique (`TradingSession`)**, garantissant ainsi que les décisions prises (lancement de la Pipeline) utilisent le jeu de **`StrategyParameters`** et le mode d'exécution spécifiques à cette session. Pour se réaliser, il **accède aux données** nécessaires via l'interface **`IDataReader`** fournie par le **Data Access Layer (DAL)**.
+
+Son rôle est d'**initier et d'orchestrer le processus de rééquilibrage** :
+1.  Il utilise le contexte de la session pour identifier et injecter les **`StrategyParameters`** (déterminés lors de la phase de backtest) dans le flux.
+2.  Il lance l'exécution de la **Pipeline Core** (`IPipelineExecutor`) pour calculer la nouvelle allocation optimale (`PortfolioTarget`).
+3.  Il soumet ce `PortfolioTarget` au **Portfolio State Manager (PSM)** pour la traduction de cette intention en ordres d'exécution.
+
+
+#### Interfaces Fournies / Requises
+
+* **IStrategyEvaluator : Interface fournie** par le Strategy Engine. Permet d'interroger le moteur pour l'état de la stratégie et la nécessité d'un rééquilibrage.
+* **IExecutionContextProvider : Interface requise** (via le Session Manager). Nécessaire pour obtenir le contexte d'exécution (`session_id`, `mode`, `priorité`) et charger les paramètres spécifiques à la stratégie.
+* **IPipelineExecutor : Interface requise** (via le Pipeline Manager). Lance la **Pipeline Core** pour calculer l'allocation optimale.
+* **IPortfolioStateCommander : Interface requise** (via le PSM). Soumet le `PortfolioTarget` final au **PSM** pour le processus de rééquilibrage.
+* **IDataReader : Interface requise** (via le DAL). Accède aux données historiques ou fondamentales pour l'évaluation du déclencheur.
+
+#### Version provisoire :
+#### StrategyDataTransferObject (SDTO)
+
+| Attribut | Type de Donnée | Description |
+| :--- | :--- | :--- |
+| **`strategy_id`** | UUID | Identifiant unique de l'instance de stratégie. |
+| **`session_id`** | UUID | **Identifiant unique de la `TradingSession`** (Ajouté pour le contexte multi-stratégie). |
+| **`evaluation_timestamp`** | DateTime | Horodatage de l'instant où l'évaluation du rééquilibrage est effectuée. |
+| **`strategy_parameters`** | StrategyParams Object | L'ensemble des paramètres configurés appliqués à la Pipeline. |
+| **`current_market_snapshot`** | MarketData Object | Le dernier instantané de prix marché reçu (pour lecture contextuelle). |
+| **`portfolio_state_summary`** | PortfolioStateSummary Object | Un résumé de l'état actuel du portefeuille requis pour l'évaluation interne. |
+| **`rebalancing_required`** | Boolean | Le résultat de l'évaluation : `True` si les conditions de rééquilibrage sont remplies. |
+| **`last_target_portfolio`** | PortfolioTarget Object (Optionnel) | La dernière allocation cible calculée, utilisée pour le calcul de la déviation. |
+
+
+---
+
+### VIII. Backtest Core
 
 ### **Backtest Engine**
 
@@ -450,7 +486,7 @@ Le **Shock Simulator** est une extension optionnelle du **Backtest Engine** déd
 
 ---
 
-### VI. Utilitaires
+### IX. Utilitaires
 
 * **Reporting Manager** : Génère des rapports de performance et d'activité du système.
 #### TODO
