@@ -27,6 +27,8 @@ Il orchestre les sessions de trading et gère les snapshots de données associé
   - Un système de trading peut contenir de multiples sessions.
 * `TradingSystem` 1 --- 1 `SnapshotHeader` 
   - Un système de trading contient un gestionnaire de snapshots de données.
+* `TradingSystem` 1 --- 0..* `MarketDayStatus` 
+  - Un système de trading est associé à plusieurs journée de trading.
 
 
 #### 1.2. `TradingSession` 
@@ -76,6 +78,28 @@ Elle représente l’unité centrale permettant de gérer et d’orchestrer l’
   - Une session peut contenir plusieurs tâches à exécuter.
 
 
+#### 1.3. `MarketDayStatus`
+
+**MarketDayStatus** représente le statut de trading officiel pour une journée donnée sur une bourse de référence. Cette entité est déterminée de manière globale et est utilisée par le System Manager pour orchestrer la séquence de bootstrapping de la journée de trading.
+
+**Attributs :**
+
+* **`date`** (`DateTime`, *Primary Key*): La date pour laquelle le statut est calculé.
+* `exchange_name` (`string`): Le nom de la bourse de référence (ex: 'NYSE', 'LSE').
+* `market_timezone` (`string`): Fuseau horaire du marché (ex: 'America/New_York').
+* `is_trading_day` (`boolean`): TRUE si le marché est ouvert (pas un week-end ni un jour férié).
+* `day_type` (`MarketDayType`): Type de jour (ex: Trading, Holiday, Weekend).
+* `open_time` (`DateTime`): Heure de fermeture standard du marché (ex: 16:00:00).
+* `close_time` (`DateTime`): Heure de fermeture standard du marché (ex: 16:00:00).
+    
+**Énumérations :**
+* `MarketDayType` : (`TRADING`, `WEEKEND`, `HOLIDAY`)
+
+**Relations entre entités :**
+* `MarketDayStatus` 0..* --- 1 `TradingSystem`
+  - Chaque statut de jour est enregistré par le Système de Trading (Singleton).
+ 
+  
 #### 1.4. `TradingCalendar` 
 
 TradingCalendar représente la configuration temporelle d’une session de trading : horaires du marché, règles de rebalancement et jours spécifiques.
@@ -84,9 +108,6 @@ Il est attaché à une seule TradingSession (agrégation), car chaque session pe
 **Attributs :**
 
 * **`calendar_id`** (`UUID`, *Primary Key*): ID du calendrier de trading.
-* `market_timezone` (`string`): Fuseau horaire du marché (ex: 'America/New_York').
-* `market_open_time` (`DateTime`): Heure d'ouverture standard du marché (ex: 09:30:00).
-* `market_close_time` (`DateTime`): Heure de fermeture standard du marché (ex: 16:00:00).
 * `trading_days` (`List<DateTime>`): Liste des dates des jours de marché.
 * `rebalance_monthly_rule` (`List<DateTime>`): Dates spécifiques des rebalancements mensuel.
 * `rebalance_weekly_rule` (`List<int>`): Dates spécifiques des rebalancements hebdomadaires, Règle : Les jours ouvrés du mois à utiliser (ex: [5, 10, 15, 20]).
