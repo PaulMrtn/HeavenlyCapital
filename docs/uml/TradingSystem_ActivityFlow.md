@@ -14,7 +14,7 @@ Cette phase est dédiée à l'initialisation du système et au chargement des do
 
 * **Déclencheur :** Le **System Manager** sort du mode veille suite à un signal temporel programmé par le **Market Clock** (ex: 8h00 AM).
 * **Orchestration :** Le **System Manager** :
-    * Le `System Manager` calcule l'objet `MarketDayStatus` du jour en cours en utilisant `pandas_market_calendars` et le persiste en base de données (via `IDatabaseWriter`).
+    * Le `System Manager` calcule l'objet `MarketDayStatus` du jour en cours en utilisant `pandas_market_calendars`. 
 
 * **Contrôle de Jour Ouvré :**
   * **IF [MarketDayStatus.is_trading_day == TRUE]** (Jour ouvré) :
@@ -29,6 +29,8 @@ Cette phase est dédiée à l'initialisation du système et au chargement des do
     * Lien avec la base de données via le **Database Connector**.
     * Lien avec le courtier via l'**IBKR Gateway** (TWS API).
     * Statut et identification de chaque compte Interactive Brokers.
+
+* ** Phase de prepration de la persitance des donnees en DB pour la session en base de données (via `IDatabaseWriter`).
 
 ### 3. Chargement et Préparation des Données
 
