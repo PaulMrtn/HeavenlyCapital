@@ -213,7 +213,7 @@ Le **Market Clock** est l'instance unique (Singleton) et globale du système. Ce
 
 ### **System Manager**
 
-Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorité centrale de l'application. Sa responsabilité principale est de gérer l'**état opérationnel global** (`TradingSystem`) et les dépendances fondamentales. Il orchestre le démarrage de l'ensemble des services, surveille la **santé des connexions** critiques (DB, IBKR), maintient la version du système, et sert de référent pour les ressources partagées, comme l'**état des *snapshots* de données** (`SnapshotHeader`).
+Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorité centrale de l'application. Sa responsabilité principale est de gérer l'**état opérationnel global** (`TradingSystem`) et de la détermination de l'état du marché du jour, en utilisant directement le package `pandas_market_calendars`. Il orchestre le démarrage de l'ensemble des services, surveille la **santé des connexions** critiques (DB, IBKR), maintient la version du système, et sert de référent pour les ressources partagées, comme l'**état des *snapshots* de données** (`SnapshotHeader`).
 
 * **Interfaces Fournies / Requises :**
     * **ISystemMonitor** : **Interface fournie** pour exposer l'état de santé du système (statuts des connexions, version, `SystemStatus`).
@@ -221,13 +221,15 @@ Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorit
     * **IConnectionMonitor** : **Interface requise** (exposée par le Database Connector) pour interroger le statut de la connexion DB (`db_conn_status`).
     * **IBKRStatusChecker** : **Interface requise** (exposée par l'IBKR Gateway) pour interroger le statut de la connexion au courtier (`ibkr_conn_status`).
     * **ISessionManager** : **Interface requise** (exposée par le Session Manager) pour commander le démarrage ou l'arrêt des sessions.
+    * **IStatusResolver** : **Interface requise** ppour obtenir le statut global du jour (`MarketDayStatus`).
 
 * **Data Classes :**
     * **TradingSystem** : Représente l'instance unique du système de trading, supervisant son état opérationnel, l'état des connexions (DB, IBKR), la version et orchestrant les `TradingSession`.
+    * **MarketDayStatus** : Indique le type de cycle pour la journée de trading à la suite du reveil du ``TradingSystem`.
 
 #### Notes
 
-* **Mécanisme de Démarrage Séquencé (Bootstrapping) :** Le *System Manager* doit gérer le démarrage des services dans un **ordre séquentiel strict** : Connexion DB $\rightarrow$ Connexion IBKR $\rightarrow$ Chargement Config Globale $\rightarrow$ Démarrage des Sessions.
+* **Mécanisme de Démarrage Séquencé (Bootstrapping) :** Le *System Manager* doit gérer le démarrage des services dans un **ordre séquentiel strict** : MarketDay Status Resolver $\rightarrow$ Connexion DB $\rightarrow$ Connexion IBKR $\rightarrow$ Chargement Config Globale $\rightarrow$ Démarrage des Sessions.
 * **Gestion des Échecs Critiques :** Définir une politique claire en cas d'échec d'une dépendance critique (ex: perte de connexion DB en cours de marché) et ordonner au **Job Manager** de déclencher le *Kill Switch* et de basculer en mode `STOPPED`.
 
 ### **Session Manager**
