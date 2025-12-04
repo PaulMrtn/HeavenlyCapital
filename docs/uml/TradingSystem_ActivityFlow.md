@@ -1,5 +1,3 @@
-
-
 ## Diagram Activity : Cycle de Vie Quotidien 
 
 <p align="center">
@@ -13,10 +11,14 @@ Cette phase est dédiée à l'initialisation du système et au chargement des do
 ### 1. Initialisation du Cycle de Marché
 
 * **Déclencheur :** Le **System Manager** sort du mode veille suite à un signal temporel programmé par le **Market Clock** (ex: 8h00 AM).
-* **Orchestration :** Le **System Manager** orchestre :
+* **Orchestration :** Le **System Manager** :
     * Il utilise le **Sessions Manager** pour instancier les sessions de trading (LIVE/PAPER).
     * Il consulte le **TradingCalendar** pour chaque session afin de vérifier si la date correspond à un jour ouvré.
-    * Il détermine le type de journée (Jour de Rebalancement vs. Jour de Trading Normal).
+* **Contrôle de Jour Ouvré :**
+      * **IF [Is Market Open == TRUE]** (Jour ouvré) :
+        * Le **System Manager** détermine le type de journée (Jour de Rebalancement vs. Jour de Trading Normal), et le processus continue vers l'étape 2.
+      * **ELSE** (Jour non ouvré, week-end ou jour férié) :
+        * Le **System Manager** bascule immédiatement en phase **Off-Cycle** (Veille).
 
 ### 2. Vérifications Préalables (Intégrité et Connexion)
 
