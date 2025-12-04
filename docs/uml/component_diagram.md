@@ -97,15 +97,15 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 * **Gestion Centralisée des Connexions et Résilience :** Le *Gateway* doit assurer la **reconnexion automatique** et la gestion des échecs de connexion pour garantir une disponibilité maximale des flux de données et d'ordres.
 * **Gestion des Rate Limits :** Implémentation d'un **mécanisme de *throttling*** interne pour s'assurer que le nombre total de requêtes (temps réel, historiques, ordres) transmises à l'API d'IBKR ne dépasse jamais les limites contractuelles du courtier.
 * **Simulation et *Mocking* pour les Tests :** Le *Gateway* doit être facilement substituable par une version de **Mock** pour permettre le test en isolation du **Job Manager** et du **Live Data Hub**, simulant les réponses et les latences de l'API.
-* **Composant de Réconciliation (Note de Sécurité) :** Bien que l'**IBKR Gateway** lise l'état du compte IBKR, un **Reconciliation Module** dédié est nécessaire pour comparer périodiquement l'état interne du **Portfolio State Manager** avec l'état réel du compte courtier, afin de détecter tout écart et d'assurer la sécurité.
+* **Composant de Réconciliation (Note de Sécurité) :** Bien que l'**IBKR Gateway** lise l'état du compte IBKR, un **Reconciliation Module** dédié est nécessaire pour comparer périodiquement l'état interne du **Portfolio Manager** avec l'état réel du compte courtier, afin de détecter tout écart et d'assurer la sécurité.
   
 
 ### **Order Manager**
 
-Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ordres**. Il reçoit les **requêtes de création d'ordre** provenant de différents émetteurs (**Portfolio State Manager** pour le rééquilibrage, **Risk Monitor** pour les ordres d'urgence comme le *stop loss*). Il crée l'objet **Order** structuré et le transmet pour exécution au **Job Manager**. Il est également responsable de la mise à jour du statut de l'ordre tout au long de son cycle via une fonction `updateStatus`.
+Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ordres**. Il reçoit les **requêtes de création d'ordre** provenant de différents émetteurs (**Portfolio Manager** pour le rééquilibrage, **Risk Monitor** pour les ordres d'urgence comme le *stop loss*). Il crée l'objet **Order** structuré et le transmet pour exécution au **Job Manager**. Il est également responsable de la mise à jour du statut de l'ordre tout au long de son cycle via une fonction `updateStatus`.
 
 * **Interfaces Fournies / Requises :**
-    * **IOrderCreator** : **Interface fournie** pour la réception des requêtes de création d'ordre (utilisée par **Portfolio State Manager** et **Risk Monitor**).
+    * **IOrderCreator** : **Interface fournie** pour la réception des requêtes de création d'ordre (utilisée par **Portfolio Manager** et **Risk Monitor**).
     * **IJobSubmission** : **Interface requise** pour l'envoi de l'ordre nouvellement créé vers le **Job Manager** pour l'exécution asynchrone.
 
 * **Data Classes :**
@@ -117,9 +117,9 @@ Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ord
 Ce cœur gère les opérations critiques nécessitant une faible latence, notamment l'exécution d'ordres et la surveillance immédiate.
 
 
-### **Portfolio State Manager (PSM)**
+### **Portfolio Manager (PM)**
 
-**Description :** Le PSM est le composant pivot qui maintient l'état financier et les métriques de performance du portefeuille. Il consolide les mouvements (entrées/sorties de *cash*, exécutions d'ordres lues via la base) pour générer l'état actuel (agrégé par lot). Il exécute la fonction de rééquilibrage : il compare l'état actuel à un état cible (futur) pour générer les **requêtes d'ordres** (*rebalancing*), assurant la gestion des lignes de *cash* et l'émission des ordres via l'**Order Manager**.
+**Description :** Le PM est le composant pivot qui maintient l'état financier et les métriques de performance du portefeuille. Il consolide les mouvements (entrées/sorties de *cash*, exécutions d'ordres lues via la base) pour générer l'état actuel (agrégé par lot). Il exécute la fonction de rééquilibrage : il compare l'état actuel à un état cible (futur) pour générer les **requêtes d'ordres** (*rebalancing*), assurant la gestion des lignes de *cash* et l'émission des ordres via l'**Order Manager**.
 
 * **Interfaces Fournies / Requises :**
     * **IPortfolioStateReader** : **Interface fournie** pour exposer l'état actuel et les métriques de performance.
@@ -134,7 +134,7 @@ Ce cœur gère les opérations critiques nécessitant une faible latence, notamm
 
 #### Notes
 
-* **Simulation de l'État Cible (Lookahead) :** Le PSM doit être capable de **simuler** l'état futur (`Portfolio`) en intégrant les ordres de rééquilibrage, les coûts de transaction et le *slippage* anticipé **avant** de soumettre les ordres.
+* **Simulation de l'État Cible (Lookahead) :** Le PM doit être capable de **simuler** l'état futur (`Portfolio`) en intégrant les ordres de rééquilibrage, les coûts de transaction et le *slippage* anticipé **avant** de soumettre les ordres.
 * **Gestion de l'Atomicité du Rééquilibrage :** Les requêtes d'ordres générées par le rééquilibrage doivent être traitées comme une **transaction atomique**. Si l'ensemble des requêtes ne peut pas être soumis ou validé, aucune partie des ordres ne doit être envoyée.
 
 
@@ -144,7 +144,7 @@ Ce composant est actif **uniquement durant l'ouverture du marché**. Son rôle e
 
 * **Interfaces Fournies / Requises :**
     * **ICacheReader** : **Interface requise** pour lire les cotations de prix marché en temps réel depuis le **Live Data Hub**.
-    * **IPortfolioStateReader** : **Interface requise** pour lire l'état actuel du portefeuille (valorisation, marges, etc.) du **Portfolio State Manager**.
+    * **IPortfolioStateReader** : **Interface requise** pour lire l'état actuel du portefeuille (valorisation, marges, etc.) du **Portfolio Manager**.
     * **IOrderCreator** : **Interface requise** pour émettre des ordres d'urgence (*stop loss* ou de couverture) vers l'**Order Manager**.
     * **IDataReader** : **Interface requise** (utilisée en phase de *post-market*) pour charger le `RiskSnapshot` initial depuis la base de données.
 
@@ -183,7 +183,7 @@ Le **Job Manager** est l'**ordonnanceur central** et l'**orchestrateur du workfl
 * **Gestion des Dépendances (Workflow) :** Mise en œuvre d'un moteur de *workflow* permettant de définir des **dépendances strictes** entre les tâches (ex: Tâche B ne s'exécute que si Tâche A a le statut `COMPLETED_SUCCESS`).
 * **Mécanisme de File d'Attente Prioritaire :** La file d'attente doit garantir que les ordres urgents (avec l'attribut de priorité maximale) sont traités et soumis à l'**IBKR Gateway** avant toutes les autres tâches, y compris l'envoi en masse d'ordres de *rebalancing*.
 * **Tolérance aux Pannes et Reprise :** Implémentation d'une **logique de *retry*** limitée pour les échecs transitoires, ainsi qu'un mécanisme de notification critique pour les échecs non récupérables, en se basant sur le statut de `JobExecution`.
-* **Atomicité de l'Ordre :** Lors de la soumission d'ordres (via `IJobSubmission`), le Job Manager doit s'assurer que l'intégralité du *payload* d'ordres est bien transmise à l'**IBKR Order Sender** pour maintenir le principe d'**Atomicité du Rééquilibrage** défini dans le PSM.
+* **Atomicité de l'Ordre :** Lors de la soumission d'ordres (via `IJobSubmission`), le Job Manager doit s'assurer que l'intégralité du *payload* d'ordres est bien transmise à l'**IBKR Order Sender** pour maintenir le principe d'**Atomicité du Rééquilibrage** défini dans le PM.
 
 
 ---
@@ -354,7 +354,7 @@ Le **Portfolio Optimizer** est la **troisième étape de transformation** dans l
 
 #### Notes
 
-* **Format de Sortie pour le Strategy Engine :** Le `portfolio_target` doit embarquer les informations necessaire en plus des poids $\mathbf{w}_{\text{cible}}$ afin d'effectuer les calculs de rééquilibrage, de frictions et de conformité effectués par le Portfolio State Manager, utilisé par le Strategy Engine.
+* **Format de Sortie pour le Strategy Engine :** Le `portfolio_target` doit embarquer les informations necessaire en plus des poids $\mathbf{w}_{\text{cible}}$ afin d'effectuer les calculs de rééquilibrage, de frictions et de conformité effectués par le Portfolio Manager, utilisé par le Strategy Engine.
 
 
 ### **Risk Manager**
@@ -394,7 +394,7 @@ Le **Strategy Engine** est le cœur décisionnel du système, chargé d'encapsul
 Son rôle est d'**initier et d'orchestrer le processus de rééquilibrage** :
 1.  Il utilise le contexte de la session pour identifier et injecter les **`StrategyParameters`** (déterminés lors de la phase de backtest) dans le flux.
 2.  Il lance l'exécution de la **Pipeline Core** (`IPipelineExecutor`) pour calculer la nouvelle allocation optimale (`PortfolioTarget`).
-3.  Il soumet ce `PortfolioTarget` au **Portfolio State Manager (PSM)** pour la traduction de cette intention en ordres d'exécution.
+3.  Il soumet ce `PortfolioTarget` au **Portfolio Manager (PM)** pour la traduction de cette intention en ordres d'exécution.
 
 
 #### Interfaces Fournies / Requises
@@ -402,7 +402,7 @@ Son rôle est d'**initier et d'orchestrer le processus de rééquilibrage** :
 * **IStrategyProvider : Interface fournie** par le Strategy Engine. Permet d'interroger le moteur pour l'état de la stratégie et la nécessité d'un rééquilibrage.
 * **IExecutionContextProvider : Interface requise** (via le Session Manager). Nécessaire pour obtenir le contexte d'exécution (`session_id`, `mode`, `priorité`) et charger les paramètres spécifiques à la stratégie.
 * **IPipelineExecutor : Interface requise** (via le Pipeline Manager). Lance la **Pipeline Core** pour calculer l'allocation optimale.
-* **IPortfolioTargetSubmitter : Interface requise** (via le PSM). Soumet le `PortfolioTarget` final au **PSM** pour le processus de rééquilibrage.
+* **IPortfolioTargetSubmitter : Interface requise** (via le PM). Soumet le `PortfolioTarget` final au **PM** pour le processus de rééquilibrage.
 * **IDataReader : Interface requise** (via le DAL). Accède aux données historiques ou fondamentales pour l'évaluation du déclencheur.
 
 #### Version provisoire :
