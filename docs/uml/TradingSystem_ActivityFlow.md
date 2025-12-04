@@ -14,12 +14,11 @@ Cette phase est dédiée à l'initialisation du système et au chargement des do
 
 * **Déclencheur :** Le **System Manager** sort du mode veille suite à un signal temporel programmé par le **Market Clock** (ex: 8h00 AM).
 * **Orchestration :** Le **System Manager** :
-    * Il utilise le **Sessions Manager** pour instancier les sessions de trading (LIVE/PAPER).
     * Le `System Manager` calcule l'objet `MarketDayStatus` du jour en cours en utilisant `pandas_market_calendars` et le persiste en base de données (via `IDatabaseWriter`).
 
 * **Contrôle de Jour Ouvré :**
   * **IF [MarketDayStatus.is_trading_day == TRUE]** (Jour ouvré) :
-    * Le `System Manager` utilise le `Session Manager` pour instancier les sessions.
+    * Le `System Manager` utilise le `Session Manager` pour instancier les sessions (LIVE/PAPER).
     * Le processus continue vers l'étape 2.
   * **ELSE** (Jour non ouvré, week-end ou jour férié) :
     * Le **System Manager** bascule immédiatement en phase **Off-Cycle** (Veille).
