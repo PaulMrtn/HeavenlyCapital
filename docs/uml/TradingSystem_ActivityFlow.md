@@ -4,6 +4,8 @@
   <img src="img/DA_00_TradingSystem_ActivityFlow.svg" width="900">
 </p>
 
+---
+
 ### I. Phase Pre-Trade (Préparation à l'Ouverture)
 
 Cette phase est dédiée à l'initialisation du système et au chargement des données en préparation du début de la session de trading.
