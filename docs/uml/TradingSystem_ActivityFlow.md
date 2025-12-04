@@ -31,7 +31,7 @@ Cette phase est dédiée à l'initialisation du système et au chargement des do
 Cette étape lance des processus en parallèle pour garantir que la prise de décision puisse être immédiate à l'ouverture :
 
 * **Préparation Trading et Risque :**
-    * **Jour de Rebalancement :** Le **Portfolio State Manager (PSM)** charge en mémoire les ordres de rebalancement créés lors de la phase post-marché de la dernière session de trading et stockés en base.
+    * **Jour de Rebalancement :** Le **Portfolio Manager (PM)** charge en mémoire les ordres de rebalancement créés lors de la phase post-marché de la dernière session de trading et stockés en base.
     * **Jour de Trading Normal :** Le **Risk Monitor** charge en mémoire les données de **stop-loss** et de take-profit relatives aux positions en cours.
 * **Démarrage Acquisition des Données :**
     * L'**IBKR Gateway** initialise la connexion pour être prêt à émettre les **tick data** (prix) et recevoir les **fills** (exécutions) dès l'ouverture.
@@ -60,9 +60,9 @@ Dès la transition vers la phase In-Trade, les flux asynchrones sont activés :
 ### 6. Boucle de Décision et d'Exécution
 
 * Le **Risk Monitor** lit le cache temps réel pour surveiller les prix des positions actives et vérifier les conditions de **stop-loss** chargées.
-* Le **Portfolio State Manager (PSM)** évalue les conditions d'achat/vente (selon la stratégie).
+* Le **Portfolio Manager (PM)** évalue les conditions d'achat/vente (selon la stratégie).
 * L'**Order Manager** soumet les ordres (préparés ou nouvellement générés) au courtier via l'**IBKR Gateway**.
-* Le **Portfolio State Manager (PSM)** traite les exécutions (`Fills`) reçues de manière asynchrone pour mettre à jour les positions et les lots de PnL.
+* Le **Portfolio Manager (PM)** traite les exécutions (`Fills`) reçues de manière asynchrone pour mettre à jour les positions et les lots de PnL.
 
 ---
 
@@ -71,7 +71,7 @@ Dès la transition vers la phase In-Trade, les flux asynchrones sont activés :
 ### 7. Clôture des Opérations et Séquence d'Audit
 
 * **Déclencheur :** Le **System Manager** reçoit le signal de fermeture du **Market Clock**.
-* **Réconciliation Finale :** Le **Portfolio State Manager (PSM)** effectue une **réconciliation** pour comparer l'état final du portefeuille (positions, cash) avec les données d'Interactive Brokers, garantissant l'intégrité.
+* **Réconciliation Finale :** Le **Portfolio Manager (PM)** effectue une **réconciliation** pour comparer l'état final du portefeuille (positions, cash) avec les données d'Interactive Brokers, garantissant l'intégrité.
 
 ### 8. Persistance et Audit (Rapport de Fin de Journée)
 
