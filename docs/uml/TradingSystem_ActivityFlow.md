@@ -30,7 +30,7 @@ Cette phase est dédiée à l'initialisation du système et au chargement des do
     * Lien avec le courtier via l'**IBKR Gateway** (TWS API).
     * Statut et identification de chaque compte Interactive Brokers.
 
-* ** Phase de prepration de la persitance des donnees en DB pour la session en base de données (via `IDatabaseWriter`).
+* Prépration de la persitance des données pour la session de trading en base de données (via `IDatabaseWriter`).
 
 ### 3. Chargement et Préparation des Données
 
