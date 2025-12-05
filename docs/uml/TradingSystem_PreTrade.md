@@ -7,7 +7,7 @@
 
 La Phase Pré-Trade est une étape de *bootstrapping*. Son objectif est de garantir que tous les composants sont **instanciés, configurés, et opérationnellement prêts à communiquer** avant la réception du signal d'ouverture du marché. La séquence est conçue pour assurer la gestion des erreurs et l'injection des dépendances.
 
-### I. Démarrage et contrôles de résilience (Orchestration par `System Manager`)
+### 1. Démarrage et contrôles de résilience (Orchestration par `System Manager`)
 
 Cette séquence est séquentielle et intègre une logique de **Retry (tentatives)** pour gérer les pannes transitoires de services.
 
@@ -28,7 +28,7 @@ Cette séquence est séquentielle et intègre une logique de **Retry (tentatives
 
 * Dans le cas d'une `ERROR` lors des tests de connectivité avec la DB ou IBKR alors, il faut envoyer une notification d'urgence (`Notification Manager`).
 
-### II. Instanciation des composants et injection des dépendances / configs
+### 2. Instanciation des composants et injection des dépendances / configs
 
 Les composants globaux sont instanciés en premier. La lecture des configurations depuis la base de données est centralisée par le `System Manager`.
 
@@ -47,7 +47,7 @@ Les composants globaux sont instanciés en premier. La lecture des configuration
         * **H-Check Unitaire (Local) :** Une vérification est effectuée sur le PM, RM et OM pour confirmer leur bonne construction avec les configs injectées.
   
     
-### III. Chargement des Données et Parallélisation
+### 3. Chargement des Données et Parallélisation
 
 L'objectif est d'assurer que les managers locaux ont leurs données opérationnelles chargées et que le canal de données temps réel est prêt.
 
@@ -60,7 +60,7 @@ L'objectif est d'assurer que les managers locaux ont leurs données opérationne
 * **Synchronisation** : Le `System Manager` attend la complétion des deux branches.
 
 
-### IV. Validation Opérationnelle Croisée (HEART CHECK)
+### 4. Validation Opérationnelle Croisée (HEART CHECK)
 
 C'est l'étape de validation finale. Elle vérifie que les **liens de communication asynchrones** sont établis.
 
@@ -70,7 +70,7 @@ C'est l'étape de validation finale. Elle vérifie que les **liens de communicat
     * **Portfolio Manager (PM) :** Le PM est-il correctement injecté dans l'OM et prêt à recevoir/traiter les confirmations d'exécution (Fills) ?
 * **Log :** Si tous les tests réussissent, le `System Manager` enregistre le statut "System Ready" et entre dans l'état d'attente.
 
-### V. Transition vers la Phase In-Trade
+### 5. Transition vers la Phase In-Trade
 
 * Le `System Manager` attend le signal `MARKET_OPEN` émis par le `Market Clock`.
 * Dès réception, il bascule l'état du système en phase **In-Trade**.
