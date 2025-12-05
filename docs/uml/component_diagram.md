@@ -263,8 +263,8 @@ Le **Thread Manager** est la couche d'abstraction qui gère la **concurrence** a
 1.  **Partition des Ressources :** Création de **pools de ressources séparés** (ex: Pool I/O vs Pool CPU) pour empêcher qu'une tâche intensive en calcul ne bloque les threads des ordres d'urgence, garantissant ainsi une faible latence.
 2.  **Synchronisation Sécurisée :** Fournir les outils d'abstraction (verrous, sémaphores) nécessaires aux composants clients pour **éviter les conditions de course (*race conditions*)** lors de l'accès aux données partagées (ex: *cache* de prix).
 3.  Double Pool I/O : allouer deux pools de threads I/O distincts au DIL lors de la phase In-Market :
-  * I/O Critical Pool : Utilisé uniquement par les transactions à faible volume/haute criticité (ex: Fills, Orders, Statuts).
-  * I/O Bulk Pool : Utilisé pour l'ingestion massive des données de marché (Ticks, Snapshots, Logs) pour le batching et le buffering.
+   I/O Critical Pool : Utilisé uniquement par les transactions à faible volume/haute criticité (ex: Fills, Orders, Statuts).
+   I/O Bulk Pool : Utilisé pour l'ingestion massive des données de marché (Ticks, Snapshots, Logs) pour le batching et le buffering.
 
 
 * **Interfaces Fournies / Requises :**
