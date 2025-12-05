@@ -86,7 +86,9 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 
 ### **IBKR Gateway**
 
-**Description :** Le composant **IBKR Gateway** sert de **couche d'abstraction (wrapper)** au-dessus de la librairie d'accès API (`ib_async`). Il est le point de contact **unique et résilient** avec l'API d'Interactive Brokers, gérant toutes les communications. Il est responsable de la **Gestion Centralisée des Connexions** et de la **Gestion des Rate Limits** du courtier. Il fournit deux interfaces pour séparer les flux : l'envoi d'ordres et la réception de données. Il intègre également des fonctions de simulation (*mocking*) pour les tests de résilience. Lors de la réception d'une exécution (Fill), le Gateway agit comme un Publisher et émet un événement FILL_RECEIVED vers le bus de messagerie interne. Il ne gère pas directement la logique de PnL ou le statut final de l'ordre.
+Le composant **IBKR Gateway** sert de **couche d'abstraction (wrapper)** au-dessus de la librairie d'accès API (`ib_async`). Il est le point de contact **unique et résilient** avec l'API d'Interactive Brokers, gérant toutes les communications. Il est responsable de la **Gestion Centralisée des Connexions** et de la **Gestion des Rate Limits** du courtier. Il fournit deux interfaces pour séparer les flux : l'envoi d'ordres et la réception de données. Il intègre également des fonctions de simulation (*mocking*) pour les tests de résilience. 
+
+Lors de la réception d'une exécution (Fill), le Gateway agit comme un Publisher et émet un événement FILL_RECEIVED vers le bus de messagerie interne. Il ne gère pas directement la logique de PnL ou le statut final de l'ordre.
 
 * **Interfaces Fournies / Requises :**
     * **IBKR Order Sender** : **Interface fournie** pour l'envoi des ordres au courtier (utilisée par le **Job Manager**).
@@ -102,7 +104,9 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 
 ### **Order Manager**
 
-Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ordres**. Il reçoit les **requêtes de création d'ordre** provenant de différents émetteurs (**Portfolio Manager** pour le rééquilibrage, **Risk Monitor** pour les ordres d'urgence comme le *stop loss*). Il crée l'objet **Order** structuré et le transmet pour exécution au **Job Manager**. Il est également responsable de la mise à jour du statut de l'ordre tout au long de son cycle via une fonction `updateStatus`. L'Order Manager est un Subscriber à l'événement FILL_RECEIVED. À la réception du Fill, il met à jour de manière asynchrone les champs filled_qty, remaining_qty, et le status de l'objet Order correspondant. Cette action est critique mais limitée à l'état de l'ordre.
+Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ordres**. Il reçoit les **requêtes de création d'ordre** provenant de différents émetteurs (**Portfolio Manager** pour le rééquilibrage, **Risk Monitor** pour les ordres d'urgence comme le *stop loss*). Il crée l'objet **Order** structuré et le transmet pour exécution au **Job Manager**. Il est également responsable de la mise à jour du statut de l'ordre tout au long de son cycle via une fonction `updateStatus`. 
+
+L'Order Manager est un Subscriber à l'événement FILL_RECEIVED. À la réception du Fill, il met à jour de manière asynchrone les champs filled_qty, remaining_qty, et le status de l'objet Order correspondant. Cette action est critique mais limitée à l'état de l'ordre.
 
 * **Interfaces Fournies / Requises :**
     * **IOrderCreator** : **Interface fournie** pour la réception des requêtes de création d'ordre (utilisée par **Portfolio Manager** et **Risk Monitor**).
@@ -120,7 +124,9 @@ Le rôle de ce composant est de **centraliser la gestion du cycle de vie des ord
 
 ### **Portfolio Manager (PM)**
 
-Le PM est le composant pivot qui maintient l'état financier et les métriques de performance du portefeuille. Il consolide les mouvements (entrées/sorties de *cash*, exécutions d'ordres lues via la base) pour générer l'état actuel (agrégé par lot). Il exécute la fonction de rééquilibrage : il compare l'état actuel à un état cible (futur) pour générer les **requêtes d'ordres** (*rebalancing*), assurant la gestion des lignes de *cash* et l'émission des ordres via l'**Order Manager**. Le Portfolio Manager est également un Subscriber à l'événement `FILL_RECEIVED`. Son rôle est de consommer le `Fill` pour déclencher la logique comptable : création/mise à jour des `AcquisitionLot` et `RealizationLot`, mise à jour de la `Position` et persistance de ces états financiers via l'`IDatabaseWriter`.
+Le PM est le composant pivot qui maintient l'état financier et les métriques de performance du portefeuille. Il consolide les mouvements (entrées/sorties de *cash*, exécutions d'ordres lues via la base) pour générer l'état actuel (agrégé par lot). Il exécute la fonction de rééquilibrage : il compare l'état actuel à un état cible (futur) pour générer les **requêtes d'ordres** (*rebalancing*), assurant la gestion des lignes de *cash* et l'émission des ordres via l'**Order Manager**. 
+
+Le Portfolio Manager est également un Subscriber à l'événement `FILL_RECEIVED`. Son rôle est de consommer le `Fill` pour déclencher la logique comptable : création/mise à jour des `AcquisitionLot` et `RealizationLot`, mise à jour de la `Position` et persistance de ces états financiers via l'`IDatabaseWriter`.
 
 * **Interfaces Fournies / Requises :**
     * **IPortfolioStateReader** : **Interface fournie** pour exposer l'état actuel et les métriques de performance.
