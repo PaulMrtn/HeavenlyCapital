@@ -1,11 +1,9 @@
-## Diagramme d'Activité : Phase II - In-Trade
+## Diagramme d'Activité : Phase II - Post-Trade
 
 <p align="center">
   <img src="img/DA_03_TradingSystem_PostTrade.svg" width="900">
 </p>
 
-
-Cette phase représente le cœur opérationnel du système de trading, dédiée au traitement des flux de données à haute fréquence, à la prise de décision en temps réel, à l'exécution priorisée des ordres et à la persistance critique.
 
 ---
 
