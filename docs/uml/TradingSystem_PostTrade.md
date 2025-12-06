@@ -57,7 +57,7 @@ Si le jour suivant est marqué comme un **Jour de Rebalancement**, le calcul de 
 1.  Le **Job Manager** utilise un **Nœud de Jonction** pour bloquer le lancement de l'**Exécution du Strategy Engine** jusqu'à ce que :
     * Le Reporting/Audit soit complété.
     * Si le prochainne session de trading est une session de Rebalancement).
-2.  Une fois le calcul du **Portfolio Target** effectué par le **Strategy Engine**, l'objectif (le plan d'ordres) est soumis pour **Persistance Atomique (A12)**.
+2.  Une fois le calcul du **Portfolio Target** effectué par le **Strategy Engine**, l'objectif (le plan d'ordres) est soumis pour **Persistance Atomique**.
 3.  Le **Thread Manager** alloue cette tâche au **Pool I/O Critical**, et le **Job Manager** l'ordonnance. Cette utilisation du pool critique garantit que le plan du lendemain est sauvegardé immédiatement et de manière sécurisée.
 
 #### 9.2 Persistance de la Configuration (I/O Critical Parallèle)
