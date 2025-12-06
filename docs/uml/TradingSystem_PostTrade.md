@@ -1,10 +1,15 @@
 ## Diagramme d'Activité : Phase II - In-Trade
 
+<p align="center">
+  <img src="img/DA_03_TradingSystem_PostTrade.svg" width="900">
+</p>
+
+
 Cette phase représente le cœur opérationnel du système de trading, dédiée au traitement des flux de données à haute fréquence, à la prise de décision en temps réel, à l'exécution priorisée des ordres et à la persistance critique.
 
 ---
 
-### 5. Traitement des Flux Temps Réel : Acquisition et Distribution
+### 6. Traitement des Flux Temps Réel : Acquisition et Distribution
 
 Dès la réception du signal d'ouverture du marché par le **System Manager**, le **Live Data Hub (LDH)** initie le processus d'acquisition et de distribution des données de marché. L'IBKR Gateway commence l'acquisition des **Tick Data** (flux de prix haute fréquence) de manière asynchrone, marquant le début de l'activité du cœur temps réel.
 
@@ -17,21 +22,21 @@ Un **Nœud de Fork** distribue le Snapshot généré en deux flux parallèles, u
 * **Flux Temps Réel (Fast-Lane) :** Le Snapshot est immédiatement écrit dans un **cache en mémoire vive**. Ce cache à faible latence permet un accès instantané aux prix les plus récents par le **Risk Monitor** et le **Portfolio Manager** pour la prise de décision.
 * **Flux de Persistance (Slow-Lane) :** Le Snapshot est mis en file d'attente (buffer) pour une **écriture différée** en base de données.
 
-#### 5.1 Persistance des Données de Marché (Bulk I/O)
+#### 6.1 Persistance des Données de Marché (Bulk I/O)
 
 La persistance des Snapshots est traitée comme une tâche d'arrière-plan massive (**Bulk I/O**). Le **Live Data Hub** soumet l'ordre de **FLUSH (vidage)** du buffer au **DIL (Data Ingestion Layer)**. Le DIL formule la requête et la soumet au **Job Manager**, spécifiant explicitement le besoin d'utiliser le **Pool I/O Bulk**. Le **Job Manager** délègue ensuite au **Thread Manager** l'exécution de la tâche en allouant un thread du **Pool I/O Bulk** dédié. Cette isolation garantit que ces écritures lourdes et lentes ne bloquent jamais le thread I/O critique utilisé pour l'envoi d'ordres ou la persistance transactionnelle. Le DIL exécute alors l'écriture physique en base.
 
 ---
 
-### 6. Boucle de Décision et d'Exécution
+### 7. Boucle de Décision et d'Exécution
 
 La boucle de décision et d'exécution s'exécute à très haute fréquence, pilotée par les données du cache temps réel et orchestrée par le **Risk Monitor** et le **Portfolio Manager (PM)**.
 
-#### 6.1 Surveillance et Ordres d'Urgence
+#### 7.1 Surveillance et Ordres d'Urgence
 
 Le **Risk Monitor** lit en continu le cache temps réel pour obtenir le prix le plus récent et surveille l'état de chaque position active. Si une condition de sortie pré-définie, comme un **Stop-Loss** ou un **Take-Profit**, est atteinte, le **Risk Monitor** génère immédiatement un **Ordre d'Urgence**. Cet ordre est envoyé à l'**Order Manager** avec une indication de **Priorité Maximale**, court-circuitant l'évaluation de stratégie standard.
 
-#### 6.2 Traitement des Ordres Standards et Exécution
+#### 7.2 Traitement des Ordres Standards et Exécution
 
 Le **Portfolio Manager (PM)** évalue les conditions d'achat/vente selon la stratégie en cours pour générer des Ordres Standards si nécessaire. L'émission d'ordres par le PM est strictement conditionnée :
 
@@ -41,7 +46,7 @@ Le **Portfolio Manager (PM)** évalue les conditions d'achat/vente selon la stra
 
 L'**Order Manager** reçoit tous les ordres (Urgent ou Standard) et les soumet immédiatement au **Job Manager** pour arbitrage. Le **Job Manager** utilise sa logique de priorité pour garantir que les **Ordres d'Urgence** sont traités avant les Ordres Standards. Le Job Manager délègue ensuite la tâche d'envoi au **Thread Manager**, spécifiant le **Pool I/O Critical**. Le **Thread Manager** alloue un thread du Pool I/O Critical pour que l'IBKR Gateway exécute la transmission de l'ordre au courtier, assurant la latence minimale pour l'exécution critique.
 
-#### 6.3 Gestion des Exécutions (Fills) et Persistance Critique
+#### 7.3 Gestion des Exécutions (Fills) et Persistance Critique
 
 La réception d'une exécution effective (**Fill**) est un événement critique qui nécessite une action immédiate et atomique. L'IBKR Gateway reçoit le Fill et émet immédiatement un événement **'Fill Received'**.
 
