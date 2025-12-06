@@ -53,8 +53,8 @@ Le PM génère des ordres si, et seulement si, l'une des conditions suivantes es
 
 * **Règle de Fonctionnement :**
 
-* * **Si c'est un Jour de Rééquilibrage :** Les ordres massifs générés par la correction du portefeuille sont **systématiquement soumis à l'Algorithme d'Optimisation Intraday** afin d'optimiser le prix moyen d'exécution sur la journée. La décision d'émettre des ordres est donc une combinaison de la **logique de Rééquilibrage** et de la **tactique de *timing***.
-* * **Si ce n'est PAS un Jour de Rééquilibrage :** Le PM **ne génère aucun ordre** basé sur l'état global du portefeuille. Le PM n'émet un ordre que si une autre fonctionnalité (ex: *Cash Management* ou la stratégie intraday elle-même) le lui demande explicitement, agissant ainsi comme un simple **pass-through** pour des ordres de maintenance. **Par défaut, en dehors d'un jour de rééquilibrage, le PM reste silencieux.**
+  * **Si c'est un Jour de Rééquilibrage :** Les ordres massifs générés par la correction du portefeuille sont **systématiquement soumis à l'Algorithme d'Optimisation Intraday** afin d'optimiser le prix moyen d'exécution sur la journée. La décision d'émettre des ordres est donc une combinaison de la **logique de Rééquilibrage** et de la **tactique de *timing***.
+  * **Si ce n'est PAS un Jour de Rééquilibrage :** Le PM **ne génère aucun ordre** basé sur l'état global du portefeuille. Le PM n'émet un ordre que si une autre fonctionnalité (ex: *Cash Management* ou la stratégie intraday elle-même) le lui demande explicitement, agissant ainsi comme un simple **pass-through** pour des ordres de maintenance. **Par défaut, en dehors d'un jour de rééquilibrage, le PM reste silencieux.**
 
 
 * L'**Order Manager** reçoit tous les ordres (Urgent ou Standard) et les soumet immédiatement au **Job Manager** pour arbitrage.
