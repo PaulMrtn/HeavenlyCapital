@@ -72,22 +72,26 @@ Dès la transition vers la phase In-Trade, les flux asynchrones sont activés :
 
 ---
 
-### III. Phase Post-Trade (Réconciliation et Audit)
+### III. Phase Post-Trade (Réconciliation, Audit et Persistance)
+
+Cette phase est dédiée à la **clôture sécurisée**, à l'**audit complet** des transactions, à la **persistance des données de marché** et à la **préparation atomique** du cycle suivant, en utilisant le **Job Manager** pour l'orchestration fiable des tâches d'E/S.
 
 ### 7. Clôture des Opérations et Séquence d'Audit
 
-* **Déclencheur :** Le **System Manager** reçoit le signal de fermeture du **Market Clock**.
-* **Réconciliation Finale :** Le **Portfolio Manager (PM)** effectue une **réconciliation** pour comparer l'état final du portefeuille (positions, cash) avec les données d'Interactive Brokers, garantissant l'intégrité.
+Déclencheur : Le **System Manager** reçoit le signal de fermeture du **Market Clock** et bascule le système en état `POST_TRADE`.
 
-### 8. Persistance et Audit (Rapport de Fin de Journée)
+* **Réconciliation Finale :** Le **Portfolio Manager (PM)** exécute une réconciliation en comparant l'état final du portefeuille (positions, cash) avec les données du courtier (IBKR Gateway), garantissant l'intégrité. Tout écart est enregistré (événement `DATA_INTEGRITY_CHECK`). Cette tâche est de **priorité critique** pour l'intégrité financière.
 
-* **Mise à Jour Historique :** Le **Data Ingestion Layer (DIL)** finalise l'écriture de toutes les données (ticks, fills, lots, trades, logs) en attente (queue) et met à jour les données historiques via une API dédiée. **(Cette étape doit précéder la vérification du jour suivant).**
-* **Rapport d'Audit :** Le **Monitoring Module** et le **Reporting Manager** génère le rapport complet de la journée (PnL, métriques de performance, erreurs d'audit) et l'enregistre en base de données via le **Data Ingestion Layer (DIL)**.
+### 8. Persistance Orchestrée et Rapport de Fin de Journée
+
+Toutes les opérations de persistance sont soumises au **Job Manager** pour garantir la traçabilité (`JobExecution`) et l'allocation optimale des ressources (Thread Manager).
+
+* **Finalisation de Persistance (Bulk I/O) :** Le **Data Ingestion Layer (DIL)**, sur ordre du **Live Data Hub**, soumet une tâche de vidage des buffers (Snapshots/Ticks) au **Job Manager**. Cette tâche est allouée au **Pool I/O Bulk** (basse priorité) afin d'isoler cette écriture massive et lente.
+* **Rapport et Audit :** Le **Monitoring Module** et le **Reporting Manager** génèrent le rapport complet de la journée (PnL, métriques de performance agrégées). Ce rapport est enregistré en base de données via le **DIL**, en utilisant un pool de threads adapté à l'audit.
 
 ### 9. Préparation du Cycle Suivant
 
-* **Vérification du Jour Suivant :** Le **System Manager** consulte le `TradingCalendar` pour déterminer le type de la prochaine journée.
-* **Exécution de la Stratégie :**
-    * **Condition :** Si le jour suivant est un **jour de rebalancement**, le **Strategy Engine** est exécuté.
-    * **Objectif :** Ce moteur determine le portefeuille cible et donc les nouvelles demandes d'ordres en les enregistrant en base de données (via le **Data Ingestion Layer (DIL)**) pour être chargées à la prochaine session de trading (rebalancement). 
-* **Transition :** Une fois toutes les tâches Post-Trade complétées et validées, le **System Manager** bascule en phase **Off-Cycle** (Veille).
+* **Vérification du Jour Suivant :** Le **System Manager** consulte le `TradingCalendar` pour déterminer le type de la prochaine journée (Jour de Rebalancement ou non).
+* **Exécution de la Stratégie :** Si le jour suivant est un **jour de rebalancement**, le **Strategy Engine** est exécuté. Il détermine le **Portfolio Target** et soumet le plan d'ordres (les nouvelles demandes) au **DIL** pour un enregistrement immédiat. Cette persistance du plan d'ordres est soumise au **Job Manager** et exécutée via le **Pool I/O Critical**, assurant une sauvegarde **atomique** du plan d'action du lendemain.
+* **Persistance de la Configuration (Ajout) :** Le **Session Manager** sérialise et persiste l'état final des paramètres de la session (`TradingSession.session_config`) en base de données. Cette sauvegarde est **critique** et utilise également le **Pool I/O Critical**, garantissant que le système démarre le jour suivant avec les paramètres les plus à jour (y compris ceux potentiellement optimisés ou modifiés durant la session).
+* **Transition :** Une fois toutes les tâches Post-Trade (y compris la persistance du Target et de la Configuration) complétées et validées, le **System Manager** bascule le système en phase **Off-Cycle** (Veille).
