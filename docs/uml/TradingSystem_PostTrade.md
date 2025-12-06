@@ -1,4 +1,4 @@
-## Diagramme d'Activité : Phase II - Post-Trade
+## Diagramme d'Activité : Phase III - Post-Trade
 
 <p align="center">
   <img src="img/DA_03_TradingSystem_PostTrade.svg" width="900">
