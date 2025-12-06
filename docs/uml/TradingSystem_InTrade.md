@@ -46,10 +46,10 @@ Le **Risk Monitor** lit le cache temps réel (le prix le plus récent) et survei
 
 * Le **Portfolio Manager** évalue les conditions d'achat/vente selon la stratégie et génère des **Ordres Standards** si nécessaire.
 
-Le PM génère des ordres si, et seulement si, l'une des conditions suivantes est remplie :
+  * Le PM génère des ordres si, et seulement si, l'une des conditions suivantes est remplie :
 
-1.  **Jour de Rééquilibrage :** Le **System Manager** a marqué la journée comme une journée de rééquilibrage planifiée. Le PM calcule les écarts de pondération et **génère des ordres pour corriger le portefeuille.**
-2.  **Timing Intraday (Optionnel) :** Le **PM** (ou un futur **EMS**) utilise un algorithme d'optimisation (TWAP/VWAP) pour **"timer" le prix d'exécution** d'un ordre spécifique.
+  1.  **Jour de Rééquilibrage :** Le **System Manager** a marqué la journée comme une journée de rééquilibrage planifiée. Le PM calcule les écarts de pondération et **génère des ordres pour corriger le portefeuille.**
+  2.  **Timing Intraday (Optionnel) :** Le **PM** (ou un futur **EMS**) utilise un algorithme d'optimisation (TWAP/VWAP) pour **"timer" le prix d'exécution** d'un ordre spécifique.
 
 * **Règle de Fonctionnement :**
 
