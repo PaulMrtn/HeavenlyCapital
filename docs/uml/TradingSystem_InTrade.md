@@ -14,7 +14,7 @@ Cette phase représente le cœur opérationnel du système, dédié au traitemen
 Dès la réception du signal de l'ouverture du marché par le **System Manager**, le **Live Data Hub** initie l'acquisition des données de marché et la distribution en parallèle :
 
 1.  L'**IBKR Gateway** commence à recevoir les **Tick Data** (flux de prix haute fréquence) de manière asynchrone.
-2.  **Surveillance Critique du Flux (NOUVEAU) :** Le **Live Data Hub** intercepte les Ticks et exécute immédiatement la **surveillance du flux** (vérification du *timestamp* et du temps écoulé depuis le dernier tick) pour détecter une **latence critique** ou une **erreur de connexion réseau**.
+2.  **Surveillance Critique du Flux :** Le **Live Data Hub** intercepte les Ticks et exécute immédiatement la **surveillance du flux** (vérification du *timestamp* et du temps écoulé depuis le dernier tick) pour détecter une **latence critique** ou une **erreur de connexion réseau**.
     * **[Latence/Erreur Critique] :** Si le seuil de latence est dépassé ou si la connexion est perdue, le **Live Data Hub** émet un événement `CRITICAL_ERROR` au **System Manager**. Ce dernier déclenche la séquence de **Kill Switch** (arrêt sécurisé et annulation des ordres).
 3.  Si le flux est stable **[Latence Acceptable]**, le **Live Data Hub** agrège ces ticks pour générer régulièrement des **Snapshots** des cotations.
 4.  Un **Nœud de Fork** distribue le Snapshot en deux flux parallèles pour optimiser la latence :
