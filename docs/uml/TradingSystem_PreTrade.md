@@ -46,7 +46,7 @@ Les composants globaux sont instanciés en premier. La lecture des configuration
   
     * **Boucle d'Instanciation :** Le `System Manager` itère sur chaque `TradingSession` créée :
         * Pour chaque session, il instancie un triplet de composants locaux : **`Portfolio Manager (PM)`**, **`Risk Monitor (RM)`**, et **`Order Manager (OM)`**.
-        *  : Le statut du jour (MarketDayStatus) est récupéré (via le DAL après sa persistance initiale) et injecté dans le constructeur de chaque PM et RM via l'IExecutionContextProvider.
+        * Le statut du jour (`MarketDayStatus`) est récupéré (via le DAL après sa persistance initiale) et injecté dans le constructeur de chaque `PM` et `RM` via l'`IExecutionContextProvider`.
   
         * **Injection de Dépendance :** Les configurations spécifiques à la session (lues à l'étape précédente) sont injectées dans le constructeur de chaque manager.
           
