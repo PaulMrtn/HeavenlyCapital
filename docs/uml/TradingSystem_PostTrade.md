@@ -52,7 +52,7 @@ Le reste de la phase est dominé par la gestion des tâches I/O dépendantes, qu
 
 Les processus d'écriture sont soumis au **Thread Manager** pour allocation, conformément à leurs besoins en ressources et leur criticité :
 
-* **Pool I/O Critical :** Alloué aux écritures atomiques (**Target**, **Configuration**), qui exigent une garantie d'exécution immédiate.
+* **Pool I/O Post-Trade :** Alloué aux écritures atomiques (**Target**, **Configuration**), qui exigent une garantie d'exécution immédiate.
 * **Pool I/O Audit :** Alloué aux tâches de reporting principal qui nécessitent un accès stable aux données fraîchement synchronisées (ex: PnL Final).
 * **Pool I/O Bulk :** Alloué aux écritures massives et non critiques, y compris les **tâches secondaires futures** qui ne doivent pas bloquer le cycle principal.
 
@@ -64,11 +64,11 @@ Cette étape garantit que le système est prêt à redémarrer sans faille en pe
 
 ### Persistance du Plan d'Action Critique
 
-Une fois que le **Strategy Engine** a calculé le **Portfolio Target** (le plan d'ordres pour l'ouverture prochaine), ce plan est soumis pour **Persistance Atomique**. Il est immédiatement alloué au **Pool I/O Critical**. Cette isolation protège la sauvegarde de la décision la plus importante du système contre toute latence ou défaillance des autres écritures.
+Une fois que le **Strategy Engine** a calculé le **Portfolio Target** (le plan d'ordres pour l'ouverture prochaine), ce plan est soumis pour **Persistance Atomique**. Il est immédiatement alloué au **Pool I/O Post-Trade**. Cette isolation protège la sauvegarde de la décision la plus importante du système contre toute latence ou défaillance des autres écritures.
 
 ### Sauvegarde de la Configuration Globale
 
-En parallèle, le **Session Manager** procède à la sauvegarde de l'**État Final de la Configuration** de **toutes les sessions** actives. Cette écriture est également considérée comme **critique** et utilise le **Pool I/O Critical** car le système doit redémarrer avec les paramètres les plus à jour (dernières configurations utilisateur, état des *kill-switches*, etc.).
+En parallèle, le **Session Manager** procède à la sauvegarde de l'**État Final de la Configuration** de **toutes les sessions** actives. Cette écriture est également considérée comme **critique** et utilise le **Pool I/O Pool I/O Post-Trade** car le système doit redémarrer avec les paramètres les plus à jour (dernières configurations utilisateur, état des *kill-switches*, etc.).
 
 Le **System Manager** ne bascule le système en phase **Off-Cycle (Veille)** que lorsque la **validation de persistance** de ces deux écritures critiques (**Target** et **Configuration**) est reçue, garantissant une **intégrité totale** au moment de l'arrêt.
 
