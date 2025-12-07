@@ -44,6 +44,7 @@ Le DIL est l'orchestrateur de la persistance des *data sets. Sa responsabilité 
 
 * **Isolation de la Transaction (Atomicité) :** Le DIL doit garantir que chaque appel à l'`IDatabaseWriter` est traité comme une **transaction atomique** (ACID). Ceci est critique pour l'intégrité des données financières (soit l'écriture est complète, soit elle est annulée).
 * **Mécanismes de Sauvegarde (Batching) :** Implémentation de mécanismes de **mise en lot (Batching)** pour les écritures à haut débit (ex: *ticks* de prix ou journaux agrégés). Cela réduit la charge d'I/O sur la base de données en groupant les insertions dans une seule transaction.
+* **Persistance DIL et Pool de Connexions :** La persistance des données (Snapshots, Fills, EventLog) par le **Data Ingestion Layer (DIL)** est réalisée en isolation transactionnelle. Pour chaque tâche d'écriture soumise au **Job Manager**, le thread alloué par le **Thread Manager** **emprunte** une connexion dédiée au Pool de Connexions du **Database Connector**, garantissant ainsi le parallélisme et l'intégrité atomique des transactions.
   
 ### **Data Access Layer (DAL)**
 
