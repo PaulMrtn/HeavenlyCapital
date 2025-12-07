@@ -30,20 +30,26 @@ Cette séquence est séquentielle et intègre une logique de **Retry (tentatives
 
 ### 2. Instanciation des composants et injection des dépendances / configs
 
-Les composants globaux sont instanciés en premier. La lecture des configurations depuis la base de données est centralisée par le `System Manager`.
+Les composants globaux sont instanciés en premier. La lecture des configurations depuis la base de données est centralisée par le `System Manager`. L'état du jour est utilisé comme contexte d'exécution.
 
 * **Instanciation Globale (Singletons)** :
     * Instanciation du **`IBKR Gateway`** et du **`Live Data Hub (LDH)`** (composants globaux et uniques).
     * **H-Check Unitaire :** Une vérification initiale est effectuée sur chaque objet pour confirmer son intégrité en mémoire.
+      
 * **Lecture des Métadonnées** :
     * Le `System Manager` ordonne au `Data Access Layer` de **requêter** toutes les configurations statiques nécessaires :
         * Configurations des **Sessions** (LIVE/PAPER).
         * Métadonnées des **Managers** (`PM`, `RM`, `OM` par défaut).
+          
 * **Instanciation des Sessions et Managers Locaux (Boucle)** :
     * Le `System Manager` utilise les configurations lues pour ordonner au `Session Manager` de créer les objets `TradingSession`.
+  
     * **Boucle d'Instanciation :** Le `System Manager` itère sur chaque `TradingSession` créée :
         * Pour chaque session, il instancie un triplet de composants locaux : **`Portfolio Manager (PM)`**, **`Risk Monitor (RM)`**, et **`Order Manager (OM)`**.
+        *  : Le statut du jour (MarketDayStatus) est récupéré (via le DAL après sa persistance initiale) et injecté dans le constructeur de chaque PM et RM via l'IExecutionContextProvider.
+  
         * **Injection de Dépendance :** Les configurations spécifiques à la session (lues à l'étape précédente) sont injectées dans le constructeur de chaque manager.
+          
         * **H-Check Unitaire (Local) :** Une vérification est effectuée sur le PM, RM et OM pour confirmer leur bonne construction avec les configs injectées.
   
     
