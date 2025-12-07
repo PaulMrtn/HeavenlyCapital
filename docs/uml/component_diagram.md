@@ -10,7 +10,7 @@ Ce cœur est responsable de l'ingestion, du nettoyage, de la persistance et de l
 
 ### **Database Connector**
 
-Ce composant est l'interface du système avec la base de données relationnelle. Sa fonction principale est de gérer le cycle de vie des connexions : établir, maintenir, et clore les sessions. Il gère la **résilience** de la connexion, la **lecture sécurisée** des identifiants, et fournit des métriques de **surveillance** au système.
+Ce composant est l'interface du système avec la base de données relationnelle. Sa fonction principale est de gérer le cycle de vie des connexions : établir, maintenir, et clore les sessions. Il gère la **résilience** de la connexion, la **lecture sécurisée** des identifiants, et fournit des métriques de **surveillance** au système. Ce composant également est responsable de la **gestion du Pool de Connexions** à la DB. Il initialise ce pool lors du `checkDbStatus()` et assure la haute disponibilité en gérant activement l'emprunt/libération des connexions par les threads I/O et en retirant/renouvelant les connexions défectueuses (résilience).
 
 * **Interfaces Fournies / Requises :**
     * **IConnectionFactory** : **Interface fournie** par le `Database Connector` pour instancier et retourner un objet de connexion ou une session de base de données.
