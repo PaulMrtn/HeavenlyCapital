@@ -38,13 +38,13 @@ Le reste de la phase est dominé par la gestion des tâches I/O dépendantes, qu
 
 2.  **Lancement des Tâches Secondaire :**
     * La génération d'un **Rapport de Performance** (Module Monitoring).
-    * La **mise à jour de données externes** via une API (ex: mise à jour des données fondamentales ou des benchmarks).
+    * La **mise à jour de données externes** via une API (ex: mise à jour des données fondamental/alternative).
     * Ces tâches sont généralement allouées au **Pool I/O Bulk**.
 
 3.  **Calcul de la Stratégie Dépendant (Décision Finale) :**
-    * Le **Strategy Engine** exécute le calcul du **Portfolio Target** (plan d'ordres) **après la complétion de la Tâche de Reporting Primaire**. C'est la dernière étape de calcul majeure.
+    * Le **Strategy Engine** exécute le calcul du **Portfolio Target** (plan d'ordres) en dernier.
     * Deux conditions sont requises :
-        * La confirmation de la **fin de la tâche de Reporting/Audit (Primaire)**.
+        * La confirmation de la **fin des tâches précédentes**.
         * La vérification que le jour suivant est un **Jour de Rebalancement** (via le **Session Manager**).
 
 
