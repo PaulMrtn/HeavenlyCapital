@@ -2,6 +2,8 @@
 
 ### 1. Diagrammes Transversaux et Processus Critiques
 
+**Nom du Package:** CORE_CRITICAL_PROCESSES
+
 Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans les phases Pre-Trade, In-Trade et Post-Trade.
 
 | Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
@@ -15,6 +17,8 @@ Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans 
 
 ### 2. Diagrammes de la Phase Pre-Trade (Bootstrapping)
 
+**Nom du Package:** PHASE_01_BOOTSTRAPPING
+
 Cette phase est séquentielle et utilise le diagramme 01 en référence.
 
 | Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
@@ -25,6 +29,8 @@ Cette phase est séquentielle et utilise le diagramme 01 en référence.
 ---
 
 ### 3. Diagrammes de la Phase In-Trade (Temps Réel)
+
+**Nom du Package:** PHASE_02_LIVE_EXECUTION
 
 Cette phase est principalement asynchrone et repose sur l'événement MINUTE\_TICK et le flux continu de **Tick Data**.
 
@@ -38,6 +44,8 @@ Cette phase est principalement asynchrone et repose sur l'événement MINUTE\_TI
 
 ### 4. Diagrammes de la Phase Post-Trade (Clôture Atomique)
 
+**Nom du Package:** PHASE_03_POST_AUDIT
+
 Cette phase est séquentielle et critique pour l'intégrité des données. Elle utilise les deux processus de persistance atomique.
 
 | Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
@@ -48,6 +56,8 @@ Cette phase est séquentielle et critique pour l'intégrité des données. Elle 
 ---
 
 ### 5. Diagrammes Optionnels (Robustesse & R&D)
+
+**Nom du Package:** OPTIONAL_RND_ROBUSTNESS
 
 Ces scénarios offrent une valeur ajoutée significative pour la résilience et l'optimisation.
 
