@@ -25,9 +25,9 @@
 
 | $\checkmark$ | Fichier (Filename) | Description Détaillée |
 | :--- | :--- | :--- |
-| [ ] | **DDS_A1_Bootstrapping_System_OK.md** | 1. `Market Clock` envoie `SYSTEM_WAKEUP` au `System Manager`. 2. Vérifications séquentielle `Database Connector` (Retry OK) puis `IBKR Gateway` (Retry OK). 3. `System Manager` calcule `MarketDayStatus` et le persiste (via DIL). 4. Boucle d'instanciation/injection de dépendances (PM, RM, OM) via `Session Manager`. 5. Lancement des tâches de chargement de données (PM/RM) et de test de flux (IBKR) en **parallèle**. 6. Synchronisation et attente du signal `MARKET_OPEN`. |
-| [ ] | **DDS_A2_Connectivite_Echouee_CRITIQUE.md** | 1. Séquence de l'étape A.1. 2. Échec de la connexion DB (max_retry atteint). 3. `Database Connector` notifie `System Manager`. 4. `System Manager` enregistre `CRITICAL_ERROR` (via `Log Service`) et notifie `Notification Manager`. 5. `System Manager` bascule l'état `TradingSystem` à `ERROR` et s'arrête. |
-| [ ] | **DDS_A3_Chargement_Session_Jour_Ferie.md** | 1. Séquence de l'étape A.1 jusqu'au point de contrôle `MarketDayStatus`. 2. `System Manager` vérifie `is_trading_day == FALSE`. 3. Persistance du `MarketDayStatus` (via DIL). 4. `System Manager` envoie un message de changement de statut (`SESSION_STATUS_UPDATE`) au `Session Manager`. 5. `System Manager` bascule à `Off-Cycle` sans instancier les sessions. |
+| [] | **DDS_A1_Bootstrapping_System_OK.md** | 1. `Market Clock` envoie `SYSTEM_WAKEUP` au `System Manager`. 2. Vérifications séquentielle `Database Connector` (Retry OK) puis `IBKR Gateway` (Retry OK). 3. `System Manager` calcule `MarketDayStatus` et le persiste (via DIL). 4. Boucle d'instanciation/injection de dépendances (PM, RM, OM) via `Session Manager`. 5. Lancement des tâches de chargement de données (PM/RM) et de test de flux (IBKR) en **parallèle**. 6. Synchronisation et attente du signal `MARKET_OPEN`. |
+| [] | **DDS_A2_Connectivite_Echouee_CRITIQUE.md** | 1. Séquence de l'étape A.1. 2. Échec de la connexion DB (max_retry atteint). 3. `Database Connector` notifie `System Manager`. 4. `System Manager` enregistre `CRITICAL_ERROR` (via `Log Service`) et notifie `Notification Manager`. 5. `System Manager` bascule l'état `TradingSystem` à `ERROR` et s'arrête. |
+| [] | **DDS_A3_Chargement_Session_Jour_Ferie.md** | 1. Séquence de l'étape A.1 jusqu'au point de contrôle `MarketDayStatus`. 2. `System Manager` vérifie `is_trading_day == FALSE`. 3. Persistance du `MarketDayStatus` (via DIL). 4. `System Manager` envoie un message de changement de statut (`SESSION_STATUS_UPDATE`) au `Session Manager`. 5. `System Manager` bascule à `Off-Cycle` sans instancier les sessions. |
 
 ---
 
@@ -35,9 +35,9 @@
 
 | $\checkmark$ | Fichier (Filename) | Description Détaillée |
 | :--- | :--- | :--- |
-| [ ] | **DDS_B1_Acquisition_Tick_Distribution_Fast_Slow.md** | 1. `IBKR Gateway` reçoit `TickData` et l'envoie à `Live Data Hub`. 2. `Live Data Hub` effectue la vérification de latence (Self-Check). 3. Génération du `SnapshotHeader` et des `MarketQuote`. 4. **Nœud de Fork** : Envoi parallèle vers **a)** `Cache Interface` (Fast Lane) et **b)** `Buffer Interface` (Slow Lane). 5. Persistance différée des `Snapshot` : `Live Data Hub` $\rightarrow$ `DIL` $\rightarrow$ `Job Manager` (spécifiant `Pool I/O Bulk`). |
-| [ ] | **DDS_B2_Declenchement_StopLoss_Urgence.md** | 1. `Risk Monitor` lit le prix le plus récent via `ICacheReader` du `Live Data Hub`. 2. `Risk Monitor` lit l'état de la position via `IPortfolioStateReader` du `Portfolio Manager`. 3. Condition `Stop-Loss` atteinte. 4. `Risk Monitor` crée un `Ordre d'Urgence` (Priorité Max) et l'envoie à `Order Manager`. 5. `Order Manager` soumet l'ordre au `Job Manager` (via `IJobSubmission`). 6. `Job Manager` utilise la priorité pour allouer immédiatement au `Pool I/O Critical` $\rightarrow$ `IBKR Order Sender` (via `IBKR Gateway`). |
-| [ ] | **DDS_B3_Latence_Flux_Critique_Kill_Switch.md** | 1. Séquence B.1 : `Live Data Hub` détecte `Latence Critique` lors du Self-Check. 2. `Live Data Hub` émet `CRITICAL_ERROR` au `System Manager`. 3. `System Manager` ordonne au `Job Manager` d'exécuter la séquence `Kill Switch` (Annulation de tous les ordres via `IBKR Gateway`). 4. `System Manager` bascule l'état à `STOPPED`. |
+| [] | **DDS_B1_Acquisition_Tick_Distribution_Fast_Slow.md** | 1. `IBKR Gateway` reçoit `TickData` et l'envoie à `Live Data Hub`. 2. `Live Data Hub` effectue la vérification de latence (Self-Check). 3. Génération du `SnapshotHeader` et des `MarketQuote`. 4. **Nœud de Fork** : Envoi parallèle vers **a)** `Cache Interface` (Fast Lane) et **b)** `Buffer Interface` (Slow Lane). 5. Persistance différée des `Snapshot` : `Live Data Hub` $\rightarrow$ `DIL` $\rightarrow$ `Job Manager` (spécifiant `Pool I/O Bulk`). |
+| [] | **DDS_B2_Declenchement_StopLoss_Urgence.md** | 1. `Risk Monitor` lit le prix le plus récent via `ICacheReader` du `Live Data Hub`. 2. `Risk Monitor` lit l'état de la position via `IPortfolioStateReader` du `Portfolio Manager`. 3. Condition `Stop-Loss` atteinte. 4. `Risk Monitor` crée un `Ordre d'Urgence` (Priorité Max) et l'envoie à `Order Manager`. 5. `Order Manager` soumet l'ordre au `Job Manager` (via `IJobSubmission`). 6. `Job Manager` utilise la priorité pour allouer immédiatement au `Pool I/O Critical` $\rightarrow$ `IBKR Order Sender` (via `IBKR Gateway`). |
+| [] | **DDS_B3_Latence_Flux_Critique_Kill_Switch.md** | 1. Séquence B.1 : `Live Data Hub` détecte `Latence Critique` lors du Self-Check. 2. `Live Data Hub` émet `CRITICAL_ERROR` au `System Manager`. 3. `System Manager` ordonne au `Job Manager` d'exécuter la séquence `Kill Switch` (Annulation de tous les ordres via `IBKR Gateway`). 4. `System Manager` bascule l'état à `STOPPED`. |
 
 ---
 
@@ -45,8 +45,8 @@
 
 | $\checkmark$ | Fichier (Filename) | Description Détaillée |
 | :--- | :--- | :--- |
-| [ ] | **DDS_C1_Envoi_Ordre_Standard_Priorisation.md** | 1. Le `Portfolio Manager` génère un `Ordre Standard` (Rééquilibrage) et l'envoie à `Order Manager`. 2. `Order Manager` crée l'objet `Order` (avec ID interne). 3. `Order Manager` soumet l'ordre (via `IJobSubmission`) au `Job Manager`. 4. `Job Manager` alloue au `Pool I/O Critical` (si prioritaire ou si file vide). 5. Exécution : `Job Manager` $\rightarrow$ `IBKR Order Sender` $\rightarrow$ `IBKR Gateway`. 6. `IBKR Gateway` retourne `broker_order_id` (mise à jour de l'objet `Order` via `Order Manager`). |
-| [ ] | **DDS_C2_Reception_Fill_Mise_a_Jour_Atomique.md** | 1. `IBKR Gateway` reçoit `Fill` et émet l'événement `FILL_RECEIVED` (avec `session_id_ref`). 2. **Nœud de Fork** : Envoi parallèle vers **a)** `Order Manager` et **b)** `Portfolio Manager`. 3. **a)** `Order Manager` met à jour `Order.filled_qty`, `status`. 4. **b)** `Portfolio Manager` exécute la logique comptable : met à jour `Position`, crée/met à jour `AcquisitionLot` / `RealizationLot`. 5. **Synchronisation** (Join) : L'unité de travail PM/OM est soumise au `DIL` (via `IDatabaseWriter`). 6. `DIL` soumet au `Job Manager` (spécifiant `Pool I/O Real-Time`). **Cette persistance est atomique (ACID)**. |
+| [] | **DDS_C1_Envoi_Ordre_Standard_Priorisation.md** | 1. Le `Portfolio Manager` génère un `Ordre Standard` (Rééquilibrage) et l'envoie à `Order Manager`. 2. `Order Manager` crée l'objet `Order` (avec ID interne). 3. `Order Manager` soumet l'ordre (via `IJobSubmission`) au `Job Manager`. 4. `Job Manager` alloue au `Pool I/O Critical` (si prioritaire ou si file vide). 5. Exécution : `Job Manager` $\rightarrow$ `IBKR Order Sender` $\rightarrow$ `IBKR Gateway`. 6. `IBKR Gateway` retourne `broker_order_id` (mise à jour de l'objet `Order` via `Order Manager`). |
+| [] | **DDS_C2_Reception_Fill_Mise_a_Jour_Atomique.md** | 1. `IBKR Gateway` reçoit `Fill` et émet l'événement `FILL_RECEIVED` (avec `session_id_ref`). 2. **Nœud de Fork** : Envoi parallèle vers **a)** `Order Manager` et **b)** `Portfolio Manager`. 3. **a)** `Order Manager` met à jour `Order.filled_qty`, `status`. 4. **b)** `Portfolio Manager` exécute la logique comptable : met à jour `Position`, crée/met à jour `AcquisitionLot` / `RealizationLot`. 5. **Synchronisation** (Join) : L'unité de travail PM/OM est soumise au `DIL` (via `IDatabaseWriter`). 6. `DIL` soumet au `Job Manager` (spécifiant `Pool I/O Real-Time`). **Cette persistance est atomique (ACID)**. |
 
 ---
 
@@ -54,22 +54,7 @@
 
 | $\checkmark$ | Fichier (Filename) | Description Détaillée |
 | :--- | :--- | :--- |
-| [ ] | **DDS_D1_Cloture_Synchronisation_Audit_Financier.md** | 1. `Market Clock` envoie `MARKET_CLOSE` au `System Manager`. 2. `System Manager` envoie l'ordre de **synchronisation critique** au `Job Manager` (attendre la fin de tous les jobs `Pool I/O Real-Time` et vidage du `Bulk Buffer`). 3. **Attente Bloquante** (Barrière de Synchronisation). 4. `Job Manager` confirme la validation I/O. 5. `Portfolio Manager` exécute la **Réconciliation Finale** avec `IBKR Gateway`. 6. `PM` émet `DATA_INTEGRITY_CHECK` (OK ou Alerte Critique) via `Log Service`. |
-| [ ] | **DDS_D2_Execution_Strategie_Target_Persistance_ATOMIQUE.md** | 1. `System Manager` vérifie `TradingCalendar` (`is_rebalancing_day == TRUE`). 2. `System Manager` ordonne au `Strategy Engine` d'exécuter. 3. `Strategy Engine` lance l'exécution de la `Pipeline Core` (via `IPipelineExecutor`). 4. `Pipeline Manager` retourne le `PortfolioTarget`. 5. `Strategy Engine` soumet le `PortfolioTarget` au `Portfolio Manager` (via `IPortfolioTargetSubmitter`) pour traduction en ordres (persistance atomique du plan). 6. **Persistance Atomique** : `Session Manager` persiste l'état final de la `TradingSession.session_config` et le `Target` (via DIL) en spécifiant le **Pool I/O Post-Trade**. 7. Validation de la persistance $\rightarrow$ `System Manager` bascule en `Off-Cycle`. |
+| [] | **DDS_D1_Cloture_Synchronisation_Audit_Financier.md** | 1. `Market Clock` envoie `MARKET_CLOSE` au `System Manager`. 2. `System Manager` envoie l'ordre de **synchronisation critique** au `Job Manager` (attendre la fin de tous les jobs `Pool I/O Real-Time` et vidage du `Bulk Buffer`). 3. **Attente Bloquante** (Barrière de Synchronisation). 4. `Job Manager` confirme la validation I/O. 5. `Portfolio Manager` exécute la **Réconciliation Finale** avec `IBKR Gateway`. 6. `PM` émet `DATA_INTEGRITY_CHECK` (OK ou Alerte Critique) via `Log Service`. |
+| [] | **DDS_D2_Execution_Strategie_Target_Persistance_ATOMIQUE.md** | 1. `System Manager` vérifie `TradingCalendar` (`is_rebalancing_day == TRUE`). 2. `System Manager` ordonne au `Strategy Engine` d'exécuter. 3. `Strategy Engine` lance l'exécution de la `Pipeline Core` (via `IPipelineExecutor`). 4. `Pipeline Manager` retourne le `PortfolioTarget`. 5. `Strategy Engine` soumet le `PortfolioTarget` au `Portfolio Manager` (via `IPortfolioTargetSubmitter`) pour traduction en ordres (persistance atomique du plan). 6. **Persistance Atomique** : `Session Manager` persiste l'état final de la `TradingSession.session_config` et le `Target` (via DIL) en spécifiant le **Pool I/O Post-Trade**. 7. Validation de la persistance $\rightarrow$ `System Manager` bascule en `Off-Cycle`. |
 
 ---
-
-## 💡 Remarques sur la Modélisation UML
-
-### Utilisation de UML 2.0 pour la Séquence
-
-Dans vos diagrammes de séquence, utilisez les notations suivantes pour maximiser la précision :
-
-| Concept | Notation UML | Composant Cible |
-| :--- | :--- | :--- |
-| **Opération Asynchrone (Non Bloquante)** | Ligne avec tête de flèche ouverte (Ex: `Live Data Hub` $\rightarrow$ `DIL`) | Persistance Bulk (B.1) ou Envoi d'ordre (C.1). |
-| **Opération Synchrone (Bloquante)** | Ligne pleine avec tête de flèche pleine (Ex: `System Manager` $\rightarrow$ `Database Connector`) | Vérification de connexion (A.1). |
-| **Parallélisation (Fork)** | `par` (Fragment d'Interaction Parallèle) | Distribution du Snapshot vers Cache et Buffer (B.1), Réception du Fill par OM et PM (C.2). |
-| **Condition** | `alt` (Fragment d'Interaction Alternative) | Contrôle `is_trading_day == TRUE/FALSE` (A.3), Condition `Stop-Loss` atteinte (B.2). |
-| **Boucle de Retry** | `loop` (Fragment d'Interaction Boucle) | Tentatives de reconnexion DB/IBKR (A.2). |
-| **Référence à un autre DDS** | `ref` (Fragment d'Interaction Référence) | Le scénario D.2 peut faire référence au scénario C.1 (soumission d'ordre) si l'exécution des ordres est incluse. |
