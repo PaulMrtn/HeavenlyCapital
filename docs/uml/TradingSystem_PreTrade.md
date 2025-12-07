@@ -19,7 +19,7 @@ Cette séquence est séquentielle et intègre une logique de **Retry (tentatives
 * **Contrôle de Connectivité Critique (Courtier)** :
     * Une fois la connexion DB stable, le `System Manager` ordonne à l'`IBKR Gateway` de vérifier la connexion à l'API du courtier et de TWS/GB (.exe) dans le même temps.
     * **Gestion d'Erreur :** Application de la même logique de `Retry` en cas d'échec transitoire. Si l'échec est persistant, le système s'arrête.
-* **Calcul et Persistance du Statut** : Le `System Manager` utilise le package `pandas_market_calendars` pour determiner l'objet `MarketDayStatus` et le `IDatabaseWriter` du `Data Access Layer` pour la persistence.
+* **Calcul et Persistance du Statut** : Le `System Manager` utilise le package `pandas_market_calendars` pour determiner l'objet `MarketDayStatus` et le `IDatabaseWriter` du `Data Ingestion Layer` pour la persistence.
 * **Contrôle de Jour Ouvré** :
     * **Condition :** Si `MarketDayStatus.is_trading_day == FALSE`, le `System Manager` bascule immédiatement en phase `Off-Cycle` (Veille).
     * **Sinon :** Le processus passe à l'étape 2 d'instanciation.
