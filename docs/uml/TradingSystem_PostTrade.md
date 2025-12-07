@@ -37,7 +37,7 @@ Le reste de la phase est dominé par la gestion des tâches I/O dépendantes, qu
     * Cette tâche est allouée au **Pool I/O Audit** et sa validation de persistance est le **prérequis direct** pour toutes les étapes suivantes (stratégie et rapports secondaires).
 
 2.  **Lancement des Tâches Secondaire :**
-    * La génération d'un **Rapport de Performance** détaillé (incluant des métriques de *drawdown* et de risque).
+    * La génération d'un **Rapport de Performance** (Module Monitoring).
     * La **mise à jour de données externes** via une API (ex: mise à jour des données fondamentales ou des benchmarks).
     * Ces tâches sont généralement allouées au **Pool I/O Bulk**.
 
