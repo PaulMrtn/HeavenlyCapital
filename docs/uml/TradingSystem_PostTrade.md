@@ -5,8 +5,6 @@
 </p>
 
 
-Cette phase représente la clôture sécurisée et l'audit du cycle de trading. Elle est caractérisée par un **ordonnancement strict des tâches I/O dépendantes** et une **gestion isolée des ressources** via le Thread Manager, assurant que l'intégrité financière est vérifiée sur des données finales et complètes.
-
 ---
 
 ### 7. Clôture du Marché et Synchronisation Critique
