@@ -63,17 +63,24 @@ Le **Risk Monitor** lit le cache temps réel (le prix le plus récent) et survei
 
 #### 6.3 Gestion des Exécutions (Fills) et Persistance Critique
 
-La réception d'une exécution (`Fill`) est un événement critique qui nécessite une action immédiate et atomique entre les différents composants :
+La réception d'une exécution `Fill` est un événement critique qui nécessite une action immédiate et atomique entre les différents composants.
 
-1.  L'**IBKR Gateway** reçoit le `Fill` et émet immédiatement un **Événement 'Fill Received'**.
-2.  Une parallelization dirige cet événement vers ses deux abonnés critiques :
-    * **Order Manager :** Met à jour le statut de l'objet `Order` (quantité exécutée, statut final).
-    * **Portfolio Manager :** Met à jour les **Lots de PnL** et l'objet **Position**.
-3.  Une fois que l'OM et le PM ont préparé leurs données de mise à jour, l'unité de travail est soumise au **DIL** (via l'interface `IDatabaseWriter`) pour persistance.
-4.  Le DIL formule la tâche et la soumet au **Job Manager**, spécifiant l'utilisation du **Pool I/O Critical**.
-5.  Le **Job Manager** délègue au **Thread Manager** l'allocation d'un thread du **Pool I/O Critical**, assurant que cette écriture transactionnelle vitale (statut de l'ordre, état financier) est isolée des tâches de fond lentes. Le DIL exécute la transaction de base de données.
+L'**IBKR Gateway** reçoit le `Fill` (exécution confirmée) et émet immédiatement un **Événement 'Fill Received'**. Cet événement doit impérativement embarquer l'identifiant de la session de trading ou du compte de trading associé pour permettre une gestion correcte en environnement multi-session.
 
-La boucle se répète jusqu'à ce que le **System Manager** reçoive le signal de fermeture (`MARKET\_CLOSE`) du **Market Clock**, initiant la transition vers la Phase Post-Trade.
+* **Ajout Critique de Donnée :** Le `Fill` est enrichi de la référence de la session concernée.
+    * **Payload de l'Événement :** `Fill Received` **doit inclure le** `session_id_ref` **et/ou le** `account_id` **associé à l'ordre.**
+
+Une parallélisation dirige cet événement vers ses deux abonnés critiques :
+
+1.  **Order Manager :** Met à jour le statut de l'objet `Order` (quantité exécutée, statut final) **pour la session concernée** `TradingSession.session_id`.
+2.  **Portfolio Manager :** Met à jour les Lots et l'objet `Position` **pour l'instance de PM correspondant à la session concernée** `TradingSession.session_id`.
+
+Une fois que l'OM et le PM ont préparé leurs données de mise à jour, l'unité de travail est soumise au **DIL** (via l'interface $\text{IDatabaseWriter}$) pour persistance.
+
+* Le DIL formule la tâche et la soumet au **Job Manager**, spécifiant l'utilisation du **Pool I/O Critical**.
+* Le **Job Manager** délègue au **Thread Manager** l'allocation d'un thread du Pool I/O Critical, assurant que cette écriture transactionnelle vitale (statut de l'ordre, état financier, **liens de session**) est isolée des tâches de fond lentes. Le DIL exécute la transaction de base de données.
+
+La boucle se répète jusqu'à ce que le **System Manager** reçoive le signal de fermeture `MARKET_CLOSE` du **Market Clock**, initiant la transition vers la Phase Post-Trade.
 
 ---
 
