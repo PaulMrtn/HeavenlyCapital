@@ -77,8 +77,8 @@ Une parallélisation dirige cet événement vers ses deux abonnés critiques :
 
 Une fois que l'OM et le PM ont préparé leurs données de mise à jour, l'unité de travail est soumise au **DIL** (via l'interface $\text{IDatabaseWriter}$) pour persistance.
 
-* Le DIL formule la tâche et la soumet au **Job Manager**, spécifiant l'utilisation du **Pool I/O Critical**.
-* Le **Job Manager** délègue au **Thread Manager** l'allocation d'un thread du Pool I/O Critical, assurant que cette écriture transactionnelle vitale (statut de l'ordre, état financier, **liens de session**) est isolée des tâches de fond lentes. Le DIL exécute la transaction de base de données.
+* Le DIL formule la tâche et la soumet au **Job Manager**, spécifiant l'utilisation du **Pool I/O Real-Time**.
+* Le **Job Manager** délègue au **Thread Manager** l'allocation d'un thread du Pool I/O Real-Time, assurant que cette écriture transactionnelle vitale (statut de l'ordre, état financier, **liens de session**) est isolée des tâches de fond lentes. Le DIL exécute la transaction de base de données.
 
 La boucle se répète jusqu'à ce que le **System Manager** reçoive le signal de fermeture `MARKET_CLOSE` du **Market Clock**, initiant la transition vers la Phase Post-Trade.
 
