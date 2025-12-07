@@ -271,6 +271,15 @@ Le **Thread Manager** est la couche d'abstraction qui gère la **concurrence** a
     * **IThreadPoolExecutor** : **Interface fournie** pour soumettre une fonction ou une tâche au *thread pool* pour une exécution asynchrone non bloquante.
     * *Primitives de Concurrence* : **Package/Framework requis** pour l'implémentation de la logique de parallélisation (ex: verrous, sémaphores, futures).
 
+
+#### Lien avec le Pool de Connexions à la Base de Données
+
+Les **Pools d'E/S** gérés par le **Thread Manager** (incluant `Pool I/O Critical`, `Pool I/O Real-Time`, et `Pool I/O Bulk`) opèrent en étroite collaboration avec le mécanisme de gestion des connexions à la base de données (DB). Pour garantir la **séparation des priorités** et l'**isolation des performances** entre les tâches, il est essentiel que l'accès à la persistance ne devienne pas un goulot d'étranglement.
+
+* **Mécanisme d'Accès :** Lorsqu'un thread d'un des pools d'E/S est alloué pour exécuter une tâche de persistance (via le `DIL`), ce thread **demande l'accès à la DB via le `Database Connector`**.
+* **Garantie de Séparation :** Le `Database Connector` s'appuie sur son **Pool de Connexions** pour garantir qu'une **connexion isolée et dédiée** est attribuée au thread appelant pour la durée de la transaction.
+* **Impact sur la Priorité :** Cette isolation garantit que les opérations massives et lentes du `Pool I/O Bulk` n'occupent pas la même ressource physique (connexion DB) que les mises à jour atomiques et critiques des `Pool I/O Critical` et `Pool I/O Real-Time`, préservant ainsi la faible latence des écritures financières vitales.
+
 ---
 ## V. Monitoring & Logging
 
