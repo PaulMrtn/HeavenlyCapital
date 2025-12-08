@@ -36,7 +36,7 @@ Les composants globaux sont instanciés en premier. La lecture des configuration
     * Instanciation du **`IBKR Gateway`** et du **`Live Data Hub (LDH)`** (composants globaux et uniques).
     * **H-Check Unitaire :** Une vérification initiale est effectuée sur chaque objet pour confirmer son intégrité en mémoire.
 
-* **Initialisation des Pools de Threads ** :
+* **Initialisation des Pools de Threads** :
 
   * **Lecture Config du Pool :** Le **`System Manager`** ordonne au **`Thread Manager (TM)`** de lire la configuration des tailles des pools (Critical, Standard) depuis la Base de Données (via le `Data Access Layer`).
   * **Création des Threads :** Le **`TM`** instancie le nombre configuré de **Threads Persistants** (`PoolWorker`) pour le **Pool I/O CRITICAL** et le **Pool I/O STANDARD**. Ces threads restent allumés et en attente pour toute la session de trading.
