@@ -19,12 +19,12 @@ Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans 
 
 **Nom du Package:** PHASE_01_BOOTSTRAPPING
 
-Cette phase est séquentielle et utilise le diagramme 01 en référence.
 
-| Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
-| :--- | :--- | :--- | :--- |
-| **05** | `05-PHASE1-Bootstrapping-Global.puml` | Séquence principale du **System Manager** : Réveil, vérifications critiques (ref: 01), calcul **MarketDayStatus** et **STOP** si jour non ouvré. | * Décomposition : Séquence de démarrage (1. **WAKEUP**, 2. ref: 01, 3. **Status Calculation**). * Détail : Inclure la vérification **MarketDayStatus** avec un fragment alt pour la transition **Off-Cycle**. |
-| **06** | `06-PHASE1-Initialisation-Session-Parallele.puml` | Modélise l'instanciation des sessions, des managers locaux (**PM**, **RM**, **OM**) et le chargement des données en parallèle. | * Décomposition : **System Manager** $\to$ **Session Manager** $\to$ **Boucle d’instanciation PM/RM/OM**. * Détail : Montrer le lancement parallèle des requêtes **DAL** pour charger les **Orders** et les **RiskLimits** (Branche A) et la **Gateway** (Branche B). |
+Cette phase est séquentielle et utilise le diagramme 01 en référence.
+Num.,Nom du Diagramme de Séquence (Filename),Description,Tâches de Réalisation
+05,05-PHASE1-Bootstrapping-Global.puml,"Séquence principale du System Manager : Réveil, vérifications critiques (ref: 01), calcul MarketDayStatus et STOP si jour non ouvré.",Inclure la vérification MarketDayStatus avec un fragment alt pour la transition Off-Cycle.
+06,06-PHASE1-Bootstrapping-Threads.puml,[NOUVEAU] Modélise l'initialisation des Pools de Threads I/O CRITICAL/STANDARD par le Thread Manager (TM) au démarrage.,Montrer la lecture de la configuration en DB et les boucles de création persistantes des threads (PoolWorker).
+07,07-PHASE1-Initialisation-Session-Parallele.puml,"Modélise l'instanciation des sessions, des managers locaux (PM, RM, OM) et le chargement des données en parallèle. (Utilisera les threads créés en 06)",Montrer le lancement parallèle des requêtes DAL et le canal Gateway (Branche B).
 
 ---
 
