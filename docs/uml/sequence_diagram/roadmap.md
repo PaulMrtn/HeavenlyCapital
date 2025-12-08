@@ -19,12 +19,11 @@ Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans 
 
 **Nom du Package:** PHASE_01_BOOTSTRAPPING
 
-
-Cette phase est séquentielle et utilise le diagramme 01 en référence.
-Num.,Nom du Diagramme de Séquence (Filename),Description,Tâches de Réalisation
-05,05-PHASE1-Bootstrapping-Global.puml,"Séquence principale du System Manager : Réveil, vérifications critiques (ref: 01), calcul MarketDayStatus et STOP si jour non ouvré.",Inclure la vérification MarketDayStatus avec un fragment alt pour la transition Off-Cycle.
-06,06-PHASE1-Bootstrapping-Threads.puml,[NOUVEAU] Modélise l'initialisation des Pools de Threads I/O CRITICAL/STANDARD par le Thread Manager (TM) au démarrage.,Montrer la lecture de la configuration en DB et les boucles de création persistantes des threads (PoolWorker).
-07,07-PHASE1-Initialisation-Session-Parallele.puml,"Modélise l'instanciation des sessions, des managers locaux (PM, RM, OM) et le chargement des données en parallèle. (Utilisera les threads créés en 06)",Montrer le lancement parallèle des requêtes DAL et le canal Gateway (Branche B).
+| Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
+| :--- | :--- | :--- | :--- |
+| **05** | 05-PHASE1-Bootstrapping-Global.puml | Séquence principale du System Manager : Réveil, vérifications critiques (ref: 01), calcul `MarketDayStatus` et STOP si jour non ouvré. | Inclure la vérification `MarketDayStatus` avec un fragment alt pour la transition `Off-Cycle`. |
+| **06** | **06-PHASE1-Bootstrapping-Threads.puml** | **[NOUVEAU] Modélise l'initialisation des Pools de Threads I/O CRITICAL/STANDARD par le Thread Manager (TM) au démarrage.** | Montrer la lecture de la configuration en DB et les **boucles de création persistantes** des threads (PoolWorker). |
+| **07** | 07-PHASE1-Initialisation-Session-Parallele.puml | Modélise l'instanciation des sessions, des managers locaux (PM, RM, OM) et le chargement des données en parallèle. **(Utilisera les threads créés en 06)** | Montrer le lancement parallèle des requêtes DAL et le canal `Gateway` (Branche B). |
 
 ---
 
@@ -65,4 +64,11 @@ Ces scénarios offrent une valeur ajoutée significative pour la résilience et 
 | :--- | :--- | :--- | :--- |
 | **12** | `12-CRITICAL-KillSwitch-Execution.puml` | **Gestion des Erreurs (Kill-Switch)** : Chemin exact d'une **CRITICAL\_ERROR** (ex: perte IBKR Gateway) à l'annulation de tous les ordres **WORKING**. | * Décomposition : **Live Data Hub** $\to$ **System Manager** (CRITICAL\_ERROR) $\to$ **Order Manager** $\to$ **IBKR Gateway** (Action : Annulation/`CancelAllOrders`). * Détail : Mettre en évidence l'arrêt sécurisé (arrêt des soumissions et mise en statut $\text{HALTED}$). |
 | **13** | `13-RND-Backtest-Optimization.puml` | **Backtest & Optimisation** : Interaction entre le **Parametric Optimizer**, le **Backtest Engine** et la **Pipeline Core** (pour un seul pas de temps). | * Décomposition : **Parametric Optimizer** $\to$ **Backtest Engine** (Boucle) $\to$ **Pipeline Core** $\to$ **IBacktestRunner**. * Détail : Montrer l'injection de nouveaux **StrategyParameters** par l'Optimizer et la collecte des **Metrics** par le Backtest Engine. |
+
+
+
+
+
+
+
 
