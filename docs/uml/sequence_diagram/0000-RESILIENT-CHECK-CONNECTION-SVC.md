@@ -44,7 +44,6 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 * **`IConnectionMonitor`**: Interface requise par le `Client` et fournie par le `Monitor` pour interroger l'état de la connexion.
 * **`ILoggingService`**: Interface pour garantir l'enregistrement critique et synchrone des erreurs.
 * **`INotificationService`**: Interface pour l'envoi rapide et asynchrone des alertes aux opérateurs.
-* 
 
 
 ### Note 
