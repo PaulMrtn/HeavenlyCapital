@@ -1,4 +1,4 @@
-## Documentation du Fragment d'Interaction : `0000-RESILIENT-CHECK-CONNECTION-SVC`
+## `0000-RESILIENT-CHECK-CONNECTION-SVC`
 
 ### 1. Objectif
 
