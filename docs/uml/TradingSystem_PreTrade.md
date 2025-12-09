@@ -1,9 +1,10 @@
 ## Diagram Activity : Phase I - Pré-Trade
 
+# WARNING : THIS FIGURE ISN'T UP TO DATE 
+
 <p align="center">
   <img src="img/DA_01_TradingSystem_PreTrade.svg" width="900">
 </p>
-
 
 La Phase Pré-Trade est l'étape de **démarrage et de validation** du système. Son objectif est de garantir que tous les composants sont instanciés, configurés, et opérationnellement prêts à communiquer avant l'ouverture du marché.
 
