@@ -281,8 +281,8 @@ Le `Thread Manager` collabore étroitement avec le **`Database Connector`** pour
 2.  **Garantie d'Isolation :** Le `Database Connector` s'appuie sur son propre **Pool de Connexions** pour garantir qu'une **connexion DB isolée et dédiée** est attribuée au thread appelant pour toute la durée de la transaction.
 3.  **Impact sur la Priorité :** Cette double isolation (pool de threads puis pool de connexions) garantit que les opérations massives et lentes du **`Pool I/O Bulk`** n'occupent pas la même ressource physique (connexion DB) que les mises à jour atomiques et critiques du **`Pool I/O Critical`**, préservant ainsi la faible latence des écritures financières vitales.
 
-
 ---
+
 ## V. Monitoring & Logging
 
 ### **Monitoring Module**
