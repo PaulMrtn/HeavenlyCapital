@@ -66,7 +66,7 @@ L'objectif est d'assurer que les managers locaux ont leurs données opérationne
 
 ## 4. Validation Opérationnelle Croisée (HEART CHECK)
 
-Cette étape est la validation finale, qui vérifie que les liens de communication asynchrones (dépendances croisées) sont correctement établis.
+Cette étape est la validation finale, qui vérifie que les liens de communication asynchrones sont correctement établis.
 
 * **Vérification des Dépendances :** Le `System Manager` effectue des requêtes actives pour valider :
     * Le flux de prix actif entre l'`IBKR Gateway` et le `LDH`.
