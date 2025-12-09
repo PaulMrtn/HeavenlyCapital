@@ -24,7 +24,7 @@ Le **`System Manager`** orchestre une boucle itérative pour chaque identifiant 
 1.  L'entité **`TradingSession`** est créée pour détenir l'identité et l'état local de la stratégie.
 2.  Les trois managers locaux (`PM`, `RM`, `OM`) sont instanciés en **injectant leurs dépendances minimalistes** (configurations et Singletons globaux nécessaires).
 3.  Les **canaux de communication locaux** sont établis :
-    * Le **`PM` est lié à l'`OM`** pour la soumission d'ordres de performance.
+    * Le **`PM` est lié à l'`OM`** pour la soumission d’ordres d’investissement (selon une stratégie définie).
     * Le **`RM` est lié à l'`OM`** pour l'émission d'ordres d'urgence (Stop-Loss).
     * Le **`RM` obtient la référence du `PM`** (`setPortfolioReference`) pour la lecture de l'état du portefeuille (position) et le déclenchement du **Kill Switch** asynchrone.
 4.  Une vérification d'intégrité minimale (**`HCheckSessionReady`**) est effectuée pour s'assurer que tous les canaux critiques sont correctement établis avant de passer à l'étape suivante.
