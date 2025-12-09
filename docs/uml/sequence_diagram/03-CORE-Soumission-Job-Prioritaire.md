@@ -18,17 +18,17 @@ Le processus est déclenché par un **composant client** (le `Risk Monitor` pour
 
 * Le client transmet l'ordre à l'**Order Manager (OM)**.
 * L'OM crée l'objet **`OrderJob`**, qui contient l'ordre et son niveau de priorité (Critical / Standard).
-* L'OM délègue le `OrderJob` de manière asynchrone au **Job Manager (JM)**.
+* L'OM délègue le `OrderJob` de manière asynchrone au **Job Manager**.
 
 ## 2. Arbitrage de Priorité et Allocation du Pool
 
 Le **Job Manager** est l'arbitre central. Il exécute la fonction **`arbitratePriority(OrderJob)`** pour router la tâche.
 
 * Le `Job Manager` lit l'attribut `Priority` pour déterminer la stratégie de routage.
-* **Si la priorité est URGENTE :** Le `Job Manager` demande un thread existant au **Pool I/O CRITICAL** du **Thread Manager (TM)**. Ce pool garantit une exécution immédiate, isolée des autres charges.
+* **Si la priorité est URGENTE :** Le `Job Manager` demande un thread existant au **Pool I/O CRITICAL** du **Thread Manager**. Ce pool garantit une exécution immédiate, isolée des autres charges.
 * **Si la priorité est STANDARD :** Le `Job Manager` demande un thread existant au **Pool I/O STANDARD**.
 
-Le `TM` répond en fournissant une instance de thread **existante et prête à l'emploi** (`PoolWorker`), créée lors de la phase de *bootstrapping* (**Séquence 06**).
+Le `Thread Manager` répond en fournissant une instance de thread **existante et prête à l'emploi** (`PoolWorker`), créée lors de la phase de *bootstrapping* (**Séquence 06**).
 
 ## 3. Exécution et Libération du Thread
 
