@@ -260,26 +260,27 @@ Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorit
 
 ### **Thread Manager**
 
-Le **Thread Manager** est la couche d'abstraction qui gère la **concurrence** au sein du système. Il est responsable de l'**allocation des ressources physiques** (threads/processus) et des **mécanismes logiques de synchronisation**. Ses objectifs principaux sont :
-1.  **Partition des Ressources :** Création de **pools de ressources séparés** (ex: Pool I/O vs Pool CPU) pour empêcher qu'une tâche intensive en calcul ne bloque les threads des ordres d'urgence, garantissant ainsi une faible latence.
-2.  **Synchronisation Sécurisée :** Fournir les outils d'abstraction (verrous, sémaphores) nécessaires aux composants clients pour **éviter les conditions de course (*race conditions*)** lors de l'accès aux données partagées (ex: *cache* de prix).
-3.  **Double Pool I/O** : allouer deux pools de threads I/O distincts au DIL lors de la phase In-Market :
-   I/O Critical Pool : Utilisé uniquement par les transactions à faible volume/haute criticité (ex: Fills, Orders, Statuts).
-   I/O Bulk Pool : Utilisé pour l'ingestion massive des données de marché (Ticks, Snapshots, Logs) pour le batching et le buffering.
+Le **`Thread Manager`** est la couche d'abstraction centrale responsable de la gestion de la **concurrence** et de l'allocation des **ressources physiques d'exécution** (threads/processus) au sein du système. Son objectif principal est de garantir la **faible latence** et la **fiabilité** par une stratégie de **partitionnement des ressources** et de **synchronisation sécurisée**.
+
+1.  **Partitionnement des Ressources :** Le `Thread Manager` crée des **pools de threads spécialisés** pour isoler les tâches. Cette isolation empêche qu'une tâche intensive ou lente ne bloque les threads des ordres d'urgence, préservant la faible latence essentielle.
+2.  **Synchronisation Sécurisée :** Il fournit les outils d'abstraction (verrous, sémaphores) nécessaires aux composants clients pour **éviter les conditions de course** (*race conditions*) lors de l'accès aux données partagées critiques (ex: le cache de prix dans le `LDH`).
+3.  **Gestion des Pools I/O Spécialisés :** Lors de la phase In-Market, il alloue et gère des pools distincts pour le `Data Ingestion Layer (DIL)` :
+    * **I/O Critical Pool :** Réservé uniquement aux transactions à **faible volume/haute criticité** (ex: Fills, Orders, Statuts).
+    * **I/O Bulk Pool :** Utilisé pour l'ingestion massive des données de marché (Ticks, Snapshots, Logs) destinées au *batching* et au *buffering*.
 
 
 * **Interfaces Fournies / Requises :**
-    * **IThreadPoolExecutor** : **Interface fournie** pour soumettre une fonction ou une tâche au *thread pool* pour une exécution asynchrone non bloquante.
-    * *Primitives de Concurrence* : **Package/Framework requis** pour l'implémentation de la logique de parallélisation (ex: verrous, sémaphores, futures).
+* **Interface Fournie (`IThreadPoolExecutor`) :** Permet aux composants clients de soumettre une fonction ou une tâche au *thread pool* pour une **exécution asynchrone non bloquante**.
+* **Interface Requise (`Primitives de Concurrence`) :** Nécessite un *package* ou *framework* pour l'implémentation interne des mécanismes de parallélisation (ex: verrous, sémaphores, *futures*).
+* **Ressource Gérée (`PoolWorker`) :** Il est le **responsable du cycle de vie** des instances de **`PoolWorker`** (threads persistants), qui sont les véritables ressources d'exécution empruntées par le système.
 
 
-#### Lien avec le Pool de Connexions à la Base de Données
+Le `Thread Manager` collabore étroitement avec le **`Database Connector`** pour garantir que l'accès à la persistance ne crée pas de goulot d'étranglement.
 
-Les **Pools d'E/S** gérés par le **Thread Manager** (incluant `Pool I/O Critical`, `Pool I/O Real-Time`, et `Pool I/O Bulk`) opèrent en étroite collaboration avec le mécanisme de gestion des connexions à la base de données (DB). Pour garantir la **séparation des priorités** et l'**isolation des performances** entre les tâches, il est essentiel que l'accès à la persistance ne devienne pas un goulot d'étranglement.
+1.  **Mécanisme d'Accès :** Lorsqu'un thread alloué par le `Thread Manager` exécute une tâche de persistance (via le `DIL`), ce thread demande l'accès à la base de données via le `Database Connector`.
+2.  **Garantie d'Isolation :** Le `Database Connector` s'appuie sur son propre **Pool de Connexions** pour garantir qu'une **connexion DB isolée et dédiée** est attribuée au thread appelant pour toute la durée de la transaction.
+3.  **Impact sur la Priorité :** Cette double isolation (pool de threads puis pool de connexions) garantit que les opérations massives et lentes du **`Pool I/O Bulk`** n'occupent pas la même ressource physique (connexion DB) que les mises à jour atomiques et critiques du **`Pool I/O Critical`**, préservant ainsi la faible latence des écritures financières vitales.
 
-* **Mécanisme d'Accès :** Lorsqu'un thread d'un des pools d'E/S est alloué pour exécuter une tâche de persistance (via le `DIL`), ce thread **demande l'accès à la DB via le `Database Connector`**.
-* **Garantie de Séparation :** Le `Database Connector` s'appuie sur son **Pool de Connexions** pour garantir qu'une **connexion isolée et dédiée** est attribuée au thread appelant pour la durée de la transaction.
-* **Impact sur la Priorité :** Cette isolation garantit que les opérations massives et lentes du `Pool I/O Bulk` n'occupent pas la même ressource physique (connexion DB) que les mises à jour atomiques et critiques des `Pool I/O Critical` et `Pool I/O Real-Time`, préservant ainsi la faible latence des écritures financières vitales.
 
 ---
 ## V. Monitoring & Logging
