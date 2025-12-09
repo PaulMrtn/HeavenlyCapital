@@ -24,9 +24,9 @@ Le processus est déclenché par un **composant client** (le `Risk Monitor` pour
 
 Le **Job Manager** est l'arbitre central. Il exécute la fonction **`arbitratePriority(OrderJob)`** pour router la tâche.
 
-* Le `JM` lit l'attribut `Priority` pour déterminer la stratégie de routage.
-* **Si la priorité est URGENTE :** Le `JM` demande un thread existant au **Pool I/O CRITICAL** du **Thread Manager (TM)**. Ce pool garantit une exécution immédiate, isolée des autres charges.
-* **Si la priorité est STANDARD :** Le `JM` demande un thread existant au **Pool I/O STANDARD**.
+* Le `Job Manager` lit l'attribut `Priority` pour déterminer la stratégie de routage.
+* **Si la priorité est URGENTE :** Le `Job Manager` demande un thread existant au **Pool I/O CRITICAL** du **Thread Manager (TM)**. Ce pool garantit une exécution immédiate, isolée des autres charges.
+* **Si la priorité est STANDARD :** Le `Job Manager` demande un thread existant au **Pool I/O STANDARD**.
 
 Le `TM` répond en fournissant une instance de thread **existante et prête à l'emploi** (`PoolWorker`), créée lors de la phase de *bootstrapping* (**Séquence 06**).
 
@@ -35,7 +35,7 @@ Le `TM` répond en fournissant une instance de thread **existante et prête à l
 Une fois le thread alloué, le processus se termine par l'exécution de l'I/O et le nettoyage rapide de la ressource :
 
 * Le **thread emprunté** exécute l'appel I/O bloquant pour soumettre l'ordre via l'**IBKR Gateway**.
-* Après avoir reçu la confirmation de l'ordre (`brokerOrderID`), le thread notifie l'`OM` pour la mise à jour en mémoire.
+* Après avoir reçu la confirmation de l'ordre (`brokerOrderID`), le thread notifie l'`Order Manager` pour la mise à jour en mémoire.
 * Le thread est ensuite immédiatement **remis à disposition** dans son pool par le `Thread Manager` (via l'appel `releaseThreadToPool()`).
 
 Cette approche garantit que les ressources de haute valeur (Pool I/O CRITICAL) sont **utilisées, mais jamais bloquées** par l'attente du courtier, assurant ainsi la capacité à traiter le prochain ordre urgent sans délai.
