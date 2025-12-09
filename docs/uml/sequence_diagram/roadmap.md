@@ -8,7 +8,6 @@ Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans 
 
 | Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
 | :--- | :--- | :--- | :--- |
-| **01** | `01-CORE-Check-Connectivite-Critique.puml` | Modélise la vérification séquentielle de la connexion **DB** et **IBKR**, incluant la logique de Retry et la notification d'erreur. | * Décomposition : **System Manager** $\to$ **Database Connector** $\to$ **IBKR Gateway**. * Détail : Ajouter les boucles de **Retry** et la condition d'arrêt (CRITICAL\_ERROR). |
 | **02** | `02-CORE-Persistance-Atomique-FILL.puml` | Décrit le traitement asynchrone d'une exécution de bout en bout, de l'**IBKR Gateway** à la persistance en base de données. | * Décomposition : **IBKR Gateway** $\to$ **Event** $\to$ **Order Manager** / **Portfolio Manager**. * Détail : Mettre en évidence la soumission au **Job Manager** (Pool I/O Real-Time) et l'écriture **DIL** $\to$ **Database**. |
 | **03** | `03-CORE-Soumission-Job-Prioritaire.puml` | Illustre la réception d'un ordre (Urgent ou Standard) par l'**Order Manager** et l'arbitrage par le **Job Manager**. | * Décomposition : **Order Manager** $\to$ **Job Manager** $\to$ **Thread Manager** $\to$ **IBKR Gateway**. * Détail : Utiliser des fragments alt pour l'arbitrage **Prioritaire / Standard** et l'allocation du **Pool I/O Critical**. |
 | **04** | `04-CORE-Persistance-Bulk-Snapshot.puml` | Décrit le processus d'ingestion massive des **Snapshots** dans le **Pool I/O Bulk** du **DIL** pour isoler le **Bulk I/O** du **Critical I/O**. | * Décomposition : **Live Data Hub** $\to$ **DIL** $\to$ **Job Manager** (Pool I/O Bulk) $\to$ **Database**. |
@@ -19,11 +18,15 @@ Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans 
 
 **Nom du Package:** PHASE_01_BOOTSTRAPPING
 
-| Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
+
+| Num. | Nom du Diagramme de Séquence (Filename) | Description Détaillée et Contenu Clé | Réf. à l'Étape de Doc. |
 | :--- | :--- | :--- | :--- |
-| **05** | `05-PHASE1-Bootstrapping-Global.puml` | Séquence principale du System Manager : Réveil, vérifications critiques (ref: 01), calcul `MarketDayStatus` et STOP si jour non ouvré. | Inclure la vérification `MarketDayStatus` avec un fragment alt pour la transition `Off-Cycle`. |
-| **06** | `06-PHASE1-Bootstrapping-Threads.puml` |Modélise l'initialisation des Pools de Threads I/O CRITICAL/STANDARD par le Thread Manager (TM) au démarrage. | Montrer la lecture de la configuration en DB et les **boucles de création persistantes** des threads (PoolWorker). |
-| **07** | `07-PHASE1-Initialisation-Session-Parallele.puml` | Modélise l'instanciation des sessions, des managers locaux (PM, RM, OM) et le chargement des données en parallèle. **(Utilisera les threads créés en 06)** | Montrer le lancement parallèle des requêtes DAL et le canal `Gateway` (Branche B). |
+| **01** | **01-PHASE1-Connectivite-Critique.puml** | Modélise la vérification séquentielle de la connexion **DB** et **IBKR**, incluant la logique de **Retry**, le calcul du `MarketDayStatus`, et la condition d'arrêt (si jour non ouvré). *Ce diagramme intègre l'ancienne logique 01 et 05.* | **1.1 & 1.2** |
+| **02** | **02-PHASE1-Instanciation-Configs-Globaux.puml** | Modélise la **lecture I/O optimisée de TOUTES les configurations** (Threads, Singletons, Managers) et l'instanciation des **Singletons** (`IBKR Gateway`, `LDH`) par le `System Manager`. | **2.1 & 2.2 (Partie Inst. Global)** |
+| **03** | **03-PHASE1-Initialisation-Threads.puml** | Modélise l'initialisation des Pools de Threads (`CRITICAL/STANDARD`) par le `Thread Manager (TM)`, en utilisant la configuration lue en **02**. Inclut le **H-Check de Priorité** du Pool CRITICAL. | **2.2 (Partie Threads)** |
+| **04** | **04-PHASE1-Instanciation-Managers-Locaux.puml** | Modélise la boucle d'instanciation des **Sessions** et des triplets de **Managers Locaux** (`PM`, `RM`, `OM`), avec injection des dépendances et du `MarketDayStatus`. | **2.3** |
+| **05** | **05-PHASE1-Chargement-Parallele.puml** | Modélise l'étape de **parallélisation** du chargement des données (PM/RM) et la validation du flux temps réel (IBKR Gateway → LDH). | **3** |
+| **06** | **06-PHASE1-Validation-Croisee-HeartCheck.puml** | Modélise la vérification finale de l'intégrité opérationnelle, s'assurant que tous les **liens asynchrones** sont fonctionnels avant la transition vers la Phase In-Trade. | **4** |
 
 ---
 
@@ -65,10 +68,7 @@ Ces scénarios offrent une valeur ajoutée significative pour la résilience et 
 | **12** | `12-CRITICAL-KillSwitch-Execution.puml` | **Gestion des Erreurs (Kill-Switch)** : Chemin exact d'une **CRITICAL\_ERROR** (ex: perte IBKR Gateway) à l'annulation de tous les ordres **WORKING**. | * Décomposition : **Live Data Hub** $\to$ **System Manager** (CRITICAL\_ERROR) $\to$ **Order Manager** $\to$ **IBKR Gateway** (Action : Annulation/`CancelAllOrders`). * Détail : Mettre en évidence l'arrêt sécurisé (arrêt des soumissions et mise en statut $\text{HALTED}$). |
 | **13** | `13-RND-Backtest-Optimization.puml` | **Backtest & Optimisation** : Interaction entre le **Parametric Optimizer**, le **Backtest Engine** et la **Pipeline Core** (pour un seul pas de temps). | * Décomposition : **Parametric Optimizer** $\to$ **Backtest Engine** (Boucle) $\to$ **Pipeline Core** $\to$ **IBacktestRunner**. * Détail : Montrer l'injection de nouveaux **StrategyParameters** par l'Optimizer et la collecte des **Metrics** par le Backtest Engine. |
 
-
-
-
-
+---
 
 
 
