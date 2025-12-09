@@ -1,7 +1,3 @@
-Voici la documentation finale pour le processus critique **03-CORE-Soumission-Job-Prioritaire**, intégrant la clarification sur la fonction d'arbitrage du Job Manager.
-
----
-
 ## `03-CORE-Soumission-Job-Prioritaire`
 
 <p align="center">
