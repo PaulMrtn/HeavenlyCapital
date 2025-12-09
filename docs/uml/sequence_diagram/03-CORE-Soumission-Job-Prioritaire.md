@@ -8,13 +8,13 @@
 
 ## Objectif
 
-Ce processus modélise le cœur de l'exécution à faible latence du système : l'**arbitrage de la priorité** d'un ordre (Urgent ou Standard) et l'allocation d'un **thread persistant dédié** (Pool I/O Critical ou Standard) pour son envoi immédiat au courtier.
+Ce processus modélise le cœur de l'exécution à faible latence du système : l'**arbitrage de la priorité** d'un ordre (Stop-Loss ou Rebalance) et l'allocation d'un **thread persistant dédié** (Pool I/O Critical ou Standard) pour son envoi immédiat au courtier.
 
 Ce diagramme est la concrétisation de l'isolation des I/O et de la gestion de la concurrence.
 
 ## 1. Soumission et Préparation du Job
 
-Le processus est déclenché par un **composant client** (le `Risk Monitor` pour l'Urgent, le `Portfolio Manager` pour le Standard). La priorité a été **assignée en amont** par la logique métier du client.
+Le processus est déclenché par un **composant client** (le `Risk Monitor` pour un Stop-Loss, le `Portfolio Manager` pour le Rebalance). La priorité a été **assignée en amont** par la logique métier du client.
 
 * Le client transmet l'ordre à l'**Order Manager (OM)**.
 * L'OM crée l'objet **`OrderJob`**, qui contient l'ordre et son niveau de priorité (Critical / Standard).
