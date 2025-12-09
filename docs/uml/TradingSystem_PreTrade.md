@@ -86,11 +86,3 @@ C'est l'étape de validation finale. Elle vérifie que les **liens de communicat
 
 * Le `System Manager` attend le signal `MARKET_OPEN` émis par le `Market Clock`.
 * Dès réception, il bascule l'état du système en phase **In-Trade**.
-
-
-
-J'ai mis à jour la documentation de la **Phase I - Pré-Trade** en intégrant l'étape essentielle du **Bootstrapping du Thread Manager (TM)** et de ses Pools de Threads. Cette étape assure que les ressources critiques (threads) sont instanciées et prêtes pour l'exécution optimale des ordres en temps réel, avant l'ouverture du marché.
-
-Voici la documentation mise à jour, avec l'étape ajoutée en tant que **2.1. Initialisation des Pools de Threads**.
-
----
