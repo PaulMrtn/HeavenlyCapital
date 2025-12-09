@@ -2,7 +2,7 @@
 ## `01-PHASE1-Connectivite-Critique`
 
 <p align="center">
-  <img src="img/01-PHASE1-Check-Connectivite-Critique.jpg" width="900">
+  <img src="img/01-PHASE1-Connectivite-Critique.jpg" width="900">
 </p>
 
 
