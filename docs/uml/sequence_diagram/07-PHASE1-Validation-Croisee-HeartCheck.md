@@ -14,7 +14,7 @@ La finalité de ce module est d'effectuer la **validation croisée finale** et u
 
 ### 2. Contexte
 
-Cette étape est la **dernière de la Phase 1 (Initialisation)**. Elle est exécutée après le succès du **chargement statique** (Phase 05) et de l'**initialisation du flux temps réel** (Phase 06). Elle est critique car elle confirme que les données chargées par un manager sont compatibles avec les règles et l'état des autres, agissant comme le **point de non-retour sécurisé** avant de donner le feu vert pour le trading.
+Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée après le succès du **chargement statique** (Phase 05) et de l'**initialisation du flux temps réel** (Phase 06). Elle est critique car elle confirme que les données chargées par un manager sont compatibles avec les règles et l'état des autres, agissant comme le **point de non-retour sécurisé** avant de donner le feu vert pour la session de trading.
 
 ---
 
@@ -27,7 +27,7 @@ Le **`System Manager`** orchestre une série de vérifications en cascade pour r
     * **`HCheckRiskMonitorReady()` :** Le `Risk Monitor (RM)` confirme que ses limites de risque sont activées et que ses mécanismes de surveillance (thread d'écoute) sont lancés.
 
 * **Validations Croisées (Cohérence Métier) :**
-    * **`ValidateRiskLimits(RM)` (par le PM) :** Le `PM` vérifie la compatibilité de son état avec les contraintes du `RM`. *Exemple : Vérifier que la marge requise pour toutes les positions du portefeuille ne dépasse pas le solde de liquidité disponible.*
+    * **`ValidateRiskLimits(RM)` (par le PM) :** Le `PM` vérifie la compatibilité de son état avec les contraintes du `RM`. *Exemple : Le PM vérifie qu'il s'est correctement abonné au topic de notification du RM pour les événements de liquidation ou de déclenchement de Stop-Loss.*
     * **`ValidatePortfolioState(PM)` (par le RM) :** Le `RM` vérifie que les limites qu'il a chargées sont applicables à l'état du `PM`. *Exemple : Confirmer qu'aucun Stop-Loss chargé n'est déjà dépassé par les prix actuels disponibles dans le `LDH`.*
 
 * **Vérification de l'Infrastructure :**
