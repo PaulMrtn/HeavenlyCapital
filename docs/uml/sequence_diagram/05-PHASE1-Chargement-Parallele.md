@@ -1,7 +1,7 @@
 ## `05-PHASE1-Chargement-Parallele`
 
 <p align="center">
-  <img src="img/05-PHASE1-Chargement-Parallele.png" width="900">
+  <img src="img/05-PHASE1-Chargement-Parallele.jpg" width="900">
 </p>
 
 ---
