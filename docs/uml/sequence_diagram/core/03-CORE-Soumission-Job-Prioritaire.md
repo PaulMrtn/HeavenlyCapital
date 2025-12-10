@@ -1,7 +1,7 @@
 ## `03-CORE-Soumission-Job-Prioritaire`
 
 <p align="center">
-  <img src="img/core/03-CORE-Soumission-Job-Prioritaire.jpg" width="900">
+  <img src="img/03-CORE-Soumission-Job-Prioritaire.jpg" width="900">
 </p>
 
 ---
