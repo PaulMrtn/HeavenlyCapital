@@ -18,15 +18,26 @@ Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans 
 
 **Nom du Package:** PHASE_01_BOOTSTRAPPING
 
+#### I. Phase Pre-Trade (Préparation à l'Ouverture)
 
-| Num. | Nom du Diagramme de Séquence (Filename) | Description Détaillée et Contenu Clé | Réf. à l'Étape de Doc. |
+| Étape | Composant(s) Cible(s) | Tâche(s) à Développer / Valider | Priorité |
 | :--- | :--- | :--- | :--- |
-| **01** | **01-PHASE1-Connectivite-Critique.puml** | Modélise la vérification séquentielle de la connexion **DB** et **IBKR**, incluant la logique de **Retry**, le calcul du `MarketDayStatus`, et la condition d'arrêt (si jour non ouvré). *Ce diagramme intègre l'ancienne logique 01 et 05.* | **1.1 & 1.2** |
-| **02** | **02-PHASE1-Instanciation-Configs-Globaux.puml** | Modélise la **lecture I/O optimisée de TOUTES les configurations** (Threads, Singletons, Managers) et l'instanciation des **Singletons** (`IBKR Gateway`, `LDH`) par le `System Manager`. | **2.1 & 2.2 (Partie Inst. Global)** |
-| **03** | **03-PHASE1-Initialisation-Threads.puml** | Modélise l'initialisation des Pools de Threads (`CRITICAL/STANDARD`) par le `Thread Manager (TM)`, en utilisant la configuration lue en **02**. Inclut le **H-Check de Priorité** du Pool CRITICAL. | **2.2 (Partie Threads)** |
-| **04** | **04-PHASE1-Instanciation-Managers-Locaux.puml** | Modélise la boucle d'instanciation des **Sessions** et des triplets de **Managers Locaux** (`PM`, `RM`, `OM`), avec injection des dépendances et du `MarketDayStatus`. | **2.3** |
-| **05** | **05-PHASE1-Chargement-Parallele.puml** | Modélise l'étape de **parallélisation** du chargement des données (PM/RM) et la validation du flux temps réel (IBKR Gateway → LDH). | **3** |
-| **06** | **06-PHASE1-Validation-Croisee-HeartCheck.puml** | Modélise la vérification finale de l'intégrité opérationnelle, s'assurant que tous les **liens asynchrones** sont fonctionnels avant la transition vers la Phase In-Trade. | **4** |
+| **1. Initialisation du Cycle de Marché** | **System Manager**, Market Clock, Database Connector, Session Manager | 1.1 **Implémenter la routine `MarketDayStatus`** (via `pandas_market_calendars`). <br> 1.2 **Développer la fonction `evaluateBootstrapStatus()`** pour gérer l'arrêt/la continuation sur `MarketDayStatus.is_trading_day`. | Critique |
+| **2. Vérifications Préalables (Intégrité et Connexion)** | **Database Connector**, **IBKR Gateway**, System Manager, IDatabaseWriter | 2.1 **Intégrer le fragment `00-RESILIENT-CHECK-CONNECTION-SVC`** aux vérifications DB et IBKR. <br> 2.2 **Mettre en place la procédure d'arrêt sécurisé** (`systemStop`) avec notification en cas d'échec persistant (Tolérance Zéro). <br> 2.3 **Valider la liaison `IDatabaseWriter`** pour la persistance des journaux de session (via DIL). | Critique |
+| **3. Chargement et Préparation des Données** | **Portfolio Manager (PM)**, **Risk Monitor (RM)**, IBKR Gateway | 3.1 **Développer la fonction `PM.loadRebalancingOrders()`** pour charger les ordres post-marché stockés. <br> 3.2 **Développer la fonction `RM.loadRiskSnapshot()`** pour charger les données de Stop-Loss/Take-Profit pour la session. <br> 3.3 **Valider l'initialisation de la connexion de données** de l'IBKR Gateway pour les *tick data*. | Haute |
+| **4. Synchronisation et Transition vers In-Trade** | **System Manager**, Market Clock, Job Manager | 4.1 **Implémenter la logique d'attente/synchronisation** pour la complétion des tâches de chargement (étape 3). <br> 4.2 **Configurer l'écoute asynchrone** du signal `MARKET_OPEN` émis par le Market Clock (Transition vers Phase II). | Critique |
+
+#### II. Étapes Détaillées d'Initialisation (Bootstrapping)
+
+| Étape | Composant(s) Cible(s) | Tâche(s) à Développer / Valider | Priorité |
+| :--- | :--- | :--- | :--- |
+| **02. Instanciation des Configs Globaux** | **DAL**, **System Manager**, IBKR Gateway, Live Data Hub (LDH) | 2.1 **Optimiser le `DAL.readAllConfigs()`** pour une requête I/O atomique (lecture en un seul bloc). <br> 2.2 **Développer les constructeurs des Singletons** (`IBKR Gateway`, `LDH`) avec injection immédiate des configurations. <br> 2.3 **Implémenter le `H-Check unitaire`** après chaque instanciation de Singleton. | Critique |
+| **03. Initialisation des Pools de Threads** | **Thread Manager (TM)**, System Manager | 3.1 **Développer la création des `PoolWorker` persistants** (Pools `CRITICAL` et `STANDARD`). <br> 3.2 **Implémenter le `HCheckPriorityTest`** sur le Pool CRITICAL pour valider la QoS (Qualité de Service) au niveau OS. | Critique |
+| **04. Instanciation des Managers Locaux** | **Session Manager**, PM, RM, OM | 4.1 **Développer la boucle d'instanciation des `TradingSession`** (gestion des sessions LIVE et PAPER). <br> 4.2 **Implémenter l'injection de dépendances croisées** : `PM` $\leftrightarrow$ `OM`, `RM` $\leftrightarrow$ `OM` (Ordres d'Urgence), `RM` $\leftrightarrow$ `PM` (Référence pour Kill Switch). | Haute |
+| **05. Chargement Parallèle** | **Thread Manager**, PM, RM, Database Connector | 5.1 **Orchestrer l'exécution parallèle** des `PM.loadInitialState()` et `RM.loadRiskSnapshot()` via le TM. <br> 5.2 **Implémenter le `HCheckDataIntegrity`** (vérification de la cohérence interne des données chargées par chaque manager). <br> 5.3 **Appliquer la règle `evaluateBootstrapStatus()`** sur les résultats de ce Job pour gérer l'arrêt LIVE/continuation PAPER. | Critique |
+| **06. Initialisation du Flux Temps Réel** | **IBKR Gateway**, **LDH**, System Manager | 6.1 **Développer le mécanisme d'abonnement aux données de marché** (`LDH.subscribeToTicks()`). <br> 6.2 **Implémenter le contrôle `HCheckFirstTickReceived`** (attente avec *timeout* du premier prix de marché). <br> 6.3 **Configurer la séquence d'arrêt d'urgence** si le `HCheck` échoue (défaillance de l'infrastructure de données). | Critique |
+| **07. Validation Croisée (HeartCheck)** | System Manager, PM, RM, OM, LDH | 7.1 **Développer les vérifications unitaires** (`HCheckPortfolioReady`, `HCheckRiskMonitorReady`). <br> 7.2 **Implémenter la Validation Croisée** : `RM` vérifie l'état du `PM` et vice-versa (cohérence des limites/positions). <br> 7.3 **Appliquer la règle `evaluateBootstrapStatus()`** une dernière fois sur les résultats agrégés. | Critique |
+| **08. Transition Mode Veille** | **System Manager**, Order Manager (OM), Market Clock | 8.1 **Développer la mise à jour atomique du statut** vers `READY_FOR_TRADING`. <br> 8.2 **Implémenter la boucle de surveillance (Heartbeat)** périodique de l'OM vers l'IBKR Gateway. <br> 8.3 **Assurer l'audit (Log Critique)** à la réception du signal `MarketOpenEvent()` avant de lancer la Phase II. | Critique |
 
 ---
 
