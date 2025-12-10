@@ -1,7 +1,7 @@
 ## `03-PHASE1-Initialisation-Threads`
 
 <p align="center">
-  <img src="img/03-PHASE1-Initialisation-Threads.jpg" width="900">
+  <img src="../img/03-PHASE1-Initialisation-Threads.jpg" width="900">
 </p>
 
 
