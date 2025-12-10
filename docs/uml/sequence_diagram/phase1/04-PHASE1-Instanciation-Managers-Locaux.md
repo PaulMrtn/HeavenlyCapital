@@ -1,7 +1,7 @@
 ## `04-PHASE1-Instanciation-Managers-Locaux`
 
 <p align="center">
-  <img src="img/04-PHASE1-Instanciation-Managers-Locaux.jpg" width="900">
+  <img src="../img/04-PHASE1-Instanciation-Managers-Locaux.jpg" width="900">
 </p>
 
 
