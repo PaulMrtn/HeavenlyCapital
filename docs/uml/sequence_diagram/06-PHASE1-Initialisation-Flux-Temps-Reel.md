@@ -29,9 +29,10 @@ Le **`System Manager`** commence par récupérer la liste complète de tous les 
 * **Activation du Flux :** L'établissement de la connexion doit être synchrone, mais l'arrivée des données (`ticks`) est **asynchrone** et ne doit pas bloquer le fil d'orchestration.
 * **Validation Critique :** Le contrôle **`HCheckFirstTickReceived`** est une contrainte non-fonctionnelle cruciale. Il s'agit d'une preuve de vie : si aucun prix n'est reçu avant l'expiration du *timeout*, l'opération est considérée comme une **défaillance critique**, et le *bootstrapping* doit être annulé.
 * **Encapsulation :** Le `LDH` est le seul récepteur des prix bruts provenant de l'`IBKR Gateway`. Les autres managers ne doivent pas communiquer directement avec la passerelle pour les données de marché.
-
+* **Arrêt Inconditionnel :** Si le `LDH` échoue à confirmer la réception du premier *tick* (erreur de connexion, timeout, etc.), cela signifie que l'infrastructure de données de marché est compromise. Le `System Manager` doit immédiatement appeler **`systemStop(CRITICAL_ERROR)`**.
+  
 ---
 
 ### 5. Conclusion
 
-Ce module garantit que le système dispose d'un **canal de données de marché actif et testé**. L'opération se termine lorsque le `Live Data Hub` confirme qu'il est alimenté par des prix en temps réel pour les instruments requis, permettant ainsi la transition vers les vérifications finales de cohérence du système.
+Ce module garantit que le système dispose d'un **canal de données de marché actif et testé** avant la mise en service. Le succès est la preuve que les prix temps réel sont disponibles pour le *Risk Monitor* et le *Portfolio Manager*. L'échec entraîne un arrêt sécurisé immédiat du système.
