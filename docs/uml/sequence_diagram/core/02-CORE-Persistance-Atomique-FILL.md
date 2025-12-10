@@ -1,7 +1,7 @@
 #  `02-CORE-Persistance-Atomique-FILL`
 
 <p align="center">
-  <img src="img/core/02-CORE-Persistance-Atomique-FILL.jpg" width="900">
+  <img src="img/02-CORE-Persistance-Atomique-FILL.jpg" width="900">
 </p>
 
 ---
