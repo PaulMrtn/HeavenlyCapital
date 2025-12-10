@@ -1,7 +1,7 @@
 ## `00-RESILIENT-CHECK-CONNECTION-SVC`
 
 <p align="center">
-  <img src="img/00-RESILIENT-CHECK-CONNECTION-SVC.jpg" width="900">
+  <img src="../img/00-RESILIENT-CHECK-CONNECTION-SVC.jpg" width="900">
 </p>
 
 ---
