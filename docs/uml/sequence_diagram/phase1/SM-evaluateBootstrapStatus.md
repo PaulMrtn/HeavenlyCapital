@@ -1,7 +1,7 @@
 ##  `SM-evaluateBootstrapStatus`
 
 <p align="center">
-  <img src="img/SM-evaluateBootstrapStatus.jpg" width="900">
+  <img src="../img/SM-evaluateBootstrapStatus.jpg" width="900">
 </p>
 
 
