@@ -1,7 +1,7 @@
 ## `08-PHASE2-Transition-Mode-Veille`
 
 <p align="center">
-  <img src="img/08-PHASE1-Transition-Mode-Veille.jpg" width="900">
+  <img src="../img/08-PHASE1-Transition-Mode-Veille.jpg" width="900">
 </p>
 
 --- 
