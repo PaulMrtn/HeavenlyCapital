@@ -1,7 +1,7 @@
 ## `02-PHASE1-Instanciation-Configs-Globaux`
 
 <p align="center">
-  <img src="img/02-PHASE1-Instanciation-Configs-Globaux.jpg" width="900">
+  <img src="../img/02-PHASE1-Instanciation-Configs-Globaux.jpg" width="900">
 </p>
 
 
