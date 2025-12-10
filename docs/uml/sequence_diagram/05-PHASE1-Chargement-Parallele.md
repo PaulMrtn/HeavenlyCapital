@@ -26,19 +26,20 @@ Le **`System Manager`** délègue entièrement la charge de travail au **`Thread
 2.  Ces commandes sont soumises au `Thread Manager` avec l'instruction d'exécution **parallèle**.
 3.  Des **PoolWorkers** distincts (issus des pools alloués) exécutent les tâches, demandant simultanément leurs données respectives au `Database Connector`.
 4.  Une fois les données reçues, chaque manager (PM et RM) effectue son **contrôle d'intégrité métier** (`HCheckDataIntegrity`) sur les objets chargés.
-5.  Le `Thread Manager` attend la complétude de **toutes** les tâches soumises avant de notifier le `System Manager` du succès de l'opération.
-
+5.  Le `Thread Manager` attend le résultat de toutes les tâches soumises et renvoie la liste des statuts au `System Manager` pour évaluation finale.
 ---
 
 ### 4. Règles Critiques
 
 * **Non-Blocage :** Le thread du **`System Manager`** ne doit pas être bloqué par l'attente de la base de données. Il est libéré dès la soumission des tâches.
-* **I/O Maximisation :** Le parallélisme est essentiel car les opérations de lecture de la base de données (I/O) sont les plus lentes et bénéficient le plus de l’exécution simultanée.
-* **Vérification Métier :** Le **`HCheckDataIntegrity`** est un garde-fou crucial. Il garantit que les données, bien que techniquement valides dans la base, sont **opérationnellement cohérentes** (ex. : la somme des lots correspond à la position totale) avant la mise en service du manager.
-* **Point de Synchronisation :** La phase ne peut se terminer que lorsque le `Thread Manager` confirme que **toutes** les sessions ont chargé et validé leurs données.
+* **Tolérance aux Erreurs Asymétrique :**
+    * Tout échec de chargement ou de validation d'une session **`LIVE`** est une erreur fatale. Le `System Manager` doit immédiatement appeler **`systemStop(CRITICAL_ERROR)`**.
+    * L'échec d'une session **`PAPER`** est logué, la session est marquée Invalide et retirée du flux, mais le *bootstrapping* **continue** pour les sessions valides.
+* **I/O Maximisation :** Le parallélisme est utilisé pour masquer la latence des opérations I/O bloquantes de la base de données.
+* **Vérification Métier :** Le **`HCheckDataIntegrity`** est un garde-fou. Il assure la **cohérence logique** des données (ex. : la somme des lots correspond à la position totale) avant la mise en service du manager.
 
 ---
 
 ### 5. Conclusion
 
-Ce module garantit un **démarrage rapide** du système en gérant efficacement l'attente I/O. Il assure également que chaque manager local (PM et RM) entre en service avec un **état initial validé et cohérent** avec les règles de la stratégie, préparant ainsi le système pour l'étape finale de validation croisée.
+Ce module garantit un **démarrage rapide et résilient** du système en gérant efficacement l'attente I/O. Il assure également que chaque manager local (PM et RM) est prêt et que son état initial est validé. Le succès de cette étape permet de passer à l'initialisation du flux de données temps réel.
