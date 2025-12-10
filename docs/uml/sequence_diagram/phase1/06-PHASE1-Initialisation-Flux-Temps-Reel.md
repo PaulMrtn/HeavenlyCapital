@@ -1,7 +1,7 @@
 # `06-PHASE1-Initialisation-Flux-Temps-Reel`
 
 <p align="center">
-  <img src="img/06-PHASE1-Initialisation-Flux-Temps-Reel.jpg" width="900">
+  <img src="../img/06-PHASE1-Initialisation-Flux-Temps-Reel.jpg" width="900">
 </p>
 
 ---
