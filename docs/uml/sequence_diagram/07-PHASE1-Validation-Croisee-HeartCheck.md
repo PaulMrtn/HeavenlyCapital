@@ -1,7 +1,7 @@
 ## `07-PHASE1-Validation-Croisee-HeartCheck`
 
 <p align="center">
-  <img src="07-PHASE1-Validation-Croisee-HeartCheck.jpg" width="900">
+  <img src="img/07-PHASE1-Validation-Croisee-HeartCheck.jpg" width="900">
 </p>
 
 
