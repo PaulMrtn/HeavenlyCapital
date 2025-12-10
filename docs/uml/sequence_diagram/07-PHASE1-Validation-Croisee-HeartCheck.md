@@ -4,6 +4,7 @@
   <img src="img/07-PHASE1-Validation-Croisee-HeartCheck.jpg" width="900">
 </p>
 
+---
 
 ### 1. Objectif
 
