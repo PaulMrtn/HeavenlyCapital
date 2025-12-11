@@ -9,7 +9,7 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de garantir la **disponibilité immédiate** des prix de marché les plus récents dans le cache en mémoire (`:DataCache`), avec une **latence minimale absolue**, en assurant que le thread de réception de données ne soit **jamais bloqué** par des opérations d'écriture.
+La finalité de ce module est de garantir la **disponibilité immédiate** des prix de marché les plus récents dans le cache en mémoire (`DataCache`), avec une **latence minimale**, en assurant que le thread de réception de données ne soit **jamais bloqué** par des opérations d'écriture.
 
 ---
 
@@ -21,18 +21,18 @@ Ce module est le **cœur opérationnel** de la Phase II (In-Trade). Il s'inscrit
 
 ### 3. Logique Générale
 
-Le fonctionnement repose sur un modèle **Producteur/Consommateur** découplé par une **Queue Non Bloquante** (`:FastLaneQueue`) :
+Le fonctionnement repose sur un modèle **Producteur/Consommateur** découplé par une **Queue Non Bloquante** (`FastLaneQueue`) :
 
-* Le **Producteur** (`:LiveDataHub`) reçoit les `TickData` bruts, vérifie leur intégrité et leur latence. Si le flux est sain, il agrège les Ticks en un objet `MarketQuote` consolidé. Il **dépose** ensuite ce `MarketQuote` dans la `:FastLaneQueue` de manière asynchrone et continue immédiatement à écouter le prochain Tick, sans attendre la fin de l'écriture.
-* Le **Consommateur** (un thread dédié du `:ThreadManager` / `Pool I/O Real-Time`) est en **boucle d'écoute persistante** sur la `:FastLaneQueue`. Dès qu'un `MarketQuote` est disponible, il le retire de la queue et exécute son unique mission : l'écriture dans le `:DataCache`.
+* Le **Producteur** (`LiveDataHub`) reçoit les `TickData` bruts, vérifie leur intégrité et leur latence. Si le flux est sain, il agrège les Ticks en un objet `MarketQuote` consolidé. Il **dépose** ensuite ce `MarketQuote` dans la `FastLaneQueue` de manière asynchrone et continue immédiatement à écouter le prochain Tick, sans attendre la fin de l'écriture.
+* Le **Consommateur** (un thread dédié du `ThreadManager` / `Pool I/O Real-Time`) est en **boucle d'écoute persistante** sur la `FastLaneQueue`. Dès qu'un `MarketQuote` est disponible, il le retire de la queue et exécute son unique mission : l'écriture dans le `DataCache`.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Priorité Sécurité :** La vérification de la latence (`checkLatency()`) est exécutée **avant** toute agrégation ou distribution. En cas de latence critique ou de perte de connexion, le processus s'interrompt immédiatement pour alerter le `:SystemManager` via la référence `REF: SM-HandleCriticalDataLoss`. L'enregistrement (`logCriticalError`) de l'incident est synchrone et prioritaire.
+* **Priorité Sécurité :** La vérification de la latence (`checkLatency()`) est exécutée **avant** toute agrégation ou distribution. En cas de latence critique ou de perte de connexion, le processus s'interrompt immédiatement pour alerter le `SystemManager` via la référence `REF: SM-HandleCriticalDataLoss`. L'enregistrement (`logCriticalError`) de l'incident est synchrone et prioritaire.
 * **Non-Blocage Absolu :** L'opération clé (`enqueue` sur la `:FastLaneQueue`) doit être **non bloquante** pour le thread du `:LiveDataHub`. Cela garantit que l'agrégateur ne perd jamais de temps et peut absorber le flux maximum de `Tick Data`.
-* **Isolation des Tâches :** Le calcul intensif (agrégation en `MarketQuote`) est effectué par le Producteur (`:LiveDataHub`), tandis que l'I/O critique (écriture en cache) est effectuée par le Consommateur (`:ThreadManager`). Cela isole le CPU du temps I/O.
+* **Isolation des Tâches :** Le calcul intensif (agrégation en `MarketQuote`) est effectué par le Producteur (`LiveDataHub`), tandis que l'I/O critique (écriture en cache) est effectuée par le Consommateur (`:ThreadManager`). Cela isole le CPU du temps I/O.
 * **Structure de Données :** Seul l'objet **`MarketQuote`** (la cotation consolidée pour un actif) transite par la `FastLaneQueue` et est stocké dans le cache, minimisant la charge utile et la latence.
 
 ---
