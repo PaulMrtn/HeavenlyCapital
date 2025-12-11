@@ -15,7 +15,7 @@ Garantir l'**auditabilité** et la **traçabilité** complète de l'activité de
 
 ### 2. Contexte
 
-Ce module existe pour isoler l'opération la plus **lourde en I/O** (Input/Output) du système : l'écriture en masse (Bulk Insert) des données historiques dans la base de données (`:DB`). Il s'inscrit en parallèle de la boucle de trading et est déclenché par le `LiveDataHub` (`:LDH`) après que les données aient été distribuées en mémoire vers la `Fast-LaneQueue` pour l'exécution immédiate. Il utilise des ressources de basse priorité pour opérer en tâche de fond.
+Ce module existe pour isoler l'opération la plus **lourde en I/O** (Input/Output) du système : l'écriture en masse (Bulk Insert) des données historiques dans la base de données. Il s'inscrit en parallèle de la boucle de trading et est déclenché par le `LiveDataHub` après que les données aient été distribuées en mémoire vers la `Fast-LaneQueue` pour l'exécution immédiate. Il utilise des ressources de basse priorité pour opérer en tâche de fond.
 
 ---
 
@@ -23,7 +23,7 @@ Ce module existe pour isoler l'opération la plus **lourde en I/O** (Input/Outpu
 
 Le `LiveDataHub` reçoit le flux de Ticks et, en plus d'alimenter la `FastLaneQueue`, il accumule les données agrégées (`MarketQuote`) dans un **buffer interne**.
 
-Lorsque ce buffer atteint une taille critique (volume suffisant) ou qu'une période de temps définie s'est écoulée, le `LDH` soumet le bloc de données au `Data Ingestion Layer` (`:DIL`). Le `DIL` crée les objets de persistance nécessaires (`SnapshotHeader` en tant que parent des `MarketQuote`) et les encapsule dans un **Job**. Ce Job est transmis au `Job Manager` qui l'alloue au **Pool I/O Bulk** (Pool de basse priorité) via le `Thread Manager`. Un thread de ce pool exécute alors l'insertion massive et asynchrone des données dans la base.
+Lorsque ce buffer atteint une taille critique (volume suffisant) ou qu'une période de temps définie s'est écoulée, le `LDH` soumet le bloc de données au `Data Ingestion Layer`. Le `DIL` crée les objets de persistance nécessaires (`SnapshotHeader` en tant que parent des `MarketQuote`) et les encapsule dans un **Job**. Ce Job est transmis au `Job Manager` qui l'alloue au **Pool I/O Bulk** (Pool de basse priorité) via le `Thread Manager`. Un thread de ce pool exécute alors l'insertion massive et asynchrone des données dans la base.
 
 ---
 
