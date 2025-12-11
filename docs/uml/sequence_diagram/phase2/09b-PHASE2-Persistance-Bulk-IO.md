@@ -29,36 +29,18 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 
 ## Description des Fonctions Utilisées
 
+`checkBufferStatus()` : Auto-appel périodique du `LiveDataHub`. Cette fonction vérifie l'état du buffer interne accumulant les `MarketQuote` destinés à la persistance. Elle compare le temps écoulé depuis la dernière soumission et la taille actuelle du bloc de données en attente avec les seuils configurés.
 
-### 1. `checkBufferStatus()`
+`submitTask(MarketQuoteBuffer)` : Le `LDH` transfère le bloc de `MarketQuote` accumulés au `DIL`. Cette action signale au `DIL` qu'un lot de données est prêt à être traité pour la persistance. Le `LDH` efface ensuite son buffer pour commencer une nouvelle accumulation.
 
-* **Déroulement :** Auto-appel périodique du `LiveDataHub`. Cette fonction vérifie l'état du buffer interne accumulant les `MarketQuote` destinés à la persistance. Elle compare le temps écoulé depuis la dernière soumission et la taille actuelle du bloc de données en attente avec les seuils configurés.
-* **Résultat :** Si les seuils sont atteints, le processus de soumission est initié (déclenchement de la séquence Opt).
+`createPersistenceObjects()` : C'est une fonction de transformation et d'enrichissement. Le `DIL` crée d'abord une instance de l'entité parent (`SnapshotHeader`). Il génère un identifiant unique (`snapshot_id`) pour cet en-tête. Ensuite, il parcourt tous les `MarketQuote` reçus et leur injecte la référence à cet `snapshot_id` (`snapshot_id_ref`). Cela garantit que le bloc de données est atomique et cohérent pour l'insertion en masse.
 
-### 2. `submitTask(MarketQuoteBuffer)`
+`createJob(Pool: I/O Bulk, Data: PersistenceObject)` : Le `DIL` encapsule le bloc de données finalisé et la fonction d'insertion (`bulkInsert`) dans un objet `Job`. Crucialement, il spécifie le type de ressource requis : **`Pool I/O Bulk`**. Le `JM` prend le relais, enregistre le Job et le place dans la file d'attente d'exécution des tâches de basse priorité.
 
-* **Déroulement :** Le `LDH` transfère le bloc de `MarketQuote` accumulés au `DIL`. Cette action signale au `DIL` qu'un lot de données est prêt à être traité pour la persistance. Le `LDH` efface ensuite son buffer pour commencer une nouvelle accumulation.
+`delegateJob(Bulk I/O)` : Lorsque le `JM` est prêt à exécuter le Job (en fonction de la charge actuelle du système et de la basse priorité du Job), il demande au `TM` de lui fournir un thread libre du **Pool I/O Bulk**. Le `TM` alloue cette ressource d'exécution au Job.
 
-### 3. `createPersistenceObjects()`
+`executeBulkInsert(DataBlock)` : Le thread alloué lance la fonction d'insertion réelle. L'appel est dirigé vers le `DIL` pour que ce dernier utilise son pilote d'accès à la base de données. Cet appel est **asynchrone** du point de vue de la boucle critique du système.
 
-* **Déroulement :** C'est une fonction de transformation et d'enrichissement. Le `DIL` crée d'abord une instance de l'entité parent (`SnapshotHeader`). Il génère un identifiant unique (`snapshot_id`) pour cet en-tête. Ensuite, il parcourt tous les `MarketQuote` reçus et leur injecte la référence à cet `snapshot_id` (`snapshot_id_ref`). Cela garantit que le bloc de données est atomique et cohérent pour l'insertion en masse.
+`bulkInsert(SnapshotHeader, MarketQuote)` : C'est l'opération physique d'écriture. Le `DIL` exécute une requête optimisée d'insertion en masse pour insérer les lignes `SnapshotHeader` et toutes les lignes `MarketQuote` rattachées en une seule transaction lourde. Le thread est bloqué sur cette opération jusqu'à la confirmation de la base de données.
 
-### 4. `createJob(Pool: I/O Bulk, Data: PersistenceObject)`
-
-* **Déroulement :** Le `DIL` encapsule le bloc de données finalisé et la fonction d'insertion (`bulkInsert`) dans un objet `Job`. Crucialement, il spécifie le type de ressource requis : **`Pool I/O Bulk`**. Le `JM` prend le relais, enregistre le Job et le place dans la file d'attente d'exécution des tâches de basse priorité.
-
-### 5. `delegateJob(Bulk I/O)`
-
-* **Déroulement :** Lorsque le `JM` est prêt à exécuter le Job (en fonction de la charge actuelle du système et de la basse priorité du Job), il demande au `TM` de lui fournir un thread libre du **Pool I/O Bulk**. Le `TM` alloue cette ressource d'exécution au Job.
-
-### 6. `executeBulkInsert(DataBlock)`
-
-* **Déroulement :** Le thread alloué lance la fonction d'insertion réelle. L'appel est dirigé vers le `DIL` pour que ce dernier utilise son pilote d'accès à la base de données. Cet appel est **asynchrone** du point de vue de la boucle critique du système.
-
-### 7. `bulkInsert(SnapshotHeader, MarketQuote)`
-
-* **Déroulement :** C'est l'opération physique d'écriture. Le `DIL` exécute une requête optimisée d'insertion en masse pour insérer les lignes `SnapshotHeader` et toutes les lignes `MarketQuote` rattachées en une seule transaction lourde. Le thread est bloqué sur cette opération jusqu'à la confirmation de la base de données.
-
-### 8. `Job Completed`
-
-* **Déroulement :** Une fois la transaction (`bulkInsert`) confirmée par la base de données, l'état du Job est mis à jour. Le `JM` est notifié, ce qui lui permet de fermer la tâche et d'enregistrer l'audit de fin d'exécution.
+`Job Completed` : Une fois la transaction (`bulkInsert`) confirmée par la base de données, l'état du Job est mis à jour. Le `JM` est notifié, ce qui lui permet de fermer la tâche et d'enregistrer l'audit de fin d'exécution.
