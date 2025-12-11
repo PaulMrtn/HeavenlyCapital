@@ -1,18 +1,31 @@
 ## `09b-PHASE2-Persistance-Bulk-IO`
 
+
+<p align="center">
+  <img src="img/09b-PHASE2-Persistance-Bulk-IO.jpg width="900">
+</p>
+
+---
+
 ## 1. Objectif
 
 Garantir l'**auditabilité** et la **traçabilité** complète de l'activité de marché en enregistrant massivement les données agrégées (`MarketQuote` et `SnapshotHeader`) en base de données, sans jamais impacter la latence de la boucle d'exécution critique (`Fast-Lane`).
 
+---
+
 ## 2. Contexte
 
 Ce module existe pour isoler l'opération la plus **lourde en I/O** (Input/Output) du système : l'écriture en masse (Bulk Insert) des données historiques dans la base de données (`:DB`). Il s'inscrit en parallèle de la boucle de trading et est déclenché par le `LiveDataHub` (`:LDH`) après que les données aient été distribuées en mémoire vers la `Fast-LaneQueue` pour l'exécution immédiate. Il utilise des ressources de basse priorité pour opérer en tâche de fond.
+
+---
 
 ## 3. Logique Générale
 
 Le `LiveDataHub` reçoit le flux de Ticks et, en plus d'alimenter la `FastLaneQueue`, il accumule les données agrégées (`MarketQuote`) dans un **buffer interne**.
 
 Lorsque ce buffer atteint une taille critique (volume suffisant) ou qu'une période de temps définie s'est écoulée, le `LDH` soumet le bloc de données au `Data Ingestion Layer` (`:DIL`). Le `DIL` crée les objets de persistance nécessaires (`SnapshotHeader` en tant que parent des `MarketQuote`) et les encapsule dans un **Job**. Ce Job est transmis au `Job Manager` qui l'alloue au **Pool I/O Bulk** (Pool de basse priorité) via le `Thread Manager`. Un thread de ce pool exécute alors l'insertion massive et asynchrone des données dans la base.
+
+---
 
 ## 4. Règles Critiques
 
@@ -21,13 +34,15 @@ Lorsque ce buffer atteint une taille critique (volume suffisant) ou qu'une péri
 * **Condition de Déclenchement :** Le module ne s'active que de manière **périodique** (par temps écoulé) ou **conditionnelle** (par taille de buffer atteinte), jamais pour chaque `MarketQuote` individuel, afin de maximiser l'efficacité du *Bulk Insert*.
 * **Cohérence des Données :** Le `DIL` est responsable de garantir la **cohérence des clés primaires/étrangères** en créant le `SnapshotHeader` et en rattachant l'ensemble des `MarketQuote` associés **avant** l'insertion en base.
 
+---
+
 ## 5. Conclusion
 
 Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'historique. En utilisant l'isolation des ressources du **Pool I/O Bulk**, il permet de capturer une image complète et cohérente du marché (`SnapshotHeader` + `MarketQuote`) pour l'analyse Post-Trade, sans impacter la performance en temps réel de la boucle de trading.
 
 ---
 
-## Description des Fonctions Utilisées
+## Description des Fonctions 
 
 `checkBufferStatus()` : Auto-appel périodique du `LiveDataHub`. Cette fonction vérifie l'état du buffer interne accumulant les `MarketQuote` destinés à la persistance. Elle compare le temps écoulé depuis la dernière soumission et la taille actuelle du bloc de données en attente avec les seuils configurés.
 
