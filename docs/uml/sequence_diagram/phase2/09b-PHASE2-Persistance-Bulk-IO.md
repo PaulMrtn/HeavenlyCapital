@@ -2,7 +2,7 @@
 
 
 <p align="center">
-  <img src="img/09b-PHASE2-Persistance-Bulk-IO.jpg width="900">
+  <img src="img/09b-PHASE2-Persistance-Bulk-IO.jpg" width="900">
 </p>
 
 ---
