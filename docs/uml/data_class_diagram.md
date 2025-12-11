@@ -244,7 +244,7 @@ Contrairement à TickData (granularité tick-par-tick), MarketQuote regroupe les
 **Attributs :**
 
 * **`quote_id`** (`UUID`, *Primary Key*): ID de le cotation de marché
-* * `snapshot_id_ref` (`UUID`, *Foreign Key*): Vers `SnapshotHeader.snapshot_id`
+* `snapshot_id_ref` (`UUID`, *Foreign Key*): Vers `SnapshotHeader.snapshot_id`
 * `asset_id_ref` (`UUID`, *Foreign Key*): Vers `Asset.asset_id`
 * `bid` (`float`): Prix du meilleur Bid.
 * `bid_size` (`float`): Volume disponible au meilleur Bid.
