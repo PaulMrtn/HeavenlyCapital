@@ -7,19 +7,19 @@
 
 ---
 
-## 1. Objectif
+### 1. Objectif
 
 Garantir l'**auditabilité** et la **traçabilité** complète de l'activité de marché en enregistrant massivement les données agrégées (`MarketQuote` et `SnapshotHeader`) en base de données, sans jamais impacter la latence de la boucle d'exécution critique (`Fast-Lane`).
 
 ---
 
-## 2. Contexte
+### 2. Contexte
 
 Ce module existe pour isoler l'opération la plus **lourde en I/O** (Input/Output) du système : l'écriture en masse (Bulk Insert) des données historiques dans la base de données (`:DB`). Il s'inscrit en parallèle de la boucle de trading et est déclenché par le `LiveDataHub` (`:LDH`) après que les données aient été distribuées en mémoire vers la `Fast-LaneQueue` pour l'exécution immédiate. Il utilise des ressources de basse priorité pour opérer en tâche de fond.
 
 ---
 
-## 3. Logique Générale
+### 3. Logique Générale
 
 Le `LiveDataHub` reçoit le flux de Ticks et, en plus d'alimenter la `FastLaneQueue`, il accumule les données agrégées (`MarketQuote`) dans un **buffer interne**.
 
@@ -27,7 +27,7 @@ Lorsque ce buffer atteint une taille critique (volume suffisant) ou qu'une péri
 
 ---
 
-## 4. Règles Critiques
+### 4. Règles Critiques
 
 * **Isolation Critique :** L'exécution de l'insertion est **asynchrone** par rapport au `LiveDataHub`. Le thread du `LDH` ne doit jamais attendre la fin de l'écriture en base.
 * **Priorité Basse :** La tâche utilise exclusivement le **Pool I/O Bulk**. Ce pool a la plus basse priorité afin que ses threads soient suspendus ou ralentis si une tâche critique (exécution d'ordre ou écriture `Fill`) nécessite des ressources I/O urgentes.
@@ -36,13 +36,13 @@ Lorsque ce buffer atteint une taille critique (volume suffisant) ou qu'une péri
 
 ---
 
-## 5. Conclusion
+### 5. Conclusion
 
 Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'historique. En utilisant l'isolation des ressources du **Pool I/O Bulk**, il permet de capturer une image complète et cohérente du marché (`SnapshotHeader` + `MarketQuote`) pour l'analyse Post-Trade, sans impacter la performance en temps réel de la boucle de trading.
 
 ---
 
-## Description des Fonctions 
+### Description des Fonctions 
 
 `checkBufferStatus()` : Auto-appel périodique du `LiveDataHub`. Cette fonction vérifie l'état du buffer interne accumulant les `MarketQuote` destinés à la persistance. Elle compare le temps écoulé depuis la dernière soumission et la taille actuelle du bloc de données en attente avec les seuils configurés.
 
