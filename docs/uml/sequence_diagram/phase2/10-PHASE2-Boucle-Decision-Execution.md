@@ -44,7 +44,7 @@ Ce module garantit un flux de prix **déterministe, ultra-rapide et cohérent** 
 
 ### 6. Description des Fonctions 
 
-* **`tickData(tick_id, asset_id_ref, ...)` : L'IBKR Gateway transmet de manière asynchrone la mise à jour brute du marché (`TickData`). C'est l'événement déclencheur de chaque itération.
+* **`tickData(tick_id, asset_id_ref, ...)`** : L'IBKR Gateway transmet de manière asynchrone la mise à jour brute du marché (`TickData`). C'est l'événement déclencheur de chaque itération.
 
 * **`checkLatency()`** : Exécuté immédiatement après la réception du Tick. Le Live Data Hub compare le `timestamp` du `TickData` reçu avec l'heure actuelle pour détecter une latence excessive et déterminer si le flux est sain (point de décision `ALT`).
 
