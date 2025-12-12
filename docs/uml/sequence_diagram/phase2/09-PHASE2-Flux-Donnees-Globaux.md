@@ -22,10 +22,10 @@ Ce module s'inscrit comme le premier grand processus de la Phase II (In-Trade), 
 
 ### 3. Logique Générale
 
-Le processus est déclenché par le `:SystemManager` qui ordonne au `:LiveDataHub` de commencer l'acquisition des données. Une fois l'écoute des Ticks démarrée via l'IBKR Gateway, le `:LiveDataHub` initie **simultanément** deux processus indépendants modélisés par le fragment Parallèle (`par`) :
+Le processus est déclenché par le `SystemManager` qui ordonne au `LiveDataHub` de commencer l'acquisition des données. Une fois l'écoute des Ticks démarrée via `IBKR Gateway`, le `LiveDataHub` initie **simultanément** deux processus indépendants modélisés par le fragment parallèle :
 
-* **Fast-Lane (Référence 09a) :** Le flux ultra-rapide et non bloquant qui conduit les `MarketQuote` agrégés vers le `:DataCache` via une queue asynchrone pour une disponibilité immédiate (destination : Risk Monitor / Portfolio Manager).
-* **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui transfère les buffers de données agrégées vers le `:DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
+* **Fast-Lane (Référence 09a) :** Le flux ultra-rapide et non bloquant qui conduit les `MarketQuote` agrégés vers le `DataCache` via une queue asynchrone pour une disponibilité immédiate (destination : Risk Monitor / Portfolio Manager).
+* **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui transfère les buffers de données agrégées vers le `DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
 
 L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du marché.
 
@@ -35,7 +35,7 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
 ### 4. Règles Critiques
 
 * **Garantie de Parallélisme :** L'utilisation du fragment Parallèle est fondamentale pour garantir que la charge de travail du `Pool I/O Bulk` (Slow-Lane) ne perturbe jamais la boucle critique du `Pool I/O Real-Time` (Fast-Lane).
-* **Source Unique :** Le `:LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
+* **Source Unique :** Le `LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
 * **Résilience Intrinsèque :** Bien que les flux soient indépendants, le mécanisme de surveillance de la latence du `09a` reste prioritaire. Une défaillance de la Fast-Lane entraîne un arrêt (Kill Switch) potentiel du système entier, y compris de la Slow-Lane.
 
 ---
