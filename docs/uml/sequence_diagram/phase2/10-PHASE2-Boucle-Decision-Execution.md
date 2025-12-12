@@ -25,7 +25,7 @@ Ce module est le **centre de commande** du système de trading. Il s'inscrit dir
 Le fonctionnement repose sur l'orchestration du `ThreadManager` et l'exploitation de mécanismes asynchrones :
 
 1.  **Déclenchement :** La boucle de décision est activée par un événement **asynchrone** (`marketQuoteUpdated`) émis par le `DataCache` dès qu'une nouvelle cotation est écrite (à la fin de la séquence 09a). Cet événement signale au `ThreadManager` qu'un nouveau cycle de décision peut commencer.
-2.  **Parallélisme d'Exécution :** Le `ThreadManager` alloue immédiatement des threads dédiés à l'instance du `RiskMonitor` et à celle du `PortfolioManager`, permettant à leurs logiques respectives de s'exécuter **simultanément** (Fragment `Par`).
+2.  **Parallélisme d'Exécution :** Le `ThreadManager` alloue immédiatement des threads dédiés à l'instance du `RiskMonitor` et à celle du `PortfolioManager`, permettant à leurs logiques respectives de s'exécuter **simultanément**.
 3.  **Soumission Non Bloquante :** Chaque manager dépose tout ordre généré (Urgent ou Standard) dans la **`OrderInputQueue`** asynchrone. Cette queue sert de zone tampon ultra-rapide, garantissant que les threads des managers sont libérés immédiatement pour être recyclés.
 4.  **Consommation :** L'OMS (Order Manager System) consomme cette queue via ses propres threads, lançant la séquence d'arbitrage et d'exécution (Séquence 11).
 
