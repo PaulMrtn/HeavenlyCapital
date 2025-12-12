@@ -15,7 +15,7 @@ La finalité de ce module est de déterminer et de déclencher les actions d'ex�
 
 ### 2. Contexte
 
-Ce module est le **centre de commande** du système de trading. Il s'inscrit directement après la Phase 09 (distribution des données Fast-Lane). Il existe pour exploiter la très faible latence des prix disponibles dans le `DataCache` et traduire cette donnée brute en décisions d'exécution (ordres de trading).
+Ce module s'inscrit directement après la Phase 09 (distribution des données Fast-Lane). Il existe pour exploiter la très faible latence des prix disponibles dans le `DataCache` et traduire cette donnée brute en décisions d'exécution (ordres de trading).
 
 ---
 
