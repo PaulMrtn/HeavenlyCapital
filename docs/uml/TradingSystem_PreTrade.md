@@ -81,7 +81,3 @@ Cette validation finale vérifie que les **liens de communication asynchrones** 
 
 * Le `System Manager` attend le signal **`MARKET_OPEN`** émis par le `Market Clock`.
 * Dès réception, il bascule l'état du système en phase **In-Trade**.
-
----
-
-Voulez-vous que nous passions au diagramme de séquence suivant, le **07-PHASE1-Initialisation-Session-Parallele.puml**, qui modélisera une partie de l'étape 3 de cette documentation ?
