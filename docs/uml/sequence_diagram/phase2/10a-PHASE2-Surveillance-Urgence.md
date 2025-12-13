@@ -20,7 +20,7 @@ Ce processus s'inscrit dans la **Phase II (In-Trade)** et est piloté par le **`
 
 ### 3. Logique Générale
 
-Le `RiskMonitor` fonctionne en boucle continue. À chaque signal `SnapshotReady`, il initie un double processus de récupération synchrone (Fetch) : il lit le prix le plus frais dans le **`DataCache`** et l'état de la position auprès du **`PortfolioManager`**. Muni de ces deux données, il procède à l'évaluation des seuils (`checkThresholds`). Si un seuil est franchi, il crée un ordre d'urgence, journalise l'incident de manière bloquante, puis soumet cet ordre à l'`OrderManager` avec une priorité **`CRITICAL`**. L'ordre est ensuite sécurisé dans la `PriorityQueue` de l'OM avant d'être routé pour l'exécution physique.
+Le `RiskMonitor` fonctionne en boucle continue. À chaque signal `SnapshotReady`, il initie un double processus de récupération synchrone (Fetch) : il lit le prix dans le **`DataCache`** et l'état de la position auprès du **`PortfolioManager`**. Muni de ces deux données, il procède à l'évaluation des seuils (`checkThresholds`). Si un seuil est franchi, il crée un ordre d'urgence, journalise l'incident de manière bloquante, puis soumet cet ordre à l'`OrderManager` avec une priorité **`CRITICAL`**. L'ordre est ensuite sécurisé dans la `PriorityQueue` de l'OM avant d'être routé pour l'exécution physique.
 
 ---
 
