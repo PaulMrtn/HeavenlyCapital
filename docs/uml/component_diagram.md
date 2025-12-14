@@ -126,12 +126,12 @@ L'Order Manager est un Subscriber à l'événement FILL_RECEIVED. À la récepti
 Le GOR est l'unité centrale de l'**arbitrage de la priorité d'exécution I/O** (Input/Output). Il s'interpose entre les gestionnaires d'ordres locaux (`OrderManager`) des différentes sessions (Live, Paper) et le `JobManager`. Son objectif est d'appliquer une **politique de super-priorité globale** sur toutes les requêtes d'exécution sortantes, garantissant que les ordres des sessions prioritaires sont (Paper) routés et soumis avant les ordres de sessions moins prioritaires (Live). Le GOR ne stocke pas les ordres et n'est pas une file d'attente ; il est un service de transformation et de soumission immédiate.
 
 * **Interfaces Fournies / Requises :**
-* **IRoutingArbitrator** : Interface fournie par le GOR. Elle reçoit les requêtes d'ordres complètes, le type de session et la priorité locale de la part des `LocalOrderManagers`.
-* **IJobSubmission** : Interface requise pour soumettre la tâche d'exécution I/O au `JobManager` avec la `FinalPoolHint` calculée.
-* **IExecutionContextProvider** : Interface requise pour valider ou récupérer les règles de priorisation des types de session.
+  * **IRoutingArbitrator** : Interface fournie par le GOR. Elle reçoit les requêtes d'ordres complètes, le type de session et la priorité locale de la part des `LocalOrderManagers`.
+  * **IJobSubmission** : Interface requise pour soumettre la tâche d'exécution I/O au `JobManager` avec la `FinalPoolHint` calculée.
+  * **IExecutionContextProvider** : Interface requise pour valider ou récupérer les règles de priorisation des types de session.
 
 * **Data Classes :**
-* **OrderRoutingRequest** : Un objet temporaire qui embarque l'objet `Order`, la `SessionType` (LIVE/PAPER) et la `LocalPriority` (CRITICAL/STANDARD) pour le calcul d'arbitrage.
+  * **OrderRoutingRequest** : Un objet temporaire qui embarque l'objet `Order`, la `SessionType` (LIVE/PAPER) et la `LocalPriority` (CRITICAL/STANDARD) pour le calcul d'arbitrage.
 
 #### Notes
 * **Gouvernance Globale** : Le GOR est un **Singleton** (Instance unique) pour éviter les conflits d'arbitrage. Il est le point de contrôle unique pour la soumission des ordres à l'exécution I/O.
