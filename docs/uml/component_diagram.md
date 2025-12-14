@@ -126,7 +126,7 @@ L'Order Manager est un Subscriber à l'événement FILL_RECEIVED. À la récepti
 Le GOR est l'unité centrale de l'**arbitrage de la priorité d'exécution I/O** (Input/Output). Il s'interpose entre les gestionnaires d'ordres locaux (`OrderManager`) des différentes sessions (Live, Paper) et le `JobManager`. Son objectif est d'appliquer une **politique de super-priorité globale** sur toutes les requêtes d'exécution sortantes, garantissant que les ordres des sessions prioritaires sont (Paper) routés et soumis avant les ordres de sessions moins prioritaires (Live). Le GOR ne stocke pas les ordres et n'est pas une file d'attente ; il est un service de transformation et de soumission immédiate.
 
 * **Interfaces Fournies / Requises :**
-  * **IRoutingArbitrator** : Interface fournie par le GOR. Elle reçoit les requêtes d'ordres complètes, le type de session et la priorité locale de la part des `LocalOrderManagers`.
+  * **IRoutingArbitrator** : Interface fournie par le GOR. Elle reçoit les requêtes d'ordres complètes, le type de session et la priorité locale de la part des `OrderManagers`.
   * **IJobSubmission** : Interface requise pour soumettre la tâche d'exécution I/O au `JobManager` avec la `FinalPoolHint` calculée.
   * **IExecutionContextProvider** : Interface requise pour valider ou récupérer les règles de priorisation des types de session.
 
@@ -135,7 +135,7 @@ Le GOR est l'unité centrale de l'**arbitrage de la priorité d'exécution I/O**
 
 #### Notes
 * **Gouvernance Globale** : Le GOR est un **Singleton** (Instance unique) pour éviter les conflits d'arbitrage. Il est le point de contrôle unique pour la soumission des ordres à l'exécution I/O.
-* **Formule d'Arbitrage** : Le GOR utilise une formule de pondération ou une table de *mapping* pour transformer la priorité locale en un `Pool I/O` final. Par exemple, la règle *`Paper` > `Live`* est appliquée ici pour garantir que le test de la stratégie en mode Paper ne soit jamais ralenti par une exécution Live.
+* **Formule d'Arbitrage** : Le GOR transforme la priorité locale en un Pool I/O final en accordant la priorité la plus élevée aux ordres de type `CRITICAL` et, pour les conflits entre sessions, en priorisant systématiquement l'exécution des ordres `LIVE` devant les ordres `PAPER`, empêchant ainsi toute contention de ressources critiques par les tests.
 * **Non-Blocage** : L'opération d'arbitrage doit être ultra-rapide et synchrone. Le GOR doit transmettre l'ordre au `JobManager` immédiatement après son calcul, sans créer de latence notable.
 
 
