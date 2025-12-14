@@ -39,4 +39,4 @@ Un thread de fond (le Dequeue Processor) dans l'`OrderManager` surveille la `Pri
 
 ### 5. Conclusion
 
-Le module garantit l'exécution physique des ordres dans le respect strict des priorités logiques et architecturales. Il s'assure que les ordres sont non seulement priorisés au niveau de la session locale, mais aussi correctement arbitrés au niveau global pour favoriser les cycles de test sans compromettre l'urgence des ordres critiques.
+Le module garantit l'exécution des ordres dans le respect strict des priorités logiques et architecturales. Il s'assure que les ordres sont non seulement priorisés au niveau de la session locale, mais aussi correctement arbitrés au niveau global pour favoriser les cycles de test sans compromettre l'urgence des ordres réels.
