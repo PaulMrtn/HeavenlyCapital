@@ -8,7 +8,7 @@
 
 ### 1. Objectif
 
-La finalité de ce processus est de garantir la **transmission physique et priorisée** des ordres de trading à la plateforme du courtier (`IBKR Gateway`), en appliquant une **politique de priorité globale** (ex: Paper avant Live) et en utilisant les ressources I/O appropriées.
+La finalité de ce processus est de garantir la **transmission physique et priorisée** des ordres de trading à la plateforme du courtier (`IBKR Gateway`), en appliquant une **politique de priorité globale** (Live avant Paper) et en utilisant les ressources I/O appropriées.
 
 ---
 
