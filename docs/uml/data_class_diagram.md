@@ -410,6 +410,29 @@ Elle relie chaque exécution à son ordre, à la session de trading correspondan
 * `Fill` 0..* --- 1 `Asset` 
   - Chaque Fill est lié à un actif.
 
+
+
+#### 4.3. `OrderRoutingRequest`
+`OrderRoutingRequest` est l'objet de transfert de données utilisé par les gestionnaires d'ordres locaux (`LocalOrderManager`) pour soumettre une requête d'exécution au **`Global Order Router` (GOR)**. Cette classe est temporaire (elle ne nécessite pas de persistance en base de données) et encapsule tous les éléments nécessaires au GOR pour prendre sa décision d'arbitrage de priorité I/O inter-session. Elle assure la traçabilité de l'ordre jusqu'à l'étape d'exécution physique.
+
+**Attributs :**
+
+* **`routing_request_id`** (`UUID`, *Primary Key*): Identifiant unique de cette requête d'arbitrage (utile pour la traçabilité dans le `Log Service`).
+* `order_id_ref` (`UUID`, *Foreign Key*): Vers `Order.order_id`, l'ID de l'ordre qui est soumis pour routage.
+* `session_type` (`ExecutionMode`): Le mode d'exécution de la session d'origine (LIVE, PAPER, BACKTEST).
+* `local_priority` (`OrderPriority`): La priorité locale déterminée par l'émetteur (par exemple, CRITICAL pour les ordres de Risk Monitor).
+* `submission_timestamp` (`DateTime`): Horodatage exact de la soumission au GOR.
+
+**Énumérations :**
+
+* `OrderPriority` : (`CRITICAL`, `HIGH`, `STANDARD`)
+* `ExecutionMode` : (`LIVE`, `PAPER`, `BACKTEST`) (Réutilise l'énumération de `TradingSession`)
+
+**Relations entre entités :**
+
+* `OrderRoutingRequest` 1 --- 1 `Order`
+    * Chaque requête est associée à un unique objet Ordre qui est sur le point d'être exécuté.
+
 ---
 
 ### 5. Entités liées à l’exécution, aux positions et au calcul du PnL
