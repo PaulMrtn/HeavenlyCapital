@@ -8,35 +8,35 @@
 
 ### 1. Objectif
 
-La finalité de ce processus est de garantir la **transmission priorisée** des ordres de trading à la plateforme du courtier (`IBKR Gateway`), en s'assurant que l'ordre le plus urgent est traité avant les autres, et ce, sans bloquer les autres opérations critiques.
+La finalité de ce processus est de garantir la **transmission physique et priorisée** des ordres de trading à la plateforme du courtier (`IBKR Gateway`), en appliquant une **politique de priorité globale** (ex: Paper avant Live) et en utilisant les ressources I/O appropriées.
 
 ---
 
 
 ### 2. Contexte
 
-Cette séquence est un processus asynchrone interne au module **`OrderManager`** et est référencée immédiatement après l'insertion sécurisée d'un ordre dans la `PriorityQueue` (étapes 14 de la séquence `10a` et 12 de la séquence `10b`). Elle représente la prise de relais du **"Dequeue Processor"** de l'OM pour l'exécution réelle. Le processus s'inscrit dans l'architecture I/O, utilisant les pools de threads dédiés pour isoler l'activité de communication externe.
+Cette séquence est un processus asynchrone interne au module **`OrderManager`** et est déclenchée après l'insertion sécurisée d'un ordre dans la `PriorityQueue` locale. Elle représente l'exécution du routage et de la communication externe, gérée par le **Dequeue Processor** de l'OM. L'introduction du **`Global Order Router` (GOR)** dans cette séquence est nécessaire pour arbitrer les conflits de priorité entre les différentes sessions (Live vs. Paper) avant d'allouer des ressources I/O.
 
 ---
 
 
 ### 3. Logique Générale
 
-Un thread de fond au sein de l'`OrderManager` (le Dequeue Processor) surveille en permanence la **`PriorityQueue`**. Dès qu'un ordre y est présent, il l'extrait (`dequeue`), garantissant ainsi que l'ordre avec la priorité la plus élevée est traité en premier. L'OM formatte ensuite l'ordre pour la passerelle et le soumet au **`JobManager`** en spécifiant le niveau d'I/O requis (Critique ou Standard). Le `JobManager` alloue la ressource via le `ThreadManager`, et l'ordre est transmis par l'`IBKR Gateway` au courtier. Une fois la transmission confirmée par la passerelle, l'ordre prend un statut intermédiaire (`SUBMITTED`) dans le système, et le processeur revient immédiatement à l'attente du prochain ordre dans la queue.
+Un thread de fond (le Dequeue Processor) dans l'`OrderManager` surveille la `PriorityQueue` locale et en extrait l'ordre de plus haute priorité **locale**. L'ordre, ainsi que son **Type de Session** (Live ou Paper), est ensuite soumis au **`Global Order Router` (GOR)**. Le GOR applique une formule de super-priorité (par exemple, privilégier tous les ordres Paper pour des raisons de cycle de vie et de test). Le GOR utilise cette priorité réévaluée pour solliciter le **`JobManager`** et le **`ThreadManager`**, garantissant que l'ordre est transmis par l'`IBKR Gateway` en utilisant le **Pool I/O** le plus adapté à sa priorité finale. L'état de l'ordre passe alors à `SENT` ou `SUBMITTED` dès la confirmation de la passerelle.
 
 ---
 
 
 ### 4. Règles Critiques
 
-* **Priorité d'Exécution :** La `PriorityQueue` assure la discipline. Les ordres `CRITICAL` (Stop-Loss) sont toujours retirés et routés avant les ordres `STANDARD` (stratégie) ou tout autre ordre.
-* **Isolation I/O :** La tâche de transmission est soumise au `JobManager` pour utiliser un **Pool I/O dédié**. Les ordres critiques doivent être exécutés via le **`Pool I/O Critical`** pour éviter d'être ralentis par des écritures I/O lourdes (comme le *Bulk I/O* des données de marché).
-* **Statut de l'Ordre :** Lors de l'extraction de la queue, l'état interne de l'ordre passe de `PENDING_QUEUE` à un état de transaction, puis à **`SENT`** ou **`SUBMITTED`** dès la confirmation de la passerelle. L'état final (`FILLED` ou `CANCELED`) est géré par la séquence `11-PHASE2-Traitement-Fill` ou une séquence d'annulation séparée.
-* **Processus Asynchrone :** L'intégralité du routage (après l'extraction) est un processus de fond (asynchrone). Il ne doit jamais bloquer la logique du `RiskMonitor` ou du `PortfolioManager`, qui ne font que soumettre l'ordre et non le suivre.
+* **Priorité d'Arbitrage :** La règle de super-priorité du GOR doit être respectée de manière absolue : tous les ordres d'une session Paper doivent être routés avant tous les ordres de même priorité logique d'une session Live.
+* **Isolation I/O :** Le `JobManager` doit allouer la tâche à un **Pool I/O dédié** (Pool I/O Critical ou autre) en fonction de la priorité finale décidée par le GOR. Cela isole les communications rapides des opérations de fond.
+* **Statut de l'Ordre :** L'état de l'ordre passe de `PENDING_QUEUE` à un état de transmission (`SENT` ou `SUBMITTED`) uniquement après que l'`IBKR Gateway` ait confirmé que l'ordre a quitté le système.
+* **Asynchronisme :** L'intégralité du routage est un processus asynchrone qui ne doit jamais bloquer les threads de décision (PM ou RM). L'exécution du routage est pilotée par le thread de fond du Dequeue Processor.
 
 ---
 
 
 ### 5. Conclusion
 
-Le module **`OM-RouteOrderToBroker`** est le moteur d'exécution physique du système, opérant en coulisse pour transformer les décisions de trading en actions concrètes sur le marché. Il garantit que le strict respect de la priorité établie par la `PriorityQueue` est maintenu jusqu'à la dernière étape de la communication externe, assurant ainsi l'exécution ultra-rapide des ordres d'urgence.
+Le module garantit l'exécution physique des ordres dans le respect strict des priorités logiques et architecturales. Il s'assure que les ordres sont non seulement priorisés au niveau de la session locale, mais aussi correctement arbitrés au niveau global pour favoriser les cycles de test sans compromettre l'urgence des ordres critiques.
