@@ -34,7 +34,6 @@ Cette phase est le cœur opérationnel, où l'exécution en temps réel, la surv
 
 ---
 
-
 ### 4. Diagrammes de la Phase Post-Trade (Audit & Clôture)
 
 **Nom du Package:** PHASE_03_POST_TRADE
@@ -47,20 +46,6 @@ Cette phase est le cœur opérationnel, où l'exécution en temps réel, la surv
 | **19** | **Calcul de Stratégie (Target Plan)** | Exécuter le `Strategy Engine` pour déterminer le plan d'action du lendemain (**Portfolio Target**), uniquement si les conditions de marché et d'audit sont réunies. | * **Dépendance :** Attendre la **confirmation de fin** du **Rapport d'Audit Primaire** (étape 17).<br>* Le **System Manager** vérifie si le jour suivant est un **Jour de Rebalancement** (via `TradingCalendar`).<br>* **Si Jour de Rebalancement :** Exécuter le **Strategy Engine** pour calculer le **Portfolio Target** (plan d'ordres). |
 | **20** | **Persistance Atomique du Cycle Suivant** | Persister le **Plan d'Ordres** (Target) et la **Configuration Globale** dans une transaction atomique et isolée, garantissant l'intégrité du redémarrage. | * Le **Strategy Engine** soumet le **Portfolio Target** au **DIL** pour **Persistance Atomique**.<br>* Le **Session Manager** soumet la **Sauvegarde de la Configuration Finale** (état des *kill-switches*, paramètres) au **DIL**.<br>* Ces deux écritures utilisent le **Pool I/O Post-Trade** (Pool atomique) et nécessitent une **validation de persistance**. |
 | **21** | **Arrêt Sécurisé et Transition** | Finaliser le processus Post-Trade en vérifiant la validation des écritures critiques et en mettant le système en veille (état `Off-Cycle`). | * Le **System Manager** attend la **validation de persistance** des écritures atomiques (Target et Configuration) (étape 20).<br>* Loguer l'événement **"System Shutdown"**.<br>* Le **System Manager** bascule le système en phase **Off-Cycle** (Veille). |
-
----
-
-
-### 4. Diagrammes de la Phase Post-Trade (Clôture Atomique)
-
-**Nom du Package:** PHASE_03_POST_AUDIT
-
-Cette phase est séquentielle et critique pour l'intégrité des données. Elle utilise les deux processus de persistance atomique.
-
-| Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
-| :--- | :--- | :--- | :--- |
-| **10** | `10-PHASE3-Cloture-Audit-Reconciliation.puml` | Modélise la synchronisation du système, la **Réconciliation Finale** par le **PM**, et le lancement du **Rapport d’Audit Primaire**. | * Décomposition : **System Manager** $\to$ **Job Manager** (Attente de vidage buffers) $\to$ **PM** (**Reconciliation**). * Détail : Insister sur l'attente du vidage des buffers (Verrou/Latch) et l'émission de l'**Alerte Critique** en cas d'écart. |
-| **11** | `11-PHASE3-Preparation-Atomique-Cycle-Suivant.puml` | Modélise la dernière étape : le **Strategy Engine** calcule le **Portfolio Target**, puis la persistance atomique du **Target** et de la **Configuration** (Pool I/O Post-Trade). | * Décomposition : **Strategy Engine** $\to$ **DIL** (Target) / **Session Manager** (Config). * Détail : Montrer la double soumission au **Pool I/O Post-Trade** et la transition finale **Off-Cycle** uniquement après validation des deux écritures. |
 
 ---
 
