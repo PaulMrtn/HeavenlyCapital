@@ -34,6 +34,51 @@ Cette phase est le cœur opérationnel, où l'exécution en temps réel, la surv
 
 ---
 
+
+### 4. Diagrammes de la Phase Post-Trade (Audit & Clôture)
+
+**Nom du Package:** PHASE_03_POST_TRADE
+
+| Étape | Séquence/Module | Objectif de la Séquence (Résumé) | Actions Clés |
+| --- | --- | --- | --- |
+| **16** | **Synchronisation et Audit Initial (Clôture Sûre)** | **Garantir l'état final atomique** du système en forçant la persistance de toutes les tâches en cours (`Fill`, `Position`, `Snapshot Buffer`) avant de démarrer l'audit. | * Le **System Manager** bascule en état `POST_TRADE`.<br>
+
+<br>* Le **System Manager** ordonne au **Job Manager** de **forcer la complétion** et la validation de persistance des écritures critiques en cours.<br>
+
+<br>* Le **Portfolio Manager (PM)** exécute la **Réconciliation Finale** (PM Interne vs Courtier (IBKR)).<br>
+
+<br>* **Si écart** : Envoi d'une **Alerte Critique** et enregistrement de l'événement `DATA_INTEGRITY_CHECK`. |
+| **17** | **Génération Rapport d'Audit Primaire (PnL)** | Générer et persister le rapport d'audit le plus critique (PnL final, métriques agrégées de la session) sur le Pool dédié, créant le **prérequis** pour les étapes suivantes. | * Le **Reporting Manager** lance la tâche de génération du **Rapport d'Audit Primaire**.<br>
+
+<br>* Soumettre la tâche au **Job Manager** en spécifiant le **Pool I/O Audit** (haute priorité pour la conformité).<br>
+
+<br>* Le **DIL** exécute la persistance du rapport en base de données.<br>
+
+<br>* Le **Job Manager** confirme la **validation de persistance** (verrou de synchronisation relâché). |
+| **18** | **Tâches Secondaires et Monitoring (Parallèle)** | Lancer les tâches I/O lourdes et non critiques (mises à jour secondaires, rapports de performance détaillés) en parallèle sur des ressources de basse priorité. | * **Lancement parallèle** des tâches : **Monitoring Module** (Rapport de Performance), **Job Manager** (Mise à jour des données externes).<br>
+
+<br>* Soumettre ces tâches au **Job Manager** en spécifiant le **Pool I/O Bulk** (basse priorité).<br>
+
+<br>* Ces tâches s'exécutent de manière asynchrone et ne bloquent pas le cycle principal de la stratégie. |
+| **19** | **Calcul de Stratégie (Target Plan)** | Exécuter le `Strategy Engine` pour déterminer le plan d'action du lendemain (**Portfolio Target**), uniquement si les conditions de marché et d'audit sont réunies. | * **Dépendance :** Attendre la **confirmation de fin** du **Rapport d'Audit Primaire** (étape 17).<br>
+
+<br>* Le **System Manager** vérifie si le jour suivant est un **Jour de Rebalancement** (via `TradingCalendar`).<br>
+
+<br>* **Si Jour de Rebalancement :** Exécuter le **Strategy Engine** pour calculer le **Portfolio Target** (plan d'ordres). |
+| **20** | **Persistance Atomique du Cycle Suivant** | Persister le **Plan d'Ordres** (Target) et la **Configuration Globale** dans une transaction atomique et isolée, garantissant l'intégrité du redémarrage. | * Le **Strategy Engine** soumet le **Portfolio Target** au **DIL** pour **Persistance Atomique**.<br>
+
+<br>* Le **Session Manager** soumet la **Sauvegarde de la Configuration Finale** (état des *kill-switches*, paramètres) au **DIL**.<br>
+
+<br>* Ces deux écritures utilisent le **Pool I/O Post-Trade** (Pool atomique) et nécessitent une **validation de persistance**. |
+| **21** | **Arrêt Sécurisé et Transition** | Finaliser le processus Post-Trade en vérifiant la validation des écritures critiques et en mettant le système en veille (état `Off-Cycle`). | * Le **System Manager** attend la **validation de persistance** des écritures atomiques (Target et Configuration) (étape 20).<br>
+
+<br>* Loguer l'événement **"System Shutdown"**.<br>
+
+<br>* Le **System Manager** bascule le système en phase **Off-Cycle** (Veille). |
+
+---
+
+
 ### 4. Diagrammes de la Phase Post-Trade (Clôture Atomique)
 
 **Nom du Package:** PHASE_03_POST_AUDIT
