@@ -1,20 +1,6 @@
 ##  Feuille de Route Détaillée (Roadmap / To-Do List)
 
-### 1. Diagrammes Transversaux et Processus Critiques
-
-**Nom du Package:** CORE_CRITICAL_PROCESSES
-
-Ces diagrammes doivent être réalisés en premier, car ils sont utilisés dans les phases Pre-Trade, In-Trade et Post-Trade.
-
-| Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
-| :--- | :--- | :--- | :--- |
-| **02** | `02-CORE-Persistance-Atomique-FILL.puml` | Décrit le traitement asynchrone d'une exécution de bout en bout, de l'**IBKR Gateway** à la persistance en base de données. | * Décomposition : **IBKR Gateway** $\to$ **Event** $\to$ **Order Manager** / **Portfolio Manager**. * Détail : Mettre en évidence la soumission au **Job Manager** (Pool I/O Real-Time) et l'écriture **DIL** $\to$ **Database**. |
-| **03** | `03-CORE-Soumission-Job-Prioritaire.puml` | Illustre la réception d'un ordre (Urgent ou Standard) par l'**Order Manager** et l'arbitrage par le **Job Manager**. | * Décomposition : **Order Manager** $\to$ **Job Manager** $\to$ **Thread Manager** $\to$ **IBKR Gateway**. * Détail : Utiliser des fragments alt pour l'arbitrage **Prioritaire / Standard** et l'allocation du **Pool I/O Critical**. |
-| **04** | `04-CORE-Persistance-Bulk-Snapshot.puml` | Décrit le processus d'ingestion massive des **Snapshots** dans le **Pool I/O Bulk** du **DIL** pour isoler le **Bulk I/O** du **Critical I/O**. | * Décomposition : **Live Data Hub** $\to$ **DIL** $\to$ **Job Manager** (Pool I/O Bulk) $\to$ **Database**. |
-
----
-
-### 2. Diagrammes de la Phase Pre-Trade (Bootstrapping)
+### 1. Diagrammes de la Phase Pre-Trade (Bootstrapping)
 
 **Nom du Package:** PHASE_01_BOOTSTRAPPING
 
