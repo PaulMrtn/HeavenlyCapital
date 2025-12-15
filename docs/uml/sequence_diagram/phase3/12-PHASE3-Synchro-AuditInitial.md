@@ -1,7 +1,7 @@
 ## `12-PHASE3-Synchro-AuditInitial`
 
 <p align="center">
-  <img src="../img/12-PHASE3-Synchro-AuditInitial.md.jpg" width="900">
+  <img src="../img/12-PHASE3-Synchro-AuditInitial.jpg" width="900">
 </p>
 
 ---
