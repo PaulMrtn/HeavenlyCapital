@@ -9,7 +9,7 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'assurer l'**enregistrement atomique et auditable** des résultats financiers définitifs de la journée (Position finale, PnL, PnL Réalisé) dans l'objet `SettledSessionBook`. Ce processus crée la **source de vérité** de la performance de la session.
+La finalité de ce module est d'assurer l'**enregistrement atomique et auditable** des résultats financiers définitifs de la journée (Position finale, PnL, ...) dans l'objet `SettledSessionBook`. Ce processus crée la **source de vérité** de la performance de la session.
 
 ---
 
