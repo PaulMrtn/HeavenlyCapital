@@ -8,34 +8,34 @@
 
 ### 1. Objectif
 
-Ce module a pour finalité d'enregistrer l'**État de Reprise** du système de trading. Il garantit la persistance atomique de la configuration finale de la session pour assurer un redémarrage (Phase I - Bootstrapping) sécurisé et conforme à l'état laissé à la fermeture.
+Ce module a pour finalité d'enregistrer l'**État de Reprise (Configuration de Clôture)** du système. Il garantit la persistance atomique des métadonnées critiques de la session (règles de risque, compteurs d'ordres, état des *throttlers*) pour assurer un redémarrage sécurisé et intègre lors du prochain *bootstrapping* (Phase I).
 
 ---
 
 
 ### 2. Contexte
 
-Ce processus s'inscrit dans la **Phase III (Post-Trade)**, immédiatement après la Réconciliation Finale (Étape 12) et la Persistance du SessionBook (Étape 13). Son existence est justifiée par la nécessité de **séparer les données transactionnelles** (positions, PnL) des **données d'état du moteur de risque et d'exécution**. Il est un prérequis critique pour la Phase IV (Préparation du Target) et la Phase I (Bootstrapping) suivantes.
+Ce processus s'inscrit dans la **Phase III (Post-Trade)**, se concentrant sur la sauvegarde des **règles** et non des **chiffres** (qui sont gérés par l'Étape 13 - SessionBook Final). Il est essentiel pour distinguer les données d'audit financier de la configuration opérationnelle. Son exécution est un prérequis critique pour la transition vers l'arrêt sécurisé (Étape 15).
 
 ---
 
 
 ### 3. Logique Générale
 
-Le **System Manager** déclenche le **Session Manager**, qui est responsable de la collecte des données d'état auprès du **Risk Monitor (RM)** et du **Portfolio Manager (PM)** (état des `RiskSession`, `PortfolioState`, compteurs, etc.). Ces données sont agrégées dans un objet **`SessionConfigDTO`**. Le Session Manager soumet ensuite la tâche de persistance au **Job Manager**, en exigeant l'utilisation d'un **Pool I/O Critique**. Le **Job Manager** alloue un thread via le **Thread Manager** et délègue l'écriture atomique au **Data Integrity Layer (DIL)**, qui gère la transaction en base de données.
+Le **System Manager** déclenche le **Session Manager**, qui orchestre la collecte des configurations de reprise auprès des trois managers métiers : **Risk Monitor (RM)**, **Portfolio Manager (PM)** et **Order Manager (OM)**. Ces configurations (`RiskManagerConfigDTO`, `PortfolioManagerConfigDTO`, `OrderManagerConfigDTO`) sont agrégées dans un unique objet **`SessionConfigDTO`**. Ce DTO est ensuite soumis au **Job Manager** pour une exécution atomique via le **Data Integrity Layer (DIL)**, en utilisant obligatoirement un thread du **Pool I/O Critique**.
 
 ---
 
 
 ### 4. Règles Critiques
 
-* **Priorité I/O :** L'écriture doit s'effectuer sur un **Pool I/O Critique** pour garantir l'isolation et la complétion immédiate, sans être ralentie par des tâches de nettoyage (Bulk I/O).
-* **Atomicité :** La persistance est exécutée via le processus **`DIL-AtomicDBWriteProces`**. L'écriture doit être intégralement validée (`COMMIT`) ou intégralement annulée (`ROLLBACK`).
-* **Dépendance :** Le **System Manager** ne peut pas passer à l'étape suivante (Arrêt Sécurisé - Étape 15) tant que le Session Manager n'a pas confirmé la validation réussie de cette persistance.
-* **Gestion d'Erreur :** En cas d'échec du `COMMIT` (erreur critique de base de données), le processus atomique doit immédiatement déclencher une alerte fatale (`CRITICAL_DB_FAILURE`) pour empêcher le système de passer en veille non sécurisée.
+* **Cohérence de Reprise :** L'écriture doit inclure les métadonnées des trois managers (RM, PM, OM) pour garantir une vision complète des règles actives au moment de l'arrêt.
+* **Priorité I/O et Atomicité :** La persistance doit être exécutée avec la plus haute priorité et de manière atomique (tout ou rien) grâce au processus DIL, assurant que l'état de la configuration est intégralement enregistré ou annulé.
+* **Dépendance Fatale :** Le **System Manager** ne peut jamais progresser vers l'arrêt sécurisé (Étape 15) tant que la validation réussie de cette écriture critique n'a pas été confirmée par le Session Manager. En cas d'échec du `COMMIT`, une alerte fatale est levée.
+* **Isolation :** Cette étape vise à enregistrer uniquement les *configs* (règles de démarrage/protection), et non l'état financier (géré en Étape 13).
 
 ---
 
 ### 5. Conclusion
 
-Le module **14-PHASE3-Persistance-Config-Cloture** garantit que le système se couche avec une **preuve d'intégrité opérationnelle** et une configuration de reprise connue. Cette étape est le **point de non-retour sécurisé** qui permet au système de redémarrer le lendemain avec une continuité totale de ses limites de risque et de ses mécanismes de protection.
+Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'un **point de vérité immuable** pour la configuration du moteur de trading. Il est la vérification finale que les paramètres de sécurité et les compteurs internes ont été correctement verrouillés, permettant un redémarrage du système dans un état d'intégrité opérationnelle absolue.
