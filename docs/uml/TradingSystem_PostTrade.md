@@ -7,70 +7,56 @@
 
 ---
 
-### 7. Clôture du Marché et Synchronisation Critique
+### 7. Fermeture du Marché et Arrêt Ordonné des Flux
 
-La phase **Post-Trade** est déclenchée par le signal de fermeture du **Market Clock**. Cependant, le processus d'audit ne peut débuter immédiatement, car il nécessite une garantie d'**état final**.
+La Phase III est déclenchée par le signal de fermeture du **Market Clock**. La première priorité est de **figer l'état du système** pour garantir que l'audit se base sur des données stables.
 
-#### Synchronisation du Systèm
+* **Déclencheur :** Le **System Manager** reçoit le signal de fermeture du **Market Clock** et bascule le système en état `POST_TRADE`.
+* **Arrêt des Modules Temps Réel :** Le **System Manager** ordonne immédiatement l'arrêt des modules de décision et de surveillance :
+* **Arrêt Ordonné de la Surveillance :** Le **Risk Monitor** arrête sa boucle de vérification des prix en temps réel.
+* **Arrêt de la Prise de Décision :** L'**Order Manager** arrête l'évaluation des signaux et l'émission de nouveaux ordres.
 
-La première étape cruciale est la **synchronisation du système**. Le **System Manager** ordonne au **Job Manager** de **forcer la complétion et d'attendre la validation de persistance** de toutes les écritures critiques initiées durant la phase *In-Trade* (comme les mises à jour des **Fills** et des **Positions**).
 
-Cette commande inclut l'attente que les **buffers d'écriture soient intégralement vidés** (le **buffer des Ticks/Snapshots** du Live Data Hub) et que les données  soient **atomiquement persistées** en base de données. Cette étape garantit que la phase d'audit commence sur un **état du portefeuille final, complet et atomiquement persisté**, évitant toute anomalie due à la latence des queues d'écriture. 
-
-#### Audit et Intégrité Financière
-
-Une fois la synchronisation assurée, le **Portfolio Manager (PM)** exécute la **Réconciliation Finale**. Cette étape compare l'état du portefeuille interne avec les données reçues du courtier (par exemple, IBKR Gateway).
-
-* **En cas d'écart**, le **PM** émet immédiatement une **Alerte Critique** et enregistre l'incident (`DATA_INTEGRITY_CHECK`). Cette alerte garantit une notification et une trace auditable de la défaillance d'intégrité.
+* **Synchronisation des Écritures `In-Trade` (Verrouillage de l'État) :**
+* Le **System Manager** ordonne au **Job Manager** de **forcer la complétion** de toutes les écritures critiques en cours (ex: mise à jour des `Fillset`, `Positions`).
+* Le **Live Data Hub** reçoit l'ordre de **purger tous les buffers** d'écriture I/O Lent (Snapshots/Ticks) et d'attendre la validation de leur persistance. Cette étape est critique car elle garantit que toutes les transactions et données de marché de la journée sont enregistrées avant l'audit.
 
 ---
 
-## 8. Persistance Orchestrée et Gestion des Dépendances I/O 
+### 8. Audit et Persistance Critique de Clôture
 
-Le reste de la phase est dominé par la gestion des tâches I/O dépendantes, qui doivent s'exécuter dans un **ordre strict** pour respecter la chaîne d'audit et de décision. Le **Job Manager** est le garant de cet enchaînement, utilisant des mécanismes de synchronisation (comme les *barriers* ou les *latches*) pour s'assurer qu'une étape ne commence que lorsque ses prérequis sont validés. 
+Une fois l'état du système stable et figé, les opérations d'audit et de sauvegarde atomique des données de reprise sont exécutées. Ces tâches sont soumises au **Job Manager** pour garantir la traçabilité et l'utilisation des pools de threads appropriés.
 
-
-### Enchaînement des Tâches Dépendantes
-
-1.  **Génération du Rapport d'Audit Primaire (Critique) :**
-    * La **Tâche de Génération du Rapport** (PnL final, métriques agrégées) est lancée **immédiatement après la Réconciliation Finale** (étape 7).
-    * Cette tâche est allouée au **Pool I/O Audit** et sa validation de persistance est le **prérequis direct** pour toutes les étapes suivantes (stratégie et rapports secondaires).
-
-2.  **Lancement des Tâches Secondaire :**
-    * La génération d'un **Rapport de Performance** (Module Monitoring).
-    * La **mise à jour de données externes** via une API (ex: mise à jour des données fondamental/alternative).
-    * Ces tâches sont généralement allouées au **Pool I/O Bulk**.
-
-3.  **Calcul de la Stratégie Dépendant (Décision Finale) :**
-    * Le **Strategy Engine** exécute le calcul du **Portfolio Target** (plan d'ordres) en dernier.
-    * Deux conditions sont requises :
-        * La confirmation de la **fin des tâches précédentes**.
-        * La vérification que le jour suivant est un **Jour de Rebalancement** (via le **Session Manager**).
+* **Réconciliation Finale (Intégrité Financière) :**
+* Le **Portfolio Manager (PM)** exécute la **Réconciliation Finale**, comparant l'état du portefeuille interne avec l'état du courtier (IBKR Gateway).
+* **Contrôle de Garde :** En cas d'écart (`[IF Data Integrity Error]`), le PM émet une **Alerte Critique** et enregistre l'incident (`DATA_INTEGRITY_CHECK`). Le processus continue, mais sous alerte.
 
 
-#### Notes :
+* **Persistance Atomique du Livre de Compte (Étape 13) :**
+* Le PM génère le **`SettledSessionBook`** (état financier final, PnL, positions) et soumet sa persistance au **Job Manager**.
+* **Allocation :** Cette écriture utilise le **Pool I/O Audit/Critical** pour garantir une sauvegarde atomique et immédiate.
 
-Les processus d'écriture sont soumis au **Thread Manager** pour allocation, conformément à leurs besoins en ressources et leur criticité :
 
-* **Pool I/O Post-Trade :** Alloué aux écritures atomiques (**Target**, **Configuration**), qui exigent une garantie d'exécution immédiate.
-* **Pool I/O Audit :** Alloué aux tâches de reporting principal qui nécessitent un accès stable aux données fraîchement synchronisées (ex: PnL Final).
-* **Pool I/O Bulk :** Alloué aux écritures massives et non critiques, y compris les **tâches secondaires futures** qui ne doivent pas bloquer le cycle principal.
+* **Sauvegarde de la Configuration Globale :**
+* Le **Session Manager** procède à la sauvegarde de l'État Final de la Configuration (`session_config`).
+* **Allocation :** Cette tâche critique utilise également le **Pool I/O Critical**, car l'intégrité des paramètres de redémarrage est essentielle.
+
+
+* **Génération du Rapport d'Audit Primaire :**
+* Le **Reporting Manager** génère le rapport PnL final et les métriques agrégées pour l'audit. Cette tâche est lancée en parallèle des persistances critiques et utilise le **Pool I/O Audit**.
 
 ---
 
-### 9. Préparation Atomique du Cycle Suivant
+### 9. Finalisation et Transition vers la Veille
 
-Cette étape garantit que le système est prêt à redémarrer sans faille en persistant les décisions critiques.
+L'étape finale garantit que le système ne bascule en veille qu'après la validation des enregistrements les plus importants.
 
-### Persistance du Plan d'Action Critique
+* **Lancement des Tâches Secondaires (Bulk I/O) :**
+* La génération de rapports secondaires ou la mise à jour de données internes non critiques (si nécessaire) est lancée.
+* **Allocation :** Ces tâches sont allouées au **Pool I/O Bulk** pour éviter de bloquer la validation finale.
 
-Une fois que le **Strategy Engine** a calculé le **Portfolio Target** (le plan d'ordres pour l'ouverture prochaine), ce plan est soumis pour **Persistance Atomique**. Il est immédiatement alloué au **Pool I/O Post-Trade**. Cette isolation protège la sauvegarde de la décision la plus importante du système contre toute latence ou défaillance des autres écritures.
+* **Validation de la Transition :** Le **System Manager** ne bascule le système en phase **Off-Cycle (Veille)** que lorsque la validation de persistance des deux écritures les plus critiques est reçue :
+1. Validation du **`SettledSessionBook`** (Livre de Compte Audité).
+2. Validation de la **`session_config`** (Configuration de Reprise).
 
-### Sauvegarde de la Configuration Globale
-
-En parallèle, le **Session Manager** procède à la sauvegarde de l'**État Final de la Configuration** de **toutes les sessions** actives. Cette écriture est également considérée comme **critique** et utilise le **Pool I/O Pool I/O Post-Trade** car le système doit redémarrer avec les paramètres les plus à jour (dernières configurations utilisateur, état des *kill-switches*, etc.).
-
-Le **System Manager** ne bascule le système en phase **Off-Cycle (Veille)** que lorsque la **validation de persistance** de ces deux écritures critiques (**Target** et **Configuration**) est reçue, garantissant une **intégrité totale** au moment de l'arrêt.
-
-
----
+Cette double vérification assure une **intégrité totale** au moment de l'arrêt, rendant le système prêt pour le déclenchement indépendant de la Phase IV.
