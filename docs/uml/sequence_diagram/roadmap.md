@@ -30,7 +30,7 @@
 | **10b** | **Stratégie Standard** | `10b-PHASE2-Strategie-Standard` | Exécuter de manière tactique les ordres de trading standards, en sélectionnant le moment optimal (timing) pour la soumission. | **PM** évalue le prix/timing. **Audit synchrone** de la décision. Soumettre Ordre Standard (`STANDARD`) à l'OM. |
 | **11** | **Gestion des Exécutions (Fills)** | `11-PHASE2-Reception-Execution-Fill` | Réceptionner l'exécution de l'ordre (`Fill`) et orchestrer la mise à jour **atomique** et **critique** des structures de position et d'ordre. | Parallélisation : `Fill` $\to$ **OM** (Statut) et **PM** (Position). Coordination DIL. Persistance Atomique (**Pool I/O Real-Time**). |
 | **12** | **Arbitrage et Transmission** | `OM-RouteOrderToBroker` (Référence Externe) | Transmettre les ordres de trading au courtier, en appliquant une **politique de priorité globale** (CRITICAL, STANDARD) et **sessionnelle** (Live vs Paper). | OM (Dequeue Processor) $\to$ **Global Order Router** $\to$ **Job Manager** (Pool I/O approprié) $\to$ **IBKR Gateway**. |
-| **13** | **Surveillance du Système** | (Intégré à la boucle) | Surveiller l'état général du système et attendre la fin de l'activité. | **Monitoring Module** collecte `SystemMetric`. Attente de l'événement **`MARKET_CLOSE`**. Transition vers la Phase III. |
+| **--** | **Surveillance du Système** | (Intégré à la boucle) | Surveiller l'état général du système et attendre la fin de l'activité. | **Monitoring Module** collecte `SystemMetric`. Attente de l'événement **`MARKET_CLOSE`**. Transition vers la Phase III. |
 ---
 
 ### 3. Diagrammes de la Phase Post-Trade (Audit & Clôture)
