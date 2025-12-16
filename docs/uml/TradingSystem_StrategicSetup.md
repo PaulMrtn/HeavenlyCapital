@@ -2,7 +2,7 @@
 ## Diagramme d'Activité : Phase IV - Pre-Market Setup
 
 <p align="center">
-  <img src="img/DA_034_TradingSystem_StrategicSetup.jpg" width="900">
+  <img src="img/DA_04_TradingSystem_StrategicSetup.jpg" width="900">
 </p>
 
 ---
