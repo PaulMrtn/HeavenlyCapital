@@ -28,22 +28,22 @@ La Phase III est déclenchée par le signal de fermeture du **Market Clock**. La
 Une fois l'état du système stable et figé, les opérations d'audit et de sauvegarde atomique des données de reprise sont exécutées. Ces tâches sont soumises au **Job Manager** pour garantir la traçabilité et l'utilisation des pools de threads appropriés.
 
 * **Réconciliation Finale (Intégrité Financière) :**
-* Le **Portfolio Manager (PM)** exécute la **Réconciliation Finale**, comparant l'état du portefeuille interne avec l'état du courtier (IBKR Gateway).
-* **Contrôle de Garde :** En cas d'écart (`[IF Data Integrity Error]`), le PM émet une **Alerte Critique** et enregistre l'incident (`DATA_INTEGRITY_CHECK`). Le processus continue, mais sous alerte.
+  * Le **Portfolio Manager (PM)** exécute la **Réconciliation Finale**, comparant l'état du portefeuille interne avec l'état du courtier (IBKR Gateway).
+  * **Contrôle de Garde :** En cas d'écart (`[IF Data Integrity Error]`), le PM émet une **Alerte Critique** et enregistre l'incident (`DATA_INTEGRITY_CHECK`). Le processus continue, mais sous alerte.
 
 
 * **Persistance Atomique du Livre de Compte (Étape 13) :**
-* Le PM génère le **`SettledSessionBook`** (état financier final, PnL, positions) et soumet sa persistance au **Job Manager**.
-* **Allocation :** Cette écriture utilise le **Pool I/O Audit/Critical** pour garantir une sauvegarde atomique et immédiate.
+  * Le PM génère le **`SettledSessionBook`** (état financier final, PnL, positions) et soumet sa persistance au **Job Manager**.
+  * **Allocation :** Cette écriture utilise le **Pool I/O Audit/Critical** pour garantir une sauvegarde atomique et immédiate.
 
 
 * **Sauvegarde de la Configuration Globale :**
-* Le **Session Manager** procède à la sauvegarde de l'État Final de la Configuration (`session_config`).
-* **Allocation :** Cette tâche critique utilise également le **Pool I/O Critical**, car l'intégrité des paramètres de redémarrage est essentielle.
+  * Le **Session Manager** procède à la sauvegarde de l'État Final de la Configuration (`session_config`).
+  * **Allocation :** Cette tâche critique utilise également le **Pool I/O Critical**, car l'intégrité des paramètres de redémarrage est essentielle.
 
 
 * **Génération du Rapport d'Audit Primaire :**
-* Le **Reporting Manager** génère le rapport PnL final et les métriques agrégées pour l'audit. Cette tâche est lancée en parallèle des persistances critiques et utilise le **Pool I/O Audit**.
+  * Le **Reporting Manager** génère le rapport PnL final et les métriques agrégées pour l'audit. Cette tâche est lancée en parallèle des persistances critiques et utilise le **Pool I/O Audit**.
 
 ---
 
@@ -52,11 +52,11 @@ Une fois l'état du système stable et figé, les opérations d'audit et de sauv
 L'étape finale garantit que le système ne bascule en veille qu'après la validation des enregistrements les plus importants.
 
 * **Lancement des Tâches Secondaires (Bulk I/O) :**
-* La génération de rapports secondaires ou la mise à jour de données internes non critiques (si nécessaire) est lancée.
-* **Allocation :** Ces tâches sont allouées au **Pool I/O Bulk** pour éviter de bloquer la validation finale.
+  * La génération de rapports secondaires ou la mise à jour de données internes non critiques (si nécessaire) est lancée.
+  * **Allocation :** Ces tâches sont allouées au **Pool I/O Bulk** pour éviter de bloquer la validation finale.
 
 * **Validation de la Transition :** Le **System Manager** ne bascule le système en phase **Off-Cycle (Veille)** que lorsque la validation de persistance des deux écritures les plus critiques est reçue :
-1. Validation du **`SettledSessionBook`** (Livre de Compte Audité).
-2. Validation de la **`session_config`** (Configuration de Reprise).
+  1. Validation du **`SettledSessionBook`** (Livre de Compte Audité).
+  2. Validation de la **`session_config`** (Configuration de Reprise).
 
 Cette double vérification assure une **intégrité totale** au moment de l'arrêt, rendant le système prêt pour le déclenchement indépendant de la Phase IV.
