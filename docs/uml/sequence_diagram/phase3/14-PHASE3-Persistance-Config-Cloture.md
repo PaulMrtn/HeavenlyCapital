@@ -8,14 +8,14 @@
 
 ### 1. Objectif
 
-Ce module a pour finalité d'enregistrer l'**État de Reprise (Configuration de Clôture)** du système. Il garantit la persistance atomique des métadonnées critiques de la session (règles de risque, compteurs d'ordres, état des *throttlers*) pour assurer un redémarrage sécurisé et intègre lors du prochain *bootstrapping* (Phase I).
+Ce module a pour finalité d'enregistrer l'**État de Reprise (Configuration de Clôture)** du système. Il garantit la persistance atomique des métadonnées de la session pour assurer un redémarrage sécurisé et intègre lors du prochain *bootstrapping* (Phase I).
 
 ---
 
 
 ### 2. Contexte
 
-Ce processus s'inscrit dans la **Phase III (Post-Trade)**, se concentrant sur la sauvegarde des **règles** et non des **chiffres** (qui sont gérés par l'Étape 13 - SessionBook Final). Il est essentiel pour distinguer les données d'audit financier de la configuration opérationnelle. Son exécution est un prérequis critique pour la transition vers l'arrêt sécurisé (Étape 15).
+Ce processus s'inscrit dans la **Phase III (Post-Trade)**, se concentrant sur la sauvegarde des **règles**. Il est essentiel pour distinguer les données d'audit financier de la configuration opérationnelle. Son exécution est un prérequis critique pour la transition vers l'arrêt sécurisé (Étape 15).
 
 ---
 
