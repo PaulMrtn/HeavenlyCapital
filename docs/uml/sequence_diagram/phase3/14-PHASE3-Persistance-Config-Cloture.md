@@ -15,7 +15,7 @@ Ce module a pour finalité d'enregistrer l'**État de Reprise** du système de t
 
 ### 2. Contexte
 
-Ce processus s'inscrit dans la **Phase III (Post-Trade)**, immédiatement après la Réconciliation Finale (Étape 12) et la Persistance du SessionBook (Étape 13). Son existence est justifiée par la nécessité de **séparer les données transactionnelles** (positions, PnL) des **données d'état du moteur de risque et d'exécution** (limites, compteurs). Il est un prérequis critique pour la Phase IV (Préparation du Target) et la Phase I (Bootstrapping) suivantes.
+Ce processus s'inscrit dans la **Phase III (Post-Trade)**, immédiatement après la Réconciliation Finale (Étape 12) et la Persistance du SessionBook (Étape 13). Son existence est justifiée par la nécessité de **séparer les données transactionnelles** (positions, PnL) des **données d'état du moteur de risque et d'exécution**. Il est un prérequis critique pour la Phase IV (Préparation du Target) et la Phase I (Bootstrapping) suivantes.
 
 ---
 
