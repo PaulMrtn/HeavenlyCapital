@@ -8,7 +8,7 @@
 
 ### 1. Objectif
 
-Ce module a pour finalité d'enregistrer l'**État de Reprise** du système de trading. Il garantit la persistance atomique de la configuration finale de la session (limites de risque, état des compteurs et des *throttlers*) pour assurer un redémarrage (Phase I - Bootstrapping) sécurisé et conforme à l'état laissé à la fermeture.
+Ce module a pour finalité d'enregistrer l'**État de Reprise** du système de trading. Il garantit la persistance atomique de la configuration finale de la session pour assurer un redémarrage (Phase I - Bootstrapping) sécurisé et conforme à l'état laissé à la fermeture.
 
 ---
 
