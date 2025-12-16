@@ -139,13 +139,14 @@ Cette phase est dédiée à la **préparation complète du plan de trading du jo
 * **Vérification du Statut de la Journée :** Le **System Manager** vérifie le statut du jour à venir. Si `[IF MarketDayStatus.is_trading_day]` est `FALSE`, le processus avorte et retourne en veille.
 * **Mise à Jour Systématique des Données de Marché :** Le **Data Access Layer** exécute la mise à jour des données historiques via les API externes (EODHD).
 
-#### 11. Calcul et Persistance du Plan Cible* 
+#### 11. Calcul et Persistance du Plan Cible
 
-**Exécution de la Stratégie :** L'exécution du **Strategy Engine** est **conditionnelle**. Elle n'a lieu que si `[IF MarketDayStatus.is_rebalancing_day]` est `TRUE`. Le moteur calcule le **Portfolio Target**.
+* **Exécution de la Stratégie :** L'exécution du **Strategy Engine** est **conditionnelle**. Elle n'a lieu que si `[IF MarketDayStatus.is_rebalancing_day]` est `TRUE`. Le moteur calcule le **Portfolio Target**.
 * **Persistance Atomique du Plan Cible :** Le Plan Cible (Target Portfolio) est enregistré de manière **atomique** via le **Pool I/O Critical**.
 
-#### 12. Transition vers la Veille* **Transition :** 
-Une fois la persistance atomique du `Portfolio Target` complétée et validée, le **System Manager** bascule le système en phase **Off-Cycle** (Veille).
+#### 12. Transition vers la Veille
+
+* **Transition :** Une fois la persistance atomique du `Portfolio Target` complétée et validée, le **System Manager** bascule le système en phase **Off-Cycle** (Veille).
 
 
 
