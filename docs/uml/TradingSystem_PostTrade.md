@@ -13,13 +13,13 @@ La Phase III est déclenchée par le signal de fermeture du **Market Clock**. La
 
 * **Déclencheur :** Le **System Manager** reçoit le signal de fermeture du **Market Clock** et bascule le système en état `POST_TRADE`.
 * **Arrêt des Modules Temps Réel :** Le **System Manager** ordonne immédiatement l'arrêt des modules de décision et de surveillance :
-* **Arrêt Ordonné de la Surveillance :** Le **Risk Monitor** arrête sa boucle de vérification des prix en temps réel.
-* **Arrêt de la Prise de Décision :** L'**Order Manager** arrête l'évaluation des signaux et l'émission de nouveaux ordres.
+  * **Arrêt Ordonné de la Surveillance :** Le **Risk Monitor** arrête sa boucle de vérification des prix en temps réel.
+  * **Arrêt de la Prise de Décision :** L'**Order Manager** arrête l'évaluation des signaux et l'émission de nouveaux ordres.
 
 
 * **Synchronisation des Écritures `In-Trade` (Verrouillage de l'État) :**
-* Le **System Manager** ordonne au **Job Manager** de **forcer la complétion** de toutes les écritures critiques en cours (ex: mise à jour des `Fillset`, `Positions`).
-* Le **Live Data Hub** reçoit l'ordre de **purger tous les buffers** d'écriture I/O Lent (Snapshots/Ticks) et d'attendre la validation de leur persistance. Cette étape est critique car elle garantit que toutes les transactions et données de marché de la journée sont enregistrées avant l'audit.
+  * Le **System Manager** ordonne au **Job Manager** de **forcer la complétion** de toutes les écritures critiques en cours (ex: mise à jour des `Fillset`, `Positions`).
+  * Le **Live Data Hub** reçoit l'ordre de **purger tous les buffers** d'écriture I/O Lent (Snapshots/Ticks) et d'attendre la validation de leur persistance. Cette étape est critique car elle garantit que toutes les transactions et données de marché de la journée sont enregistrées avant l'audit.
 
 ---
 
