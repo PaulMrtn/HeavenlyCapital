@@ -51,10 +51,6 @@ Une fois l'état du système stable et figé, les opérations d'audit et de sauv
 
 L'étape finale garantit que le système ne bascule en veille qu'après la validation des enregistrements les plus importants.
 
-* **Lancement des Tâches Secondaires (Bulk I/O) :**
-  * La génération de rapports secondaires ou la mise à jour de données internes non critiques (si nécessaire) est lancée.
-  * **Allocation :** Ces tâches sont allouées au **Pool I/O Bulk** pour éviter de bloquer la validation finale.
-
 * **Validation de la Transition :** Le **System Manager** ne bascule le système en phase **Off-Cycle (Veille)** que lorsque la validation de persistance des deux écritures les plus critiques est reçue :
   1. Validation du **`SettledSessionBook`** (Livre de Compte Audité).
   2. Validation de la **`session_config`** (Configuration de Reprise).
