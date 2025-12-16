@@ -95,3 +95,50 @@ Toutes les opérations de persistance sont soumises au **Job Manager** pour gara
 * **Exécution de la Stratégie :** Si le jour suivant est un **jour de rebalancement**, le **Strategy Engine** est exécuté. Il détermine le **Portfolio Target** et soumet le plan d'ordres (les nouvelles demandes) au **DIL** pour un enregistrement immédiat. Cette persistance du plan d'ordres est soumise au **Job Manager** et exécutée via le **Pool I/O Critical**, assurant une sauvegarde **atomique** du plan d'action du lendemain.
 * **Persistance de la Configuration (Ajout) :** Le **Session Manager** sérialise et persiste l'état final des paramètres de la session (`TradingSession.session_config`) en base de données. Cette sauvegarde est **critique** et utilise également le **Pool I/O Critical**, garantissant que le système démarre le jour suivant avec les paramètres les plus à jour (y compris ceux potentiellement optimisés ou modifiés durant la session).
 * **Transition :** Une fois toutes les tâches Post-Trade (y compris la persistance du Target et de la Configuration) complétées et validées, le **System Manager** bascule le système en phase **Off-Cycle** (Veille).
+
+---
+
+### III. Phase Post-Trade (Audit et Clôture Comptable)
+
+Cette phase est dédiée à la **clôture sécurisée, à l'audit complet du jour passé (T-1), et à la persistance immédiate de l'état financier de la session**. Elle est une séquence bloquante dont la complétion est un prérequis à toute activité stratégique future.
+
+#### 7. Clôture des Opérations et Séquence d'Audit* 
+
+**Déclencheur :** Le **System Manager** reçoit le signal de fermeture du **Market Clock** et bascule le système en état `POST_TRADE`.
+* **Réconciliation Finale :** Le **Portfolio Manager (PM)** exécute une réconciliation du portefeuille (`Portfolio State Manager`) avec les données du courtier (IBKR), garantissant l'intégrité. Tout écart est enregistré. Cette tâche est de **priorité critique**.
+* **Audit et Persistance du Livre de Compte (Étape 13) :** Le PM génère le `SettledSessionBook` (état financier final) et soumet sa persistance. Cette écriture utilise le **Pool I/O Audit/Critical** et suit le processus atomique `DIL-AtomicDBWriteProces`.
+* **Persistance de la Configuration de la Session :** Le **Session Manager** sérialise et persiste l'état final des paramètres de la session (`session_config`). Cette sauvegarde est **critique** et utilise le **Pool I/O Critical**.
+
+#### 8. Persistance Orchestrée et Maintenance* **Finalisation de Persistance (Bulk I/O) :** 
+
+Le **Data Ingestion Layer (DIL)** soumet une tâche de vidage des buffers (Snapshots/Ticks). Cette tâche est allouée au **Pool I/O Bulk** (basse priorité) pour isoler l'écriture massive.
+* **Rapport de Fin de Journée :** Le Monitoring Module génère et enregistre le rapport complet de la journée.
+
+#### 9. Transition vers la Veille* **Transition :** 
+
+Une fois la persistance atomique du `SettledSessionBook` et du `session_config` complétée et validée, le **System Manager** bascule le système en phase **Off-Cycle** (Veille).
+
+---
+
+### IV. PHASE IV : Strategic Pre-Market Setup
+
+Cette phase est dédiée à la **préparation du plan de trading du jour T**. Elle est exécutée dans la nuit ou tôt le matin, déclenchée par un **Scheduler** indépendant, afin d'utiliser les données de marché les plus fraîches et stabilisées.
+
+#### 10. Initialisation et Ingestion de Données*
+
+**Déclenchement :** Un événement temporel programmé par le **Market Clock** (Scheduler).
+* **Vérification Critique :** Le processus commence par une vérification des connexions critiques (DB, EODHD). L'échec entraîne un arrêt immédiat ("Fail Fast").
+* **Vérification du Statut de la Journée :** Le **System Manager** vérifie le statut du jour à venir. Si `[IF MarketDayStatus.is_trading_day]` est `FALSE`, le processus avorte et retourne en veille.
+* **Mise à Jour Systématique des Données de Marché (15) :** Le **Data Core** exécute la mise à jour des données historiques via les API externes (splits, ajustements de clôture).
+
+#### 11. Calcul et Persistance du Plan Cible* 
+
+**Exécution de la Stratégie :** L'exécution du **Strategy Engine** est **conditionnelle**. Elle n'a lieu que si `[IF MarketDayStatus.is_rebalancing_day]` est `TRUE`. Le moteur calcule le **Portfolio Target**.
+* **Persistance Atomique du Plan Cible :** Le Plan Cible (Target Portfolio) est enregistré de manière **atomique** via le **Pool I/O Critical**.
+
+#### 12. Préparation à l'Ouverture (Soumission Pré-Market)
+
+* **Soumission Pré-Market (18) :** Si le plan stratégique génère des ordres qui doivent être soumis avant l'ouverture complète (ex: *Good-Till-Cancelled* ou ordres limites), ces ordres sont envoyés à l'Order Request Bus pour être transmis au Broker.
+* **Fin de la Préparation :** Le **System Manager** a complété l'état de préparation et attend le signal `Pre-Market Open` pour initier la Phase I.
+
+
