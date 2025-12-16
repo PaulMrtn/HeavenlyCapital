@@ -39,10 +39,10 @@
 
 | Étape | Séquence/Module | Nom du Diagramme (Statut) | Objectif de la Séquence (Résumé) | Actions Clés |
 | :---: | :---: | :--- | :--- | :--- |
-| **14** | **Synchronisation et Audit Initial (Clôture Sûre)** | `14-PHASE3-Synchro-AuditInitial` (**À FAIRE**) | **Garantir l'état final atomique** et exécuter la **Réconciliation Finale** (Interne vs Courtier). | **Forcer la complétion** des Jobs I/O. **Réconciliation PM/IBKR**. **Si écart critique :** Alerte Manuelle et arrêt du processus. |
-| **15** | **Persistance SessionBook Final** | `15-PHASE3-Persistance-SessionBook` (**À FAIRE**) | Enregistrer l'**état financier définitif** (`SettledSessionBook`) de la journée pour l'audit. | Générer le `SettledSessionBook`. Soumettre au `Job Manager` (Pool I/O Audit/Critical) pour persistance atomique. |
-| **16** | **Persistance de l'État de Reprise** | `16-PHASE3-Persistance-Config-Cloture` (**À FAIRE**) | Sauvegarder l'**État de Configuration Final** critique (limites RM, état Throttlers) pour garantir un redémarrage sécurisé. | Générer la `session_config` finale. Soumettre au **DIL** (Pool I/O Critical). |
-| **17** | **Arrêt Sécurisé et Transition** | `17-PHASE3-Arret-Securise` (**À FAIRE**) | Finaliser le processus Post-Trade en vérifiant la validation des écritures critiques et en mettant le système en **veille profonde (`Off-Cycle`)**. | Attendre la **double validation** des écritures 15 et 16. Loguer l'événement "System Shutdown". Basculer le système en phase **Off-Cycle**. |
+| **13** | **Synchronisation et Audit Initial (Clôture Sûre)** | `13-PHASE3-Synchro-AuditInitial`| **Garantir l'état final atomique** et exécuter la **Réconciliation Finale** (Interne vs Courtier). | **Forcer la complétion** des Jobs I/O. **Réconciliation PM/IBKR**. **Si écart critique :** Alerte Manuelle et arrêt du processus. |
+| **14** | **Persistance SessionBook Final** | `14-PHASE3-Persistance-SessionBook` | Enregistrer l'**état financier définitif** (`SettledSessionBook`) de la journée pour l'audit. | Générer le `SettledSessionBook`. Soumettre au `Job Manager` (Pool I/O Audit/Critical) pour persistance atomique. |
+| **15** | **Persistance de l'État de Reprise** | `15-PHASE3-Persistance-Config-Cloture` | Sauvegarder l'**État de Configuration Final** critique (limites RM, état Throttlers) pour garantir un redémarrage sécurisé. | Générer la `session_config` finale. Soumettre au **DIL** (Pool I/O Critical). |
+| **16** | **Arrêt Sécurisé et Transition** | `16-PHASE3-Arret-Securise` | Finaliser le processus Post-Trade en vérifiant la validation des écritures critiques et en mettant le système en **veille profonde (`Off-Cycle`)**. | Attendre la **double validation** des écritures 15 et 16. Loguer l'événement "System Shutdown". Basculer le système en phase **Off-Cycle**. |
 ---
 
 ### 4. Diagrammes de la Phase Pre-Market Setup (Stratégie)
@@ -51,10 +51,10 @@
 
 | Étape | Séquence/Module | Nom du Diagramme (Statut) | Objectif de la Séquence (Résumé) | Actions Clés |
 | :---: | :---: | :--- | :--- | :--- |
-| **18** | **Déclenchement et Ingestion EOD** | `18-PHASE4-Ingestion-EOD-Init` (**À FAIRE**) | Démarrer le processus stratégique et ingérer les données de marché de fin de journée (EOD) les plus fiables et fraîches. | Market Clock réveille le système. Vérification DB et API Externe. Le **DIL** exécute l'Ingestion des données EOD et les persiste. |
-| **19** | **Calcul de Stratégie (Target Plan)** | `19-PHASE4-Calcul-Strategie` (**À FAIRE**) | Exécuter le **Strategy Engine** pour déterminer le plan d'action du lendemain (**Portfolio Target**). | Vérifier l'état de l'audit initial (étape 14). Exécuter le **Strategy Engine** si c'est un jour de Rebalancement. |
-| **20** | **Persistance Atomique du Target** | `20-PHASE4-Persistance-Atomique-Target` (**À FAIRE**) | Persister le **Plan d'Ordres Cible** (`TargetPortfolioDTO`) dans une transaction atomique isolée. | Soumettre le **Portfolio Target** au **DIL** pour Persistance Atomique (Pool I/O Critical). |
-| **21** | **Finalisation et Déblocage** | `21-PHASE4-Transition-Pre-Bootstrap` (**À FAIRE**) | Finaliser la phase IV et mettre le système dans l'état final d'attente du *bootstrapping*. | Attendre la Validation de Persistance du Target. Mettre le système en état **`READY_TO_BOOTSTRAP`**. |
+| **17** | **Déclenchement et Ingestion EOD** | `17-PHASE4-Ingestion-EOD-Init` | Démarrer le processus stratégique et ingérer les données de marché de fin de journée (EOD) les plus fiables et fraîches. | Market Clock réveille le système. Vérification DB et API Externe. Le **DIL** exécute l'Ingestion des données EOD et les persiste. |
+| **18** | **Calcul de Stratégie (Target Plan)** | `18-PHASE4-Calcul-Strategie` | Exécuter le **Strategy Engine** pour déterminer le plan d'action du lendemain (**Portfolio Target**). | Vérifier l'état de l'audit initial (étape 14). Exécuter le **Strategy Engine** si c'est un jour de Rebalancement. |
+| **19** | **Persistance Atomique du Target** | `19-PHASE4-Persistance-Atomique-Target` | Persister le **Plan d'Ordres Cible** (`TargetPortfolioDTO`) dans une transaction atomique isolée. | Soumettre le **Portfolio Target** au **DIL** pour Persistance Atomique (Pool I/O Critical). |
+| **20** | **Finalisation et Déblocage** | `20-PHASE4-Transition-Pre-Bootstrap` | Finaliser la phase IV et mettre le système dans l'état final d'attente du *bootstrapping*. | Attendre la Validation de Persistance du Target. Mettre le système en état **`READY_TO_BOOTSTRAP`**. |
 ---
 
 ### 5. Diagrammes Optionnels (Robustesse & R&D)
@@ -63,5 +63,5 @@
 
 | Num. | Nom du Diagramme de Séquence (Filename) | Description | Tâches de Réalisation |
 | :---: | :---: | :--- | :--- |
-| **22** | **Gestion des Erreurs (Kill-Switch)** | `22-CRITICAL-KillSwitch-Execution.puml` | Chemin exact d'une **CRITICAL\_ERROR** à l'annulation de tous les ordres **WORKING** par l'Order Manager. | Décomposition : **LDH** $\to$ **SM** $\to$ **OM** $\to$ **IBKR Gateway** (Action : Annulation/`CancelAllOrders`). |
-| **23** | **Backtest & Optimisation** | `23-RND-Backtest-Optimization.puml` | Interaction entre le **Parametric Optimizer**, le **Backtest Engine** et la **Pipeline Core**. | Décomposition : **Parametric Optimizer** $\to$ **Backtest Engine** (Boucle) $\to$ **Pipeline Core**. |
+| **21** | **Gestion des Erreurs (Kill-Switch)** | `21-CRITICAL-KillSwitch-Execution.puml` | Chemin exact d'une **CRITICAL\_ERROR** à l'annulation de tous les ordres **WORKING** par l'Order Manager. | Décomposition : **LDH** $\to$ **SM** $\to$ **OM** $\to$ **IBKR Gateway** (Action : Annulation/`CancelAllOrders`). |
+| **22** | **Backtest & Optimisation** | `22-RND-Backtest-Optimization.puml` | Interaction entre le **Parametric Optimizer**, le **Backtest Engine** et la **Pipeline Core**. | Décomposition : **Parametric Optimizer** $\to$ **Backtest Engine** (Boucle) $\to$ **Pipeline Core**. |
