@@ -42,7 +42,7 @@
 | **12** | **Synchronisation et Audit Initial (Clôture Sûre)** | `12-PHASE3-Synchro-AuditInitial`| **Garantir l'état final atomique** et exécuter la **Réconciliation Finale** (Interne vs Courtier). | **Forcer la complétion** des Jobs I/O. **Réconciliation PM/IBKR**. **Si écart critique :** Alerte Manuelle et arrêt du processus. |
 | **13** | **Persistance SessionBook Final** | `13-PHASE3-Persistance-SessionBook` | Enregistrer l'**état financier définitif** (`SettledSessionBook`) de la journée pour l'audit. | Générer le `SettledSessionBook`. Soumettre au `Job Manager` (Pool I/O Audit/Critical) pour persistance atomique. |
 | **14** | **Persistance de l'État de Reprise** | `14-PHASE3-Persistance-Config-Cloture` | Sauvegarder l'**État de Configuration Final** critique (limites RM, état Throttlers) pour garantir un redémarrage sécurisé. | Générer la `session_config` finale. Soumettre au **DIL** (Pool I/O Critical). |
-| **15** | **Arrêt Sécurisé et Transition** | `15-PHASE3-Arret-Securise` | Finaliser le processus Post-Trade en vérifiant la validation des écritures critiques et en mettant le système en **veille profonde (`Off-Cycle`)**. | Attendre la **double validation** des écritures 15 et 16. Loguer l'événement "System Shutdown". Basculer le système en phase **Off-Cycle**. |
+| **15** | **Arrêt Sécurisé et Transition** | `15-PHASE3-Arret-Securise` | Finaliser le processus Post-Trade en vérifiant la validation des écritures critiques et en mettant le système en **veille profonde (`Off-Cycle`)**. | Attendre la **double validation** des écritures 13 et 14. Loguer l'événement "System Shutdown". Basculer le système en phase **Off-Cycle**. |
 ---
 
 ### 4. Diagrammes de la Phase Pre-Market Setup (Stratégie)
