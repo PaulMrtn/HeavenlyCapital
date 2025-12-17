@@ -22,7 +22,7 @@ La séquence s'exécute dans la **Phase IV (Préparation du Target Portfolio)**,
 
 Le processus est orchestré par le `DIL` de manière séquentielle et conditionnelle :
 
-* **Récupération Résiliente :** Le `DIL` obtient les données de l'`EODHD API` via un appel résilient (`REF-API-RESILIENT-CALL`) qui gère de manière autonome les pannes réseau transitoires.
+* **Récupération Résiliente :** Le `DIL` obtient les données de l'`EODHD API` via un appel résilient (`REF-API-RESILIENT-CALL`) qui gère de manière autonome les pannes réseau transitoires. **Cette référence reste à être formalisée sous forme de schéma.**
 * **Vérification d'Intégrité :** Les données brutes récupérées sont soumises à la validation métier (`checkDataIntegrity`) pour exclure les jeux de données corrompus (ex: données manquantes ou valeurs illogiques).
 * **Calcul Intermédiaire :** Les données intègres subissent ensuite le traitement nécessaire (`processMarketData`), tel que l'ajustement des prix (splits/dividendes) ou le calcul de facteurs fondamentaux, pour générer le `Processed_Data_DTO` prêt pour l'audit et la stratégie.
 * **Persistance Atomique :** Les données calculées sont persistées en base de données via le fragment **`REF-DIL-AtomicDBWriteProces`**, qui garantit une écriture **tout ou rien** via une transaction.
