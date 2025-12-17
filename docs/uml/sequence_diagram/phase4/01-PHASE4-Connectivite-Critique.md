@@ -14,7 +14,7 @@ Ce module a pour finalité d'agir comme **point d'entrée sécurisé** du systè
 
 ### 2. Contexte
 
-Le module s'inscrit au début absolu de la **Phase Pré-Trade (Bootstrapping)**, immédiatement après la réception du signal **`SYSTEM_WAKEUP`** du `Market Clock`. Son existence vise à prévenir le gaspillage de ressources (temps d'instanciation des composants) si les services fondamentaux (I/O) ou la condition de marché sont absents.
+Le module s'inscrit au début absolu de la **Phase IV (Préparation du portefeuille cible)**, immédiatement après la réception du signal **`SYSTEM_WAKEUP`** du `Market Clock`. Son existence vise à prévenir le gaspillage de ressources (temps d'instanciation des composants) si les services fondamentaux (I/O) ou la condition de marché sont absents.
 
 ---
 
