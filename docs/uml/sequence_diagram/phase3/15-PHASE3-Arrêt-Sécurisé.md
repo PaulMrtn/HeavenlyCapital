@@ -28,7 +28,7 @@ Le **System Manager (SM)** initie la séquence en ordonnant au **Session Manager
 
 s* **Précondition Stricte :** Le processus d'arrêt ne doit pas commencer tant que la complétion des jobs Post-Trade est confirmée, garantissant que les écritures critiques ne sont pas interrompues.
 * **Ordre de Déconnexion :** La déconnexion doit être propre et hiérarchique : désabonnement avant coupure de la connexion physique.
-* **Timeout Sévère :** Un délai d'attente court et fixe (e.g., 30 secondes) doit être appliqué à l'attente des derniers jobs I/O. Si ce délai est dépassé, l'arrêt doit basculer vers une erreur critique (`alt [Timeout]`) et forcer l'extinction immédiate pour éviter un état indéfini.
+* **Timeout Sévère :** Un délai d'attente court et fixe doit être appliqué à l'attente des derniers jobs I/O. Si ce délai est dépassé, l'arrêt doit basculer vers une erreur critique (`Timeout`) et forcer l'extinction immédiate pour éviter un état indéfini.
 * **Auditabilité :** La transition finale vers l'état `OFF_CYCLE` doit être enregistrée de manière asynchrone dans le journal du système (Logger) juste avant l'arrêt physique du processus.
 
 ---
