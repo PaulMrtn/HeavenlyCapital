@@ -1,7 +1,7 @@
 ## `15-PHASE3-Arrêt-Sécurisé`
 
 <p align="center">
-  <img src="../img/15-PHASE3-Arrêt-Sécurisé.jpg" width="900">
+  <img src="../img/15-PHASE3-Arret-Securisée.jpg" width="900">
 </p>
 
 ---
