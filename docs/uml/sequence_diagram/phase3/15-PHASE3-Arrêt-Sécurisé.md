@@ -14,7 +14,7 @@ Ce module a pour finalité de réaliser l'**extinction ordonnée** de l'applicat
 
 ### 2. Contexte
 
-Ceci est la dernière étape de la **Phase III (Post-Trade)**. Elle s'exécute uniquement après que le **System Manager** a reçu la confirmation que les persistances atomiques du SessionBook (Étape 13) et de la Configuration de Reprise (Étape 14) ont réussi. Le but est de passer de l'état actif de clôture à l'état inactif (éteint) en minimisant les risques de données résiduelles en mémoire ou de connexions réseau actives.
+Ceci est la dernière étape de la **Phase III (Post-Trade)**. Elle s'exécute uniquement après que le **System Manager** a reçu la confirmation que les persistances atomiques du SessionBook (Étape 13) et de la persitance des configurations (Étape 14) ont réussi. Le but est de passer de l'état actif de clôture à l'état inactif (éteint) en minimisant les risques de données résiduelles en mémoire ou de connexions réseau actives.
 
 ---
 
