@@ -22,7 +22,7 @@ Le module s'inscrit au début absolu de la **Phase Pré-Trade (Bootstrapping)**,
 
 Le processus est géré par le **`System Manager`** et se déroule de manière séquentielle et conditionnelle :
 
-1.  **Vérification Sécurisée :** Le `System Manager` vérifie séquentiellement la **Base de Données**, puis l'**IBKR Gateway**, en utilisant une routine de résilience standard (gestion des *Retry*).
+1.  **Vérification Sécurisée :** Le `System Manager` vérifie séquentiellement la **Base de Données**, à l'**IBKR Gateway** puis à l'**API EODHD**, en utilisant une routine de résilience standard (gestion des *Retry*).
 2.  **Calcul du Statut :** Une fois les connexions établies, le système détermine le **`MarketDayStatus`** (Jour Ouvré ou non) et le persiste pour l'audit.
 3.  **Décision de Poursuite :** Le flux bifurque selon le statut du marché. Si le jour n'est pas ouvré, le système entre en veille (`Off-Cycle`). Si le jour est ouvré, le *bootstrapping* se poursuit vers l'étape d'instanciation.
 
@@ -31,7 +31,7 @@ Le processus est géré par le **`System Manager`** et se déroule de manière s
 ### 4. Règles Critiques
 
 * **Résilience Uniforme :** Toutes les vérifications de connexion critiques utilisent le fragment transversal **`00-CORE-RESILIENT-CHECK-CONNECTION-SVC`** pour garantir une logique uniforme de gestion des pannes transitoires et de l'audit.
-* **Arrêt Atomique :** Un **échec critique et persistant** (épuisement des *retries*) sur la DB ou l'IBKR Gateway entraîne l'envoi immédiat d'une alerte et la **destruction immédiate** du processus (`systemStop`). Le système ne tolère aucune défaillance de dépendance à ce stade.
+* **Arrêt Atomique :** Un **échec critique et persistant** (épuisement des *retries*) sur la DB, l'IBKR Gateway ou l'API EODHD entraîne l'envoi immédiat d'une alerte et la **destruction immédiate** du processus (`systemStop`). Le système ne tolère aucune défaillance de dépendance à ce stade.
 * **Priorité Métier :** La condition de **Jour Ouvré** agit comme un **garde-fou** final avant la consommation de ressources. Le système ne peut pas instancier les managers locaux si le marché est fermé.
 
 ---
