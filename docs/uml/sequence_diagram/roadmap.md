@@ -51,6 +51,7 @@
 
 | Étape | Séquence/Module | Nom du Diagramme (Statut) | Objectif de la Séquence (Résumé) | Actions Clés |
 | :---: | :---: | :--- | :--- | :--- |
+| **--** | **Connectivité Critique** | `01-PHASE4-Connectivite-Critique` | Valider la **disponibilité** des services fondamentaux (DB, IBKR, EODHD) et la **pertinence** du contexte de marché (Jour Ouvré, Jours de Rebalancement). | Vérifier **DB** et **IBKR Gateway**. Persister **`MarketDayStatus`**. Si non-ouvré, transition vers `Off-Cycle`. |
 | **16** | **Déclenchement et Ingestion EOD** | `16-PHASE4-Ingestion-EOD-Init` | Démarrer le processus stratégique et ingérer les données de marché de fin de journée (EOD) les plus fiables et fraîches. | Market Clock réveille le système. Vérification DB et API Externe. Le **DIL** exécute l'Ingestion des données EOD et les persiste. |
 | **17** | **Calcul de Stratégie (Target Plan)** | `17-PHASE4-Calcul-Strategie` | Exécuter le **Strategy Engine** pour déterminer le plan d'action du lendemain (**Portfolio Target**). | Vérifier l'état de l'audit initial (étape 14). Exécuter le **Strategy Engine** si c'est un jour de Rebalancement. |
 | **18** | **Persistance Atomique du Target** | `18-PHASE4-Persistance-Atomique-Target` | Persister le **Plan d'Ordres Cible** (`TargetPortfolioDTO`) dans une transaction atomique isolée. | Soumettre le **Portfolio Target** au **DIL** pour Persistance Atomique (Pool I/O Critical). |
