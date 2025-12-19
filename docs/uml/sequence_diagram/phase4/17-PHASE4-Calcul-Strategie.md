@@ -21,7 +21,7 @@ Ce module constitue le cœur décisionnel de la **Phase IV (Préparation du Targ
 Le processus fonctionne selon une boucle itérative pilotée par le `System Manager`. Pour chaque session identifiée dans les configurations JSON :
 
 * **Filtrage temporel :** Le système vérifie si la stratégie spécifique doit rebalancer aujourd'hui via le calendrier qui lui est propre.
-* **Exécution isolée :** Si le rebalancement est requis, le `Strategy Engine` prend le relais pour effectuer ses calculs complexes, incluant ses propres requêtes de données via le `DataAccessLayer`.
+* **Exécution isolée :** Si le rebalancement est requis, le `Strategy Engine` prend le relais pour effectuer ses calculs de rebalancement, incluant ses propres requêtes de données via le `DataAccessLayer`.
 * **Persistance immédiate :** Chaque résultat validé est transmis au `Data Ingestion Layer` pour une inscription directe en base de données.
 * **Résultat :** Le module produit une série de `TargetPortfolioDTO` persistés individuellement en base.
 
