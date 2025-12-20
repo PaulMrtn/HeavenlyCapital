@@ -47,6 +47,6 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 | ref | checkStatus(Service_Name) | System Manager | 000-RESILIENT... | Appel au fragment de résilience pour vérifier Database, IBKR et EODHD. |
 | 2,3,4| systemStop(CRITICAL_ERROR) | System Manager | System Manager | Auto-appel déclenchant la procédure d'arrêt d'urgence et la destruction du runtime. |
 | 5 | calculateMarketDayStatus() | System Manager | System Manager | Logique interne pour déterminer si le jour actuel est un jour de trading (calendrier). |
-| 6 | calculateMarketDayStatus() | System Manager | Data Ingestion Layer| Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles. |
+| 6 | persistMarketDayStatus() | System Manager | Data Ingestion Layer| Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles. |
 | 7 | transitionTo(Off-Cycle) | System Manager | System Manager | Mise en veille du système si le marché est fermé (pas d'instanciation nécessaire). |
 | 8 | call_02-PHASE1...() | System Manager | System Manager | Passage à la séquence suivante d'instanciation globale si tous les feux sont au vert. |
