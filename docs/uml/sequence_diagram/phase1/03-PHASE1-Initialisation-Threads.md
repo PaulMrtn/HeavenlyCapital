@@ -40,3 +40,17 @@ Le processus est orchestré par le **`Thread Manager (TM)`**.
 ### 5. Conclusion
 
 Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécution du système est **entièrement pré-allouée, segmentée par priorité** et **validée en performance**. Il établit une base d'exécution fiable et à faible latence, essentielle avant l'instanciation des managers métier qui dépendront de ces ressources.
+
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | initializePools() | System Manager | Thread Manager | Commande synchrone d'allocation des ressources de calcul. |
+| 2 | getConfig(PoolSizes, Priorities) | Thread Manager | Config | Récupération des paramètres d'allocation (Nombres de threads et niveaux de priorité OS). |
+| 3 | new PoolWorker(CRITICAL_PRIORITY) | Thread Manager | PoolWorker | Instanciation itérative de threads persistants avec priorité maximale (Real-time/High). |
+| 4 | startExecutionLoop() | Thread Manager | Thread Manager | Auto-appel déclenchant la mise en veille active des threads du pool Critique. |
+| 5 | new PoolWorker(STANDARD_PRIORITY) | Thread Manager | PoolWorker | Instanciation itérative de threads pour les tâches métier classiques. |
+| 6 | startExecutionLoop() | Thread Manager | Thread Manager | Auto-appel déclenchant la mise en veille active des threads du pool Standard. |
+| 7 | HCheckPriorityTest(CRITICAL_POOL) | Thread Manager | Thread Manager | Test de validation actif mesurant la latence et confirmant la priorité OS. |
+| 8 | logInfo(PriorityTestStatus) | Thread Manager | Logger | Enregistrement du résultat du test de performance pour l'audit. |
+| 9 | Initialization_Complete(SUCCESS) | Thread Manager | System Manager | Confirmation synchrone du succès de l'allocation des ressources. |
+| 10 | call_04-PHASE1-Instanciation... | System Manager | System Manager | Passage à la phase d'instanciation des structures métier (PM, RM, OM). |
