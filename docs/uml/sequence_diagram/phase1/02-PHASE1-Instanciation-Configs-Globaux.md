@@ -35,6 +35,7 @@ Le fonctionnement est basé sur le principe de l'**optimisation I/O** et de l'**
 
 Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture des configurations critiques est **rapide et complète**, et que les composants globaux nécessaires au flux de trading (`IBKR Gateway`, `LDH`) sont **instanciés de manière sécurisée et valide** en mémoire avant que le système ne procède à la création des ressources coûteuses et des managers métier.
 
+---
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
@@ -49,6 +50,7 @@ Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture 
 | 9 | HCheckUnitary(LDH) | System Manager | System Manager | Validation interne de l'intégrité de l'objet LiveDataHub en mémoire. |
 | 10| call_03-PHASE1-Initialisation-Threads()| System Manager | System Manager | Passage ordonné à la phase suivante du bootstrapping. |
 
+---
 
 ### NOTE
 
