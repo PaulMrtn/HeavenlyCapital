@@ -1,14 +1,14 @@
-## `00-RESILIENT-CHECK-CONNECTION-SVC`
+## `SM-RESILIENT-CHECK-CONNECTION`
 
 <p align="center">
-  <img src="../img/00-RESILIENT-CHECK-CONNECTION-SVC.jpg" width="900">
+  <img src="../img/SM-RESILIENT-CHECK-CONNECTION.jpg" width="900">
 </p>
 
 ---
 
 ### 1. Objectif
 
-Le fragment d'interaction de référence `0000-RESILIENT-CHECK-CONNECTION-SVC` modélise le processus standard et uniforme de **vérification de la connectivité résiliente** pour tous les services critiques (Base de Données, Courtier, etc.) lors de la phase de *bootstrapping* du système.
+Le fragment d'interaction de référence `SM-RESILIENT-CHECK-CONNECTION` modélise le processus standard et uniforme de **vérification de la connectivité résiliente** pour tous les services critiques (Base de Données, Courtier, etc.) lors de la phase de *bootstrapping* du système.
 
 Ce fragment garantit le respect du principe **DRY (Don't Repeat Yourself)** et assure que toute vérification de service adhère à un standard de haute disponibilité incluant la résilience automatique et l'auditabilité immédiate en cas d'échec critique.
 
