@@ -44,3 +44,24 @@ Le **`System Manager`** orchestre une boucle itérative pour chaque identifiant 
 
 Ce module garantit que l'architecture métier est instanciée et que tous les **canaux de communication critiques** (Ordres, Surveillance, Données) entre les composants locaux sont établis. La structure du système est ainsi **isolée et sécurisée**, prête à charger les données initiales et à passer en mode veille de trading.
 
+
+---
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | getSessionsToLoad() | System Manager | Config | Récupération synchrone de la liste des identifiants de sessions actives pour la journée. |
+| 2 | new TradingSession(ID, Status) | System Manager | TradingSession | Instanciation de l'objet entité portant l'état et l'identité de la session. |
+| 3 | getConfigs(SessionID) | System Manager | Config | Extraction des paramètres spécifiques (seuils de risque, actifs) de la session. |
+| 4 | new PortfolioManager(S, C, LDH) | System Manager | Portfolio Manager | Création du PM avec injection du LDH pour la réception des flux de prix. |
+| 5 | new RiskMonitor(S, C, LDH) | System Manager | Risk Monitor | Création du RM avec injection du LDH pour la surveillance temps réel. |
+| 6 | new OrderManager(S, IG) | System Manager | Order Manager | Création de l'OM avec injection de la Gateway IBKR pour l'exécution. |
+| 7 | setOrderManager(OM) | System Manager | Portfolio Manager | Établissement du canal de transmission des ordres stratégiques. |
+| 8 | setOrderManager(OM) | System Manager | Risk Monitor | Établissement du canal de transmission des ordres de liquidation (Urgence). |
+| 9 | setPortfolioReference(PM) | System Manager | Risk Monitor | Injection de la référence du PM vers le RM pour la lecture des positions. |
+| 10 | HCheckSessionReady(ID) | System Manager | System Manager | Auto-vérification finale de la validité des liens d'instanciation de la session. |
+| 11 | call_05-PHASE1... | System Manager | System Manager | Passage à l'étape de chargement parallèle des données historiques. |
+
+
+---
+
+### NOTE
