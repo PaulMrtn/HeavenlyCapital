@@ -50,3 +50,13 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 | 6 | persistMarketDayStatus() | System Manager | Data Ingestion Layer| Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles. |
 | 7 | transitionTo(Off-Cycle) | System Manager | System Manager | Mise en veille du système si le marché est fermé (pas d'instanciation nécessaire). |
 | 8 | call_02-PHASE1...() | System Manager | System Manager | Passage à la séquence suivante d'instanciation globale si tous les feux sont au vert. |
+
+
+
+# NOTE : 
+
+**Uniformité des Services** : Le System Manager utilise ici trois fois de suite le fragment de résilience. Il faut s'assurer que les Timeouts sont différenciés : un timeout DB doit être très court, alors qu'un timeout IBKR Gateway peut nécessiter plus de temps pour une reconnexion réseau.
+
+**Gestion du "Off-Cycle"** : La transition vers l'état Off-Cycle (Message 7) doit s'assurer de libérer proprement les connexions établies aux étapes précédentes (DB/IBKR) pour éviter de maintenir des sockets ouverts inutilement toute la journée.
+
+**Calendar** : La logique du calendrier est encapsulée dans un attribut dédié du SystemManager, il interroge son instance interne de gestion calendaire. Cela respecte le principe de responsabilité unique (SRP) tout en gardant le SystemManager comme point d'entrée unique de la logique de contrôle.
