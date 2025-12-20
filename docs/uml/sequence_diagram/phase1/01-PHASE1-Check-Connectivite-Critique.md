@@ -44,7 +44,7 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
 | 1 | publish(MarketEvent{SYSTEM_WAKEUP}) | Market Clock | System Manager | Événement asynchrone déclenchant le réveil du système et le début du bootstrapping. |
-| ref | checkStatus(Service_Name) | System Manager | 000-RESILIENT... | Appel au fragment de résilience pour vérifier Database, IBKR et EODHD. |
+| ref | checkStatus(Service_Name) | System Manager | SM-RESILIENT-CHECK-CONNECTION | Appel au fragment de résilience pour vérifier Database, IBKR et EODHD. |
 | 2,3,4| systemStop(CRITICAL_ERROR) | System Manager | System Manager | Auto-appel déclenchant la procédure d'arrêt d'urgence et la destruction du runtime. |
 | 5 | calculateMarketDayStatus() | System Manager | System Manager | Logique interne pour déterminer si le jour actuel est un jour de trading (calendrier). |
 | 6 | persistMarketDayStatus() | System Manager | Data Ingestion Layer| Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles. |
