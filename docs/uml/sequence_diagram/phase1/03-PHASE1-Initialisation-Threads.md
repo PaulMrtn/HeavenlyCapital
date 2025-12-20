@@ -53,5 +53,19 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 | 6 | startExecutionLoop() | Thread Manager | Thread Manager | Activation de la boucle d'attente du Pool Standard. |
 | 7 | HCheckPriorityTest(CRITICAL_POOL) | Thread Manager | Thread Manager | Test de validation actif mesurant si l'OS honore la priorité maximale. |
 | 8 | logInfo(PriorityTestStatus) | Thread Manager | Logger | Enregistrement du résultat du test pour l'audit opérationnel. |
-| 9 | Initialization_Complete(Status) | Thread Manager | System Manager | Retour de l'état final (SUCCESS, DEGRADED, ou CRITICAL_FAILURE). |
+| 9 | Initialization_Complete(Status) | Thread Manager | System Manager | Retour de l'état final (SUCCESS ou CRITICAL_FAILURE). |
 | 10 | call_04-PHASE1... | System Manager | System Manager | Passage à l'étape suivante si le statut permet la poursuite. |
+
+
+--- 
+
+### NOTE
+
+**Liste Exhaustive des Pools :** Pour garantir l'isolation des ressources tout au long du cycle de vie du système, les types de pools suivants doivent être initialisés :
+  * **CRITICAL_POOL** (Priorité : **Maximale / Real-Time**) : Dédié aux ordres d'urgence, aux liquidations RM et à la transmission OM.
+  * **STANDARD_POOL** (Priorité : **Haute**) : Dédié à la stratégie standard PM, au traitement des flux LDH et à la logique métier courante.
+  * **BULK_POOL** (Priorité : **Basse / Background**) : Dédié aux écritures I/O non critiques, à l'archivage des logs et à la persistance lente via le DIL.
+  * **AUDIT_POOL** (Priorité : **Normale**) : Dédié aux réconciliations de fin de journée et à la génération des SessionBooks.
+
+
+**Politique Zero-Tolerance** : Le message 9 (Initialization_Complete) ne tolère aucune ambiguïté. Si le HCheckPriorityTest échoue (priorité non honorée par l'OS) ou si un seul PoolWorker ne peut être instancié, le Thread Manager doit retourner un état FAILED. Le System Manager doit alors exécuter un systemStop immédiat. Le trading ne peut être engagé sans la certitude d'une isolation parfaite des threads.
