@@ -40,6 +40,7 @@ Le processus est géré par le **`System Manager`** et se déroule de manière s
 
 Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du système est toujours **conditionnelle** à la santé de ses dépendances et à la pertinence du contexte de marché. Il assure l'**intégrité du démarrage** par une procédure d'arrêt strict en cas de défaillance fondamentale, avant de passer à la phase coûteuse d'instanciation.
 
+---
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
@@ -51,7 +52,7 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 | 7 | transitionTo(Off-Cycle) | System Manager | System Manager | Mise en veille du système si le marché est fermé (pas d'instanciation nécessaire). |
 | 8 | call_02-PHASE1...() | System Manager | System Manager | Passage à la séquence suivante d'instanciation globale si tous les feux sont au vert. |
 
-
+---
 
 ### NOTE
 
