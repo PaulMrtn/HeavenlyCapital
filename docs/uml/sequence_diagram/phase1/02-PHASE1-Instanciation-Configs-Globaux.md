@@ -47,4 +47,11 @@ Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture 
 | 7 | getStaticConfig(LDH_Config) | System Manager | System Manager | Extraction locale des paramètres spécifiques au Live Data Hub. |
 | 8 | new LiveDataHub(LDH_Config) | System Manager | Live Data Hub | Instanciation du Singleton de gestion des flux de données temps réel. |
 | 9 | HCheckUnitary(LDH) | System Manager | System Manager | Validation interne de l'intégrité de l'objet LiveDataHub en mémoire. |
-| 10| call_03-PHASE1-Initialisation-Threads()| System Manager | System Manager | Passage ordonné à la phase suivante du bootstrapping (Gestion des ressources CPU). |
+| 10| call_03-PHASE1-Initialisation-Threads()| System Manager | System Manager | Passage ordonné à la phase suivante du bootstrapping. |
+
+
+### NOTE
+
+**Contenu des Configs** : Les données lues par le DAL au message 1 correspondent exclusivement aux paramètres immuables de démarrage. Cela inclut les adresses IP/Ports (IBKR), les clés d'API (EODHD), les tailles de buffers (LDH) et les seuils de sécurité globaux. Ces données doivent être chargées dans un objet de type Dictionnaire ou Map immuable pour garantir qu'aucun composant ne puisse modifier la configuration système durant la session.
+
+**H-Check Failure** : En cas de retour négatif lors des messages 6 ou 9 (HCheckUnitary), le System Manager doit immédiatement interrompre le bootstrapping. Cette défaillance est considérée comme une corruption mémoire ou une erreur d'instanciation fatale. L'action corrective est l'appel au fragment systemStop(CRITICAL_ERROR) avec log prioritaire sur le système de fichiers local.
