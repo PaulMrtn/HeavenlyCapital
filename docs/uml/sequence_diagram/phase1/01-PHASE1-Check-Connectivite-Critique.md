@@ -53,7 +53,7 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 
 
 
-# NOTE : 
+### NOTE
 
 **Uniformité des Services** : Le System Manager utilise ici trois fois de suite le fragment de résilience. Il faut s'assurer que les Timeouts sont différenciés : un timeout DB doit être très court, alors qu'un timeout IBKR Gateway peut nécessiter plus de temps pour une reconnexion réseau.
 
