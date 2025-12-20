@@ -52,11 +52,6 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 * **`INotificationService`**: Interface pour l'envoi rapide et asynchrone des alertes aux opérateurs.
 
 
-### Note 
-
-* Permettez l'Injection d'une Action par le Client après un succès de connexion (ex: une routine de configuration post-connexion), améliorant ainsi la réutilisabilité du fragment pour toutes les étapes d'initialisation.
-
-
  | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
 | 1 | IConnectionMonitor.checkStatus() | SystemManager | Monitor | Appel synchrone de vérification de santé. Le SystemManager bloque jusqu'à l'obtention d'un état final. |
@@ -65,3 +60,8 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 | 4 | logCriticalError(ErrorObject) | Monitor | Logger | Audit synchrone. **Note :** Doit impérativement cibler un support local (File/Stdout) si le service défaillant est la DB. |
 | 5 | status: Connection_FAILED | Monitor | SystemManager | Notification d'échec définitif après épuisement des tentatives de résilience. |
 | 6 | System.exit() | SystemManager | Runtime Env. | Fermeture forcée du processus par l'autorité centrale en cas d'absence de dépendance critique. |
+
+
+### Note 
+
+* Permettez l'Injection d'une Action par le Client après un succès de connexion (ex: une routine de configuration post-connexion), améliorant ainsi la réutilisabilité du fragment pour toutes les étapes d'initialisation.
