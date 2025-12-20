@@ -47,11 +47,11 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 |:---|:---|:---|:---|:---|
 | 1 | initializePools() | System Manager | Thread Manager | Commande synchrone d'allocation des ressources de calcul. |
 | 2 | getConfig(PoolSizes, Priorities) | Thread Manager | Config | Récupération des paramètres d'allocation (Nombres de threads et niveaux de priorité OS). |
-| 3 | new PoolWorker(CRITICAL_PRIORITY) | Thread Manager | PoolWorker | Instanciation itérative de threads persistants avec priorité maximale (Real-time/High). |
-| 4 | startExecutionLoop() | Thread Manager | Thread Manager | Auto-appel déclenchant la mise en veille active des threads du pool Critique. |
-| 5 | new PoolWorker(STANDARD_PRIORITY) | Thread Manager | PoolWorker | Instanciation itérative de threads pour les tâches métier classiques. |
-| 6 | startExecutionLoop() | Thread Manager | Thread Manager | Auto-appel déclenchant la mise en veille active des threads du pool Standard. |
-| 7 | HCheckPriorityTest(CRITICAL_POOL) | Thread Manager | Thread Manager | Test de validation actif mesurant la latence et confirmant la priorité OS. |
-| 8 | logInfo(PriorityTestStatus) | Thread Manager | Logger | Enregistrement du résultat du test de performance pour l'audit. |
-| 9 | Initialization_Complete(SUCCESS) | Thread Manager | System Manager | Confirmation synchrone du succès de l'allocation des ressources. |
-| 10 | call_04-PHASE1-Instanciation... | System Manager | System Manager | Passage à la phase d'instanciation des structures métier (PM, RM, OM). |
+| 3 | new PoolWorker(CRITICAL_PRIORITY) | Thread Manager | PoolWorker | Instanciation de threads persistants pour les tâches ultra-prioritaires (ordres, urgences). |
+| 4 | startExecutionLoop() | Thread Manager | Thread Manager | Mise en veille active des threads pour éliminer la latence de création à l'usage. |
+| 5 | new PoolWorker(STANDARD_PRIORITY) | Thread Manager | PoolWorker | Instanciation de threads pour les traitements métier standards (calculs tactiques). |
+| 6 | startExecutionLoop() | Thread Manager | Thread Manager | Activation de la boucle d'attente du Pool Standard. |
+| 7 | HCheckPriorityTest(CRITICAL_POOL) | Thread Manager | Thread Manager | Test de validation actif mesurant si l'OS honore la priorité maximale. |
+| 8 | logInfo(PriorityTestStatus) | Thread Manager | Logger | Enregistrement du résultat du test pour l'audit opérationnel. |
+| 9 | Initialization_Complete(Status) | Thread Manager | System Manager | Retour de l'état final (SUCCESS, DEGRADED, ou CRITICAL_FAILURE). |
+| 10 | call_04-PHASE1... | System Manager | System Manager | Passage à l'étape suivante si le statut permet la poursuite. |
