@@ -34,3 +34,17 @@ Le fonctionnement est basé sur le principe de l'**optimisation I/O** et de l'**
 ### 5. Conclusion
 
 Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture des configurations critiques est **rapide et complète**, et que les composants globaux nécessaires au flux de trading (`IBKR Gateway`, `LDH`) sont **instanciés de manière sécurisée et valide** en mémoire avant que le système ne procède à la création des ressources coûteuses et des managers métier.
+
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | readAllStaticConfigs() | System Manager | Data Access Layer | Requête synchrone pour extraire l'intégralité du référentiel de configuration DB en un seul appel I/O. |
+| 2 | write(AllConfigs) | Data Access Layer | Config | Hydratation de l'objet de stockage mémoire 'Config' avec les données brutes lues. |
+| 3 | ConfigData | Data Access Layer | System Manager | Retour de l'objet structuré contenant les paramètres globaux (Reply Message). |
+| 4 | getStaticConfig(IBKR_Config) | System Manager | System Manager | Extraction locale des paramètres spécifiques à la passerelle IBKR. |
+| 5 | new IBKRGateway(IBKR_Config) | System Manager | IBKR Gateway | Instanciation du Singleton de communication avec injection de sa configuration. |
+| 6 | HCheckUnitary(IG) | System Manager | System Manager | Validation interne (HeartCheck) de l'intégrité de l'objet IBKRGateway en mémoire. |
+| 7 | getStaticConfig(LDH_Config) | System Manager | System Manager | Extraction locale des paramètres spécifiques au Live Data Hub. |
+| 8 | new LiveDataHub(LDH_Config) | System Manager | Live Data Hub | Instanciation du Singleton de gestion des flux de données temps réel. |
+| 9 | HCheckUnitary(LDH) | System Manager | System Manager | Validation interne de l'intégrité de l'objet LiveDataHub en mémoire. |
+| 10| call_03-PHASE1-Initialisation-Threads()| System Manager | System Manager | Passage ordonné à la phase suivante du bootstrapping (Gestion des ressources CPU). |
