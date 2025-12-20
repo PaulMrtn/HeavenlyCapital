@@ -4,38 +4,40 @@
   <img src="../img/17-PHASE4-Calcul-Strategie.jpg" width="900">
 </p>
 
+---
+
 ### 1. Objectif
 
-La finalité de ce module est de générer les plans d'ordres cibles pour chaque stratégie active. Il transforme les paramètres de configuration et les données de marché en décisions d'investissement concrètes, prêtes à être exécutées.
+La finalité de ce module est d'orchestrer le calcul et la persistance des portefeuilles cibles. Il filtre les stratégies éligibles au rebalancement et transforme les configurations actives en décisions d'investissement sécurisées en base de données.
 
 ---
 
 ### 2. Contexte
 
-Ce module constitue le cœur décisionnel de la **Phase IV (Préparation du Target Portfolio)**. Il intervient après l'ingestion des données de fin de journée (EOD) et avant la phase de transition vers l'exécution. Son rôle est de faire le pont entre la donnée brute et l'action de trading.
+Ce module est le moteur d'exécution de la **Phase IV**. Il intervient une fois les configurations chargées depuis le **DAL**. Son rôle est de centraliser l'intelligence de planification du cycle en décidant, pour chaque session, si le déclenchement du moteur de calcul est requis pour la journée en cours.
 
 ---
 
 ### 3. Logique Générale
 
-Le processus fonctionne selon une boucle itérative pilotée par le `System Manager`. Pour chaque session identifiée dans les configurations JSON :
+Le **System Manager (SM)** pilote une boucle itérative structurée comme suit :
 
-* **Filtrage temporel :** Le système vérifie si la stratégie spécifique doit rebalancer aujourd'hui via le calendrier qui lui est propre.
-* **Exécution isolée :** Si le rebalancement est requis, le `Strategy Engine` prend le relais pour effectuer ses calculs de rebalancement, incluant ses propres requêtes de données via le `DataAccessLayer`.
-* **Persistance immédiate :** Chaque résultat validé est transmis au `Data Ingestion Layer` pour une inscription directe en base de données.
-* **Résultat :** Le module produit une série de `TargetPortfolioDTO` persistés individuellement en base.
+* **Auto-Vérification (SM vers SM) :** Pour chaque configuration, le SM appelle sa propre méthode interne `isRebalanceDay(Config.ID)`. Il analyse les règles temporelles du JSON pour confirmer si la stratégie doit agir ce jour.
+* **Exécution Déléguée :** Si le test interne est positif, le SM sollicite le **Strategy Engine**. Ce dernier devient alors responsable de récupérer ses données via le **DAL** et de produire le `TargetPortfolioDTO`.
+* **Persistance Unitaire :** Tout résultat produit est immédiatement envoyé au **Data Ingestion Layer (DIL)** pour une écriture en base de données.
+* **Gestion du saut :** Si l'auto-vérification est négative, le SM passe immédiatement à la session suivante sans solliciter les ressources de calcul.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Indépendance des Sessions :** L'échec d'un calcul ou d'une persistance pour une stratégie donnée ne doit pas interrompre le cycle des autres sessions. Le système privilégie la continuité opérationnelle sur l'atomicité globale.
-* **Internalisation des Données :** Le moteur de stratégie est responsable de la récupération de ses propres intrants, déchargeant l'orchestrateur de la gestion des volumes de données de marché.
-* **Audit Granulaire :** Chaque étape (début de session, succès, erreur ou saut de calendrier) fait l'objet d'un événement de log spécifique pour garantir une traçabilité totale en cas d'anomalie.
-* **Priorité à la Persistance :** Un portefeuille cible calculé doit être écrit en base de données immédiatement pour sécuriser le travail accompli avant de passer à la session suivante.
+* **Centralisation du Calendrier :** Le SM détient la responsabilité du "Go/No-Go" temporel via `isRebalanceDay`, assurant que le **Strategy Engine** n'est activé que pour des opérations productives.
+* **Indépendance des Flux :** La persistance est réalisée au fil de l'eau. L'échec d'une écriture ou d'un calcul pour une session spécifique n'entrave pas le traitement des autres stratégies de la boucle.
+* **Optimisation des Ressources :** En internalisant la vérification du rebalancement, le SM évite des instanciations inutiles du moteur de calcul et des requêtes de données superflues vers le DAL.
+* **Traçabilité des Décisions :** Le système doit loguer explicitement les sessions ignorées (`SESSION_SKIPPED`) afin de distinguer un oubli technique d'une décision volontaire basée sur le calendrier.
 
 ---
 
 ### 5. Conclusion
 
-Le module `17-PHASE4-Calcul-Strategie` garantit une production décentralisée et résiliente des décisions de trading. En isolant les erreurs par session et en automatisant le suivi des calendriers de rebalancement, il assure que le système dispose toujours du maximum de cibles valides avant d'engager les phases de marché suivantes.
+Le module **17-PHASE4-Calcul-Strategie** garantit une gestion rigoureuse et autonome des cycles de trading. En combinant l'auto-vérification du calendrier et la délégation du calcul complexe, il assure une production de cibles optimisée, résiliente et directement exploitable par les phases d'exécution.
