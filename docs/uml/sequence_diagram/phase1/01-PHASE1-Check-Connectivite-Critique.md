@@ -54,6 +54,14 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 
 ---
 
+
+### 6. Ports et Interfaces
+
+* **Interface DIL** : introduire une interface `MarketDayStatusWriter` côté DIL pour gérer la persistance du `MarketDayStatus`.
+* **Port côté System Manager** : ajouter un port `MarketDayStatusWriterPort` dans le `System Manager` pour communiquer avec cette interface.
+
+---
+
 ### NOTE
 
 **Uniformité des Services** : Le System Manager utilise ici trois fois de suite le fragment de résilience. Il faut s'assurer que les Timeouts sont différenciés : un timeout DB doit être très court, alors qu'un timeout IBKR Gateway peut nécessiter plus de temps pour une reconnexion réseau.
