@@ -61,6 +61,66 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 ---
 
+### 6. Ports et Interfaces
+
+**Port : ISessionPersistence**
+
+* Implémenté par : DIL / AtomicDBWriteProcess
+* Injecté dans : Portfolio Manager, Order Manager
+* Responsabilité opérationnelle : Persistance atomique des SessionBooks et logs d’ordres/fills
+* Règles d’usage : Accès exclusif via thread pool AUDIT_POOL ou BULK_POOL. Support startTransaction / commit / rollback. Aucun accès direct aux objets métier.
+
+**Port : IOrderRepository**
+
+* Implémenté par : DIL / AtomicDBWriteProcess
+* Injecté dans : Order Manager
+* Responsabilité opérationnelle : Persistance des ordres et exécutions
+* Règles d’usage : Transaction atomique obligatoire. Accès via BULK_POOL. Ne pas exposer les données aux modules externes.
+
+**Port : IPositionProvider**
+
+* Implémenté par : Portfolio Manager
+* Injecté dans : Risk Monitor, autres modules lecture seule
+* Responsabilité opérationnelle : Fournir des snapshots immuables des positions
+* Règles d’usage : Lecture seule. Aucun verrou bloquant. Pas de modification des objets exposés.
+
+**Port : IOrderSubmissionPort**
+
+* Implémenté par : Order Manager
+* Injecté dans : Risk Monitor
+* Responsabilité opérationnelle : Soumission d’ordres d’urgence et liquidation
+* Règles d’usage : Seul RM peut soumettre via ce port. Respecter la priorité CRITICAL.
+
+**Port : IBrokerGateway**
+
+* Implémenté par : Gateway externe IBKR
+* Injecté dans : Order Manager
+* Responsabilité opérationnelle : Transmission des ordres au courtier
+* Règles d’usage : Priorisation CRITICAL vs STANDARD. Aucun accès direct par PM ou RM.
+
+**Port : ILiveDataHub**
+
+* Implémenté par : LDH global
+* Injecté dans : Portfolio Manager, Risk Monitor
+* Responsabilité opérationnelle : Fournir flux de marché en lecture seule
+* Règles d’usage : Accès immuable. Ne jamais modifier les données. Timeout et retry appliqués sur chaque appel.
+
+**Port : ILogger / IAuditLogger**
+
+* Implémenté par : Logger global
+* Injecté dans : PM, RM, OM, System Manager
+* Responsabilité opérationnelle : Journalisation synchronisée et asynchrone
+* Règles d’usage : Ne pas exposer aux threads critiques d’exécution métier. Respect des priorités d’audit.
+
+**Port : ISessionConfigProvider**
+
+* Implémenté par : Config Service global
+* Injecté dans : System Manager, OM
+* Responsabilité opérationnelle : Fournir les paramètres et seuils par session
+* Règles d’usage : Lecture seule. Pas de modification dynamique. Utilisation uniquement au démarrage ou lors de refresh contrôlé.
+
+---
+
 ### NOTE
 
 **Port de Persistance** : Pour éviter le couplage direct avec le Data Ingestion Layer (DIL), les managers (PM, OM) utilisent désormais des interfaces métier (ex: ISessionPersistence, IOrderRepository). Le DIL agit comme l'adaptateur concret implémentant ces interfaces. Cette abstraction garantit que la logique métier de trading reste isolée des mécanismes de stockage (SQL, NoSQL ou Fichier), facilitant l'injection de Mocks lors des tests de performance. Les appels passés par ces ports devront obligatoirement être routés vers le BULK_POOL ou le AUDIT_POOL pour ne pas ralentir le thread d'exécution métier. Il faudra s'assurer que l'instance du DIL injectée comme Port possède bien les méthodes atomiques requises (startTransaction, commit) pour supporter les flux de la Phase IV.
