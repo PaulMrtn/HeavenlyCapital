@@ -52,6 +52,34 @@ Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture 
 
 ---
 
+### 6. Ports et Interfaces
+
+**PersistencePort**  
+- Implémenté par : Data Integrity Layer (DIL)  
+- Injecté dans : Live Data Hub, Portfolio Manager, Order Manager  
+- Responsabilité : Unique point d’accès pour toute écriture en base (snapshots, états courants, résultats de session)  
+- Règles : Accès direct au DIL interdit en dehors de ce port  
+
+**StaticConfigPort**  
+- Implémenté par : Data Access Layer (DAL)  
+- Utilisé par : System Manager (bootstrapping uniquement)  
+- Responsabilité : Lecture unique des configurations statiques, données immuables  
+- Règles : Jamais injecté dans les managers métier  
+
+**MarketDataPort**  
+- Implémenté par : Live Data Hub  
+- Injecté dans : Portfolio Manager, Risk Monitor, Order Manager  
+- Responsabilité : Accès en lecture seule aux données de marché  
+- Règles : Aucune persistance ni accès DIL via ce port  
+
+**BrokerGatewayPort**  
+- Implémenté par : IBKR Gateway  
+- Injecté dans : Order Manager (exécution), Portfolio Manager (lecture d’état)  
+- Responsabilité : Abstraction complète de la communication avec le broker  
+- Règles : Aucun manager ne dépend directement de l’API IBKR
+
+---
+
 ### NOTE
 
 **Contenu des Configs** : Les données lues par le DAL au message 1 correspondent exclusivement aux paramètres immuables de démarrage. Cela inclut les adresses IP/Ports (IBKR), les clés d'API (EODHD), les tailles de buffers (LDH) et les seuils de sécurité globaux. Ces données doivent être chargées dans un objet de type Dictionnaire ou Map immuable pour garantir qu'aucun composant ne puisse modifier la configuration système durant la session.
