@@ -62,7 +62,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 ### 6. Ports et Interfaces
 
 
-## 1. ThreadManagerPort
+**ThreadManagerPort**
 - **Implémenté par :** Thread Manager
 - **Injecté dans / Utilisé par :** System Manager
 - **Responsabilité opérationnelle :** Allocation et gestion des pools de threads, démarrage des loops persistantes, reporting de l’état initialisation
@@ -71,7 +71,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Retour obligatoire de `Initialization_Complete` avant passage à la séquence suivante.
   - Interdiction d’accéder directement aux PoolWorkers depuis d’autres modules.
 
-## 2. PoolWorkerInterface
+**PoolWorkerInterface**
 - **Implémenté par :** PoolWorker
 - **Injecté dans / Utilisé par :** Thread Manager
 - **Responsabilité opérationnelle :** Exécution persistante des jobs selon priorité (CRITICAL, STANDARD, BULK, AUDIT)
@@ -80,7 +80,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Ne jamais détruire le PoolWorker pendant la session.
   - Isolation stricte : aucun partage inter-pools des jobs critiques.
 
-## 3. ConfigurationStorePort
+**ConfigurationStorePort**
 - **Implémenté par :** Configuration Store
 - **Injecté dans / Utilisé par :** Thread Manager
 - **Responsabilité opérationnelle :** Fournir tailles et priorités des pools
@@ -89,7 +89,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Interdiction de modification en runtime.
   - Doit être disponible avant la création des PoolWorkers.
 
-## 4. LoggerPort
+**LoggerPort**
 - **Implémenté par :** Logger
 - **Injecté dans / Utilisé par :** Thread Manager
 - **Responsabilité opérationnelle :** Journalisation des étapes d’initialisation, tests de priorité et reporting des erreurs critiques
@@ -98,7 +98,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Toute alerte critique doit être loguée avant propagation à System Manager.
   - Aucun bypass possible pour écriture directe par les PoolWorkers.
 
-## 5. HCheckPriorityInterface
+**HCheckPriorityInterface**
 - **Implémenté par :** Thread Manager
 - **Injecté dans / Utilisé par :** PoolWorker CRITICAL_POOL
 - **Responsabilité opérationnelle :** Vérifier que la priorité maximale OS est respectée
@@ -107,7 +107,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Échec → signal CRITICAL_FAILURE et déclenchement de `systemStop`.
   - Ne pas utiliser pour pools non critiques.
 
-## 6. SystemManagerPort
+**SystemManagerPort**
 - **Implémenté par :** System Manager
 - **Injecté dans / Utilisé par :** Thread Manager
 - **Responsabilité opérationnelle :** Recevoir le statut final d’initialisation (`SUCCESS` / `CRITICAL_FAILURE`) et orchestrer la séquence suivante
