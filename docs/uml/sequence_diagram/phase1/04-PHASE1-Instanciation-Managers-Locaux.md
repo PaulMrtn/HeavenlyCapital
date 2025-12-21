@@ -62,3 +62,8 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 ---
 
 ### NOTE
+
+**Port de Persistance** : Pour éviter le couplage direct avec le Data Ingestion Layer (DIL), les managers (PM, OM) utilisent désormais des interfaces métier (ex: ISessionPersistence, IOrderRepository). Le DIL agit comme l'adaptateur concret implémentant ces interfaces. Cette abstraction garantit que la logique métier de trading reste isolée des mécanismes de stockage (SQL, NoSQL ou Fichier), facilitant l'injection de Mocks lors des tests de performance. Les appels passés par ces ports devront obligatoirement être routés vers le BULK_POOL ou le AUDIT_POOL pour ne pas ralentir le thread d'exécution métier. Il faudra s'assurer que l'instance du DIL injectée comme Port possède bien les méthodes atomiques requises (startTransaction, commit) pour supporter les flux de la Phase IV.
+
+
+**Isolation RM/PM** : Pour garantir la réactivité absolue de la surveillance d'urgence (Phase II), le Risk Monitor ne doit jamais posséder de référence directe vers le Portfolio Manager. L'accès à l'état des positions s'effectue exclusivement via un Port de Lecture Read-Only (`IPositionProvider`). Ce port doit exposer une vue immuable ou un Snapshot de l'état (ex: PositionSnapshot), garantissant que le fil d'exécution du RM ne sera jamais bloqué par un verrou (lock), une contention mémoire ou une propagation d'I/O provenant du PM.
