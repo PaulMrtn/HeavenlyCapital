@@ -59,6 +59,67 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 
 --- 
 
+### 6. Ports et Interfaces
+
+---
+
+**Port : CriticalPoolPort**  
+- Implémenté par : Thread Manager  
+- Injecté dans / Utilisé par : PM, RM, OM, Job Manager  
+- Responsabilité opérationnelle : Soumettre et exécuter les jobs critiques (ordres urgents, liquidations, transmissions OM)  
+- Règles d’accès ou d’usage : Accès exclusif aux tâches critiques. Persistant tout au long de la session. Priorité maximale. Interdit d’utiliser pour tâches standards ou bulk.
+
+---
+
+**Port : StandardPoolPort**  
+- Implémenté par : Thread Manager  
+- Injecté dans / Utilisé par : PM, RM, LDH, Job Manager  
+- Responsabilité opérationnelle : Exécuter les traitements métier standards et flux temps réel  
+- Règles d’accès ou d’usage : Priorité haute. Ne pas exécuter tâches critiques. Persistant jusqu’à l’arrêt du système.
+
+---
+
+**Port : BulkPoolPort**  
+- Implémenté par : Thread Manager  
+- Injecté dans / Utilisé par : DIL, Logger, Archivage  
+- Responsabilité opérationnelle : Persistance I/O non critique, archivage, traitements de fond  
+- Règles d’accès ou d’usage : Priorité basse. Pas de jobs temps réel. Persistant, isolé des pools critiques et standards.
+
+---
+
+**Port : AuditPoolPort**  
+- Implémenté par : Thread Manager  
+- Injecté dans / Utilisé par : PM, Job Manager, DIL  
+- Responsabilité opérationnelle : Réconciliations post-trade, génération SessionBooks  
+- Règles d’accès ou d’usage : Priorité normale. Exécution exclusive pour audit et réconciliation. Persistant, non utilisé pour traitements standards.
+
+---
+
+**Interface : PoolWorkerInterface**  
+- Implémenté par : PoolWorker (tous types)  
+- Injecté dans / Utilisé par : Thread Manager  
+- Responsabilité opérationnelle : Boucle d’exécution persistante pour traitement de jobs soumis via le port associé  
+- Règles d’accès ou d’usage : Ne jamais détruire pendant la session. Initialisation obligatoire avant utilisation. Accès limité au Thread Manager.
+
+---
+
+**Interface : ConfigurationPort**  
+- Implémenté par : Configuration Store  
+- Injecté dans / Utilisé par : Thread Manager  
+- Responsabilité opérationnelle : Fournir tailles, priorités et paramètres de pools de threads  
+- Règles d’accès ou d’usage : Lecture seule. Utilisation uniquement à l’initialisation des pools. Pas de modification dynamique.
+
+---
+
+**Interface : LoggerPort**  
+- Implémenté par : Logger  
+- Injecté dans / Utilisé par : Thread Manager  
+- Responsabilité opérationnelle : Enregistrement des statuts d’initialisation et tests de priorité  
+- Règles d’accès ou d’usage : Obligatoire pour chaque étape critique. Accès concurrent autorisé mais transactionnel.
+
+
+---
+
 ### NOTE
 
 **Liste Exhaustive des Pools :** Pour garantir l'isolation des ressources tout au long du cycle de vie du système, les types de pools suivants doivent être initialisés :
