@@ -85,3 +85,12 @@ Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture 
 **Contenu des Configs** : Les données lues par le DAL au message 1 correspondent exclusivement aux paramètres immuables de démarrage. Cela inclut les adresses IP/Ports (IBKR), les clés d'API (EODHD), les tailles de buffers (LDH) et les seuils de sécurité globaux. Ces données doivent être chargées dans un objet de type Dictionnaire ou Map immuable pour garantir qu'aucun composant ne puisse modifier la configuration système durant la session.
 
 **H-Check Failure** : En cas de retour négatif lors des messages 6 ou 9 (HCheckUnitary), le System Manager doit immédiatement interrompre le bootstrapping. Cette défaillance est considérée comme une corruption mémoire ou une erreur d'instanciation fatale. L'action corrective est l'appel au fragment systemStop(CRITICAL_ERROR) avec log prioritaire sur le système de fichiers local.
+
+
+Note 1 – H-Check LDH :
+Le H-Check vérifie que la configuration est complète, que les valeurs critiques sont valides, que le port de persistance est injecté et qu’aucune connexion réseau n’est active. Il est local, rapide et bloquant. Échec → arrêt immédiat du bootstrapping.
+
+Note 2 – Config + Sécurité :
+Toutes les configurations sont chargées une seule fois, immuables et spécifiques à chaque composant. Chaque composant reçoit uniquement sa portion de config via le constructeur, ne peut la modifier, et passe le H-Check pour figer l’objet en mémoire.
+
+Note 3 - DIL : Tous les managers métier doivent recevoir le PersistencePort (DIL) via injection constructeur. L’accès direct au DIL est interdit. Après injection, un H-Check valide la disponibilité du port. Les managers utilisent ce port pour toutes les écritures atomiques (snapshots, états, résultats de session).
