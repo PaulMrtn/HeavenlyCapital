@@ -4,36 +4,37 @@
   <img src="../img/03-PHASE1-Initialisation-Threads.jpg" width="900">
 </p>
 
+---
 
 ### 1. Objectif
 
-La finalité de ce module est d'allouer les **ressources d'exécution physiques** du système en créant les **Pools de Threads spécialisés** (`CRITICAL` et `STANDARD`). Il doit garantir que ces ressources sont disponibles, persistantes, correctement isolées, et que le Pool Critique opère avec la **priorité maximale** promise.
-
----
+La finalité de ce module est d'allouer les ressources d'exécution physiques du système en créant quatre **Pools de Threads spécialisés** (`CRITICAL`, `STANDARD`, `BULK`, `AUDIT`). Il garantit que ces ressources sont entièrement pré-allouées, isolées, et que le Pool Critique opère avec une priorité garantie par l'OS avant tout engagement de trading.
 
 ### 2. Contexte
 
-Ce module s'inscrit après la lecture des configurations globales (**02-PHASE1-Instanciation-Configs-Globaux**) et avant la création des managers métier. Il est une étape **d'allocation de ressources coûteuses** et définit le fondement de la performance du système. Sans cette étape, aucun traitement asynchrone (ordres, *fills*, ingestion de données) ne peut être exécuté.
+Ce module intervient après la lecture des configurations globales. C'est une étape d'**allocation de ressources lourdes**. Le système ne peut passer à la phase 04 (Instanciation des Managers Locaux) sans une validation explicite de la couche d'exécution, car la sécurité opérationnelle et la faible latence du système en dépendent.
 
----
+### 3. Logique Générale & Architecture des Pools
 
-### 3. Logique Générale
+Le processus est orchestré par le **`Thread Manager (TM)`** selon une hiérarchie stricte d'isolation :
 
-Le processus est orchestré par le **`Thread Manager (TM)`**.
+1. **Récupération des Configs :** Le `TM` extrait les tailles et priorités depuis le `Configuration Store`.
+2. **Pré-allocation Systématique :** Le `TM` instancie les `PoolWorker` pour les quatre segments :
+* **CRITICAL_POOL (Priorité Maximale / Real-Time) :** Ordres d'urgence, liquidations Risk Management (RM) et transmission Order Manager (OM).
+* **STANDARD_POOL (Priorité Haute) :** Stratégies Portfolio Manager (PM), flux LDH et logique métier standard.
+* **BULK_POOL (Priorité Basse / Background) :** Écritures I/O non critiques, archivage des logs, persistance lente (DIL).
+* **AUDIT_POOL (Priorité Normale) :** Réconciliations post-trade et génération des SessionBooks.
 
-1.  Le `TM` récupère les tailles et les priorités des pools auprès du **`Configuration Store`** (mémoire).
-2.  Il lance des boucles d'itération pour instancier les objets **`PoolWorker`** (les conteneurs de threads persistants).
-3.  Immédiatement après l'instanciation, chaque `PoolWorker` démarre sa boucle d'exécution (se met en veille) pour être **prêt instantanément** à recevoir un travail.
-4.  Le `TM` exécute ensuite un **test de validation actif (`HCheckPriorityTest`)** sur le Pool Critique pour confirmer l'isolation et la performance.
-5.  Le succès du test et de l'initialisation est logué et notifié au `System Manager`.
 
----
+3. **Boucle Persistante :** Chaque thread démarre une boucle d'attente (`startExecutionLoop`) immédiatement. Ils ne sont **jamais détruits** pendant la session pour éliminer la latence de création.
+4. **Validation OS (HCheckPriorityTest) :** Un test actif vérifie que le scheduler de l'OS honore réellement la priorité du `CRITICAL_POOL`.
 
-### 4. Règles Critiques
+### 4. Règles Critiques & Zero-Tolerance
 
-* **Threads Persistants :** Les objets **`PoolWorker`** sont créés au démarrage et ne sont **jamais détruits** pendant la session de trading. Ils restent en attente, éliminant la latence de création de thread lors de l'exécution d'une tâche.
-* **Priorité Assurée (QoS) :** Le **`HCheckPriorityTest`** est obligatoire sur le Pool Critique. Il garantit que le Système d'Exploitation honore la priorité maximale allouée, préservant ainsi la **faible latence** pour les ordres d'urgence. Un échec sur ce test doit être traité comme une alerte critique (bien qu'il ne nécessite pas l'arrêt total ici, car la connectivité est assurée, il compromet la sécurité opérationnelle).
-* **Isolation :** Les threads sont créés avec des priorités distinctes, assurant que les tâches lentes (futur Pool Bulk) ne peuvent pas cannibaliser les ressources du Pool Critique.
+* **Politique Zero-Tolerance :** Si un seul `PoolWorker` échoue à l'instanciation ou si le `HCheckPriorityTest` renvoie un échec (priorité non honorée), le `Thread Manager` doit retourner un état `CRITICAL_FAILURE`.
+* **Arrêt Immédiat :** En cas de `CRITICAL_FAILURE`, le `System Manager` doit exécuter un `systemStop()` immédiat. Le trading ne peut être engagé sans la certitude d'une isolation parfaite.
+* **Isolation Stricte :** Aucun pool ne doit interférer avec un autre. Les tâches lourdes du `BULK_POOL` ne peuvent en aucun cas cannibaliser les ressources du `CRITICAL_POOL`.
+
 
 ---
 
@@ -43,19 +44,18 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
-|:---|:---|:---|:---|:---|
-| 1 | initializePools() | System Manager | Thread Manager | Commande synchrone d'allocation des ressources de calcul. |
-| 2 | getConfig(PoolSizes, Priorities) | Thread Manager | Config | Récupération des paramètres d'allocation (Nombres de threads et niveaux de priorité OS). |
-| 3 | new PoolWorker(CRITICAL_PRIORITY) | Thread Manager | PoolWorker | Instanciation de threads persistants pour les tâches ultra-prioritaires (ordres, urgences). |
-| 4 | startExecutionLoop() | Thread Manager | Thread Manager | Mise en veille active des threads pour éliminer la latence de création à l'usage. |
-| 5 | new PoolWorker(STANDARD_PRIORITY) | Thread Manager | PoolWorker | Instanciation de threads pour les traitements métier standards (calculs tactiques). |
-| 6 | startExecutionLoop() | Thread Manager | Thread Manager | Activation de la boucle d'attente du Pool Standard. |
-| 7 | HCheckPriorityTest(CRITICAL_POOL) | Thread Manager | Thread Manager | Test de validation actif mesurant si l'OS honore la priorité maximale. |
-| 8 | logInfo(PriorityTestStatus) | Thread Manager | Logger | Enregistrement du résultat du test pour l'audit opérationnel. |
-| 9 | Initialization_Complete(Status) | Thread Manager | System Manager | Retour de l'état final (SUCCESS ou CRITICAL_FAILURE). |
-| 10 | call_04-PHASE1... | System Manager | System Manager | Passage à l'étape suivante si le statut permet la poursuite. |
 
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+| --- | --- | --- | --- | --- |
+| 1 | **initThreads()** | System Manager | Thread Manager | Commande synchrone d'initialisation de la couche d'exécution. |
+| 2 | **getThreadConfigs()** | Thread Manager | Config Store | Récupération des paramètres (tailles des 4 pools et niveaux de priorité). |
+| 3 | **new PoolWorker()** | Thread Manager | PoolWorker | Instanciation (Loop) des 4 types de pools (Critical, Std, Bulk, Audit). |
+| 4 | **startPersistentLoop()** | PoolWorker | PoolWorker | Auto-activation du thread en mode veille active (Ready-to-work). |
+| 5 | **runPriorityValidation()** | Thread Manager | HCheckPriorityTest | Vérification technique de la priorité Real-Time du pool critique. |
+| 6 | **logStatus()** | Thread Manager | LoggerPort | Journalisation du résultat du test et de l'état des pools. |
+| 7 | **Initialization_Complete** | Thread Manager | System Manager | Retour du statut final : **SUCCESS** ou **CRITICAL_FAILURE**. |
+| 8 | **systemStop()** | System Manager | System Manager | Déclenché immédiatement si le statut est CRITICAL_FAILURE. |
+| 9 | **Phase_04_Start** | System Manager | System Manager | Poursuite de la séquence d'initialisation uniquement si SUCCESS. |
 
 --- 
 
@@ -115,15 +115,4 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Ne pas exécuter d’opérations métier tant que l’initialisation des pools n’est pas confirmée.
   - Cycle de vie synchronisé avec ThreadManagerPort.
 
----
 
-### NOTE
-
-**Liste Exhaustive des Pools :** Pour garantir l'isolation des ressources tout au long du cycle de vie du système, les types de pools suivants doivent être initialisés :
-  * **CRITICAL_POOL** (Priorité : **Maximale / Real-Time**) : Dédié aux ordres d'urgence, aux liquidations RM et à la transmission OM.
-  * **STANDARD_POOL** (Priorité : **Haute**) : Dédié à la stratégie standard PM, au traitement des flux LDH et à la logique métier courante.
-  * **BULK_POOL** (Priorité : **Basse / Background**) : Dédié aux écritures I/O non critiques, à l'archivage des logs et à la persistance lente via le DIL.
-  * **AUDIT_POOL** (Priorité : **Normale**) : Dédié aux réconciliations de fin de journée et à la génération des SessionBooks.
-
-
-**Politique Zero-Tolerance** : Le message 9 (Initialization_Complete) ne tolère aucune ambiguïté. Si le HCheckPriorityTest échoue (priorité non honorée par l'OS) ou si un seul PoolWorker ne peut être instancié, le Thread Manager doit retourner un état FAILED. Le System Manager doit alors exécuter un systemStop immédiat. Le trading ne peut être engagé sans la certitude d'une isolation parfaite des threads.
