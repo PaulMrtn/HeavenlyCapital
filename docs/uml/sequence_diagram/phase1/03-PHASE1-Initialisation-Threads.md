@@ -116,3 +116,10 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Cycle de vie synchronisé avec ThreadManagerPort.
 
 
+
+---
+
+### Note
+
+**Monitoring & Alerting Thread Pools** : Ajouter un suivi temps réel des pools de threads via un port de monitoring interne, avec alertes synchronisées sur saturation ou blocage des threads critiques. Complète les H-Checks et garantit la visibilité continue sans affecter les pools non critiques.
+
