@@ -82,7 +82,7 @@ Le module **`02-PHASE1-Instanciation-Configs-Globaux`** garantit que la lecture 
 
 ### NOTE
 
-L’objectif est de compléter l’instanciation des services globaux critiques afin de fournir un socle de supervision et de gestion centralisée des erreurs avant l’allocation des managers métier. Deux composants doivent être ajoutés : **SystemHealthService**, un singleton d’infrastructure chargé de contrôler l’état des dépendances critiques et des threads, et **CriticalErrorHandlingService**, un singleton core responsable de la gestion uniforme des erreurs critiques et de l’exécution des actions Fail-Fast.
+L’objectif de ette note est de compléter l’instanciation des services globaux critiques afin de fournir un socle de supervision et de gestion centralisée des erreurs avant l’allocation des managers métier. Deux composants doivent être ajoutés : **SystemHealthService**, un singleton d’infrastructure chargé de contrôler l’état des dépendances critiques et des threads, et **CriticalErrorHandlingService**, un singleton core responsable de la gestion uniforme des erreurs critiques et de l’exécution des actions Fail-Fast.
 
 **Contenu des Configs** : Les données lues par le DAL au message 1 correspondent exclusivement aux paramètres immuables de démarrage. Cela inclut les adresses IP/Ports (IBKR), les clés d'API (EODHD), les tailles de buffers (LDH) et les seuils de sécurité globaux. Ces données doivent être chargées dans un objet de type Dictionnaire ou Map immuable pour garantir qu'aucun composant ne puisse modifier la configuration système durant la session.
 
