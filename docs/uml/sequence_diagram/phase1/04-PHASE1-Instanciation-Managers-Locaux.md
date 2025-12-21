@@ -125,5 +125,13 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 **Port de Persistance** : Pour éviter le couplage direct avec le Data Ingestion Layer (DIL), les managers (PM, OM) utilisent désormais des interfaces métier (ex: ISessionPersistence, IOrderRepository). Le DIL agit comme l'adaptateur concret implémentant ces interfaces. Cette abstraction garantit que la logique métier de trading reste isolée des mécanismes de stockage (SQL, NoSQL ou Fichier), facilitant l'injection de Mocks lors des tests de performance. Les appels passés par ces ports devront obligatoirement être routés vers le BULK_POOL ou le AUDIT_POOL pour ne pas ralentir le thread d'exécution métier. Il faudra s'assurer que l'instance du DIL injectée comme Port possède bien les méthodes atomiques requises (startTransaction, commit) pour supporter les flux de la Phase IV.
 
-
 **Isolation RM/PM** : Pour garantir la réactivité absolue de la surveillance d'urgence (Phase II), le Risk Monitor ne doit jamais posséder de référence directe vers le Portfolio Manager. L'accès à l'état des positions s'effectue exclusivement via un Port de Lecture Read-Only (`IPositionProvider`). Ce port doit exposer une vue immuable ou un Snapshot de l'état (ex: PositionSnapshot), garantissant que le fil d'exécution du RM ne sera jamais bloqué par un verrou (lock), une contention mémoire ou une propagation d'I/O provenant du PM.
+
+* Renforcer l’injection des dépendances : préférer les constructeurs aux setters pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`).
+* Segmenter les pools d’exécution : RM (critique), PM (calcul), OM (I/O), afin d’éviter contention et garantir priorité CRITICAL vs STANDARD.
+* Standardiser les snapshots immuables pour tous les ports de lecture afin de préserver la non-blocking des threads RM/PM.
+* Ajouter un port `IHealthCheckPort` par triplet de managers pour audit programmatique de l’état des dépendances critiques et des threads.
+* Maintenir un verrouillage minimal : toutes les opérations I/O critiques doivent être asynchrones ou transactionnelles.
+* Centraliser la gestion d’erreur via un port `IErrorHandler` injecté dans PM, RM et OM pour uniformiser les remontées critiques et les actions Fail-Fast.
+* Couplage minimal : RM n’écrit jamais dans PM, OM n’accède jamais directement à PM ; tout échange se fait via interfaces/ports standardisés.
+
