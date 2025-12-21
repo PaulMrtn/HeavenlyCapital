@@ -119,6 +119,54 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 * Responsabilité opérationnelle : Fournir les paramètres et seuils par session
 * Règles d’usage : Lecture seule. Pas de modification dynamique. Utilisation uniquement au démarrage ou lors de refresh contrôlé.
 
+
+**Port : IHealthCheckPort**
+
+* **Implémenté par**
+  *System Health Service* (infrastructure layer)
+
+* **Injecté dans / Utilisé par**
+  `Portfolio Manager`
+  `Risk Monitor`
+  `Order Manager`
+  `System Manager` (lecture agrégée)
+
+* **Responsabilité opérationnelle**
+  Exposer l’état opérationnel des dépendances critiques, des threads associés et de la readiness locale du manager.
+
+* **Règles d’accès / d’usage**
+
+  * Lecture uniquement
+  * Appel autorisé uniquement hors chemin critique d’exécution
+  * État calculé localement, sans I/O bloquante
+  * Cycle de vie aligné sur celui du manager
+  * Aucun déclenchement d’action métier autorisé
+
+
+
+**Port : IErrorHandler**
+
+* **Implémenté par**
+  *Critical Error Handling Service* (infrastructure / core)
+
+* **Injecté dans / Utilisé par**
+  `Portfolio Manager`
+  `Risk Monitor`
+  `Order Manager`
+
+* **Responsabilité opérationnelle**
+  Centraliser la remontée des erreurs critiques, classifier la sévérité et déclencher les actions Fail-Fast appropriées.
+
+* **Règles d’accès / d’usage**
+
+  * Écriture uniquement
+  * Appels synchrones autorisés uniquement pour erreurs critiques
+  * Aucun retour métier exploitable
+  * Interdiction de retry interne
+  * Peut déclencher arrêt de session ou arrêt système
+  * Instance unique partagée, thread-safe
+
+
 ---
 
 ### NOTE
