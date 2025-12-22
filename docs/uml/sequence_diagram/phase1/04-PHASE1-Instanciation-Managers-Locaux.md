@@ -7,36 +7,51 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'allouer la couche d'exécution métier du système en instanciant **toutes les sessions de trading actives**. Cela comprend la création et la liaison des triplets de managers locaux (**Portfolio Manager**, **Risk Monitor**, **Order Manager**) pour chaque stratégie.
+La finalité de ce module est d'allouer la couche d'exécution métier du système en instanciant **toutes les sessions de trading actives**. Cela comprend la création, l'injection de dépendances et la liaison des triplets de managers locaux (**Portfolio Manager**, **Risk Monitor**, **Order Manager**) pour chaque stratégie. L'objectif est de garantir qu'avant tout chargement de données, la structure logique de décision et de sécurité est opérationnelle, isolée et supervisée.
 
 ---
 
 ### 2. Contexte
 
-Cette étape s'inscrit après l'initialisation des **services d'infrastructure persistants** (Singletons, Pools de Threads) et avant le chargement des données. Elle est cruciale car elle **lie la stratégie (PM)** aux **ressources globales (LDH, IG)** et au **mécanisme de sécurité (RM)**. Elle prépare la structure logique qui opèrera pendant la session de trading.
+Cette étape s'inscrit immédiatement après l'initialisation des services d'infrastructure persistants (Singletons globaux, Pools de Threads, `HealthService`, `ErrorService`). Elle constitue le pont entre l'infrastructure globale et l'exécution spécifique à une stratégie. Elle lie la logique de décision (**PM**) aux ressources d'exécution (**IG**, **LDH**) et au mécanisme de protection d'urgence (**RM**).
 
 ---
 
 ### 3. Logique Générale
 
-Le **`System Manager`** orchestre une boucle itérative pour chaque identifiant de session récupéré dans la configuration. Pour chaque session :
+Le **System Manager** orchestre une boucle itérative pour chaque identifiant de session récupéré depuis le `StaticConfigPort`. Le processus suit cet ordre strict pour garantir l'intégrité des liens :
 
-1.  L'entité **`TradingSession`** est créée pour détenir l'identité et l'état local de la stratégie.
-2.  Les trois managers locaux (`PM`, `RM`, `OM`) sont instanciés en **injectant leurs dépendances minimalistes** (configurations et Singletons globaux nécessaires).
-3.  Les **canaux de communication locaux** sont établis :
-    * Le **`PM` est lié à l'`OM`** pour la soumission d’ordres d’investissement (selon une stratégie définie).
-    * Le **`RM` est lié à l'`OM`** pour l'émission d'ordres d'urgence (Stop-Loss).
-    * Le **`RM` obtient la référence du `PM`** (`setPortfolioReference`) pour la lecture de l'état du portefeuille (position) et le déclenchement du **Kill Switch** asynchrone.
-4.  Une vérification d'intégrité minimale (**`HCheckSessionReady`**) est effectuée pour s'assurer que tous les canaux critiques sont correctement établis avant de passer à l'étape suivante.
+1. **Récupération des Paramètres :** Extraction des seuils de risque et paramètres via `getConfigs(SessionID)`.
+2. **Création Identitaire :** Instanciation de `TradingSession` (ID, MarketDayStatus) pour porter l'état local.
+3. **Allocation des Managers (Injection par Constructeur) :**
+* **PM :** Créé avec son identifiant et les ports `ISessionPersistence` (DIL) et `IErrorHandler`.
+* **OM :** Créé avec la référence `IBKR Gateway` et les ports `IOrderRepository` (DIL) et `IErrorHandler`.
+* **RM :** Créé en dernier car il nécessite les références du PM (via `IPositionProvider`) et de l'OM (via `IOrderSubmissionPort`).
 
+
+4. **Liaison des Canaux (Linking) :**
+* Le **System Manager** injecte l'OM dans le PM via `setOrderManager(OM)` pour établir le canal de **Performance**.
+* Le **System Manager** injecte le PM dans le RM via `setPortfolioReference(PM)` pour permettre la surveillance.
+
+
+5. **Instanciation du Port de Santé :** Création d'un `IHealthCheckPort` dédié au triplet pour l'audit programmatique local.
+6. **Vérification de Readiness :** Appel à `HCheckSessionReady(ID)` pour valider que tous les fils sont branchés et les threads alloués.
 ---
 
 ### 4. Règles Critiques
 
-* **Couplage Faible :** Le **`Portfolio Manager`** est maintenu **minimaliste**. Il ne dépend pas de l'`IBKR Gateway` ou du `Risk Monitor` pour son exécution principale.
-* **Séparation des Canaux :** Le chemin de la **performance** (`PM` $\rightarrow$ `OM`) est distinct du canal de la **sécurité** (`RM` $\rightarrow$ `OM`). La vérification de risque par le `RM` est hors-bande.
-* **Isolation du Risque :** La création d'un **triplet de managers par session** garantit qu'un dysfonctionnement dans une stratégie ne peut pas compromettre les autres sessions actives.
-* **Lien de Surveillance :** Le **`RM`** doit avoir une référence active et persistante au **`PM`** pour pouvoir lire la position mise à jour (nécessaire à la construction de l'ordre de liquidation) et pour exécuter l'arrêt d'urgence.
+* **Renforcement de l’Injection :** Pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`, `IErrorHandler`), l'injection par **constructeur** est obligatoire. Les setters sont réservés aux liaisons de second rang pour éviter les dépendances cycliques.
+* **Isolation RM/PM (Non-Blocking) :** Pour garantir la réactivité absolue de la surveillance d'urgence, le **Risk Monitor** ne possède jamais de référence directe vers la logique interne du PM. Il accède à l'état des positions via le port **`IPositionProvider`** qui fournit des **Snapshots immuables**. Cela empêche tout blocage du RM par un verrou (lock) ou une contention mémoire issus du PM.
+* **Segmentation des Pools d'Exécution :**
+* **RM :** S'exécute sur le `RM_CRITICAL_POOL` (priorité absolue).
+* **PM :** S'exécute sur le `STRATEGY_POOL` (calculs métier).
+* **OM :** S'exécute sur le `IO_POOL` (gestion réseau et persistance).
+
+
+* **Abstraction du Port de Persistance :** Les managers n'ont aucun couplage avec le **Data Integrity Layer (DIL)**. Ils utilisent des interfaces métier. Les appels vers ces ports sont obligatoirement routés vers le `BULK_POOL` ou le `AUDIT_POOL` via des méthodes transactionnelles (`startTransaction`, `commit`).
+* **Centralisation Fail-Fast :** Le port **`IErrorHandler`** injecté dans chaque manager est le seul canal autorisé pour les remontées critiques. En cas d'erreur fatale, il déclenche l'arrêt immédiat de la session sans tentative de "retry" interne.
+* **Couplage Minimal :** Le RM n'écrit jamais dans le PM. L'OM n'accède jamais au PM. Tout échange se fait via des ports standardisés.
+
 
 ---
 
@@ -122,21 +137,3 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Injecté dans :** PM, RM, OM.
   * **Responsabilité :** Centralisation des erreurs critiques, classification de sévérité et déclenchement des protocoles **Fail-Fast**.
   * **Règles d’usage :** **Écriture uniquement.** Appels synchrones pour les erreurs fatales uniquement. Interdiction de "Retry" interne au port. Instance unique, partagée et Thread-Safe.
-
-
----
-
-### NOTE
-
-**Port de Persistance** : Pour éviter le couplage direct avec le Data Ingestion Layer (DIL), les managers (PM, OM) utilisent désormais des interfaces métier (ex: ISessionPersistence, IOrderRepository). Le DIL agit comme l'adaptateur concret implémentant ces interfaces. Cette abstraction garantit que la logique métier de trading reste isolée des mécanismes de stockage (SQL, NoSQL ou Fichier), facilitant l'injection de Mocks lors des tests de performance. Les appels passés par ces ports devront obligatoirement être routés vers le BULK_POOL ou le AUDIT_POOL pour ne pas ralentir le thread d'exécution métier. Il faudra s'assurer que l'instance du DIL injectée comme Port possède bien les méthodes atomiques requises (startTransaction, commit) pour supporter les flux de la Phase IV.
-
-**Isolation RM/PM** : Pour garantir la réactivité absolue de la surveillance d'urgence (Phase II), le Risk Monitor ne doit jamais posséder de référence directe vers le Portfolio Manager. L'accès à l'état des positions s'effectue exclusivement via un Port de Lecture Read-Only (`IPositionProvider`). Ce port doit exposer une vue immuable ou un Snapshot de l'état (ex: PositionSnapshot), garantissant que le fil d'exécution du RM ne sera jamais bloqué par un verrou (lock), une contention mémoire ou une propagation d'I/O provenant du PM.
-
-* Renforcer l’injection des dépendances : préférer les constructeurs aux setters pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`).
-* Segmenter les pools d’exécution : RM (critique), PM (calcul), OM (I/O), afin d’éviter contention et garantir priorité CRITICAL vs STANDARD.
-* Standardiser les snapshots immuables pour tous les ports de lecture afin de préserver la non-blocking des threads RM/PM.
-* Ajouter un port `IHealthCheckPort` par triplet de managers pour audit programmatique de l’état des dépendances critiques et des threads.
-* Maintenir un verrouillage minimal : toutes les opérations I/O critiques doivent être asynchrones ou transactionnelles.
-* Centraliser la gestion d’erreur via un port `IErrorHandler` injecté dans PM, RM et OM pour uniformiser les remontées critiques et les actions Fail-Fast.
-* Couplage minimal : RM n’écrit jamais dans PM, OM n’accède jamais directement à PM ; tout échange se fait via interfaces/ports standardisés.
-
