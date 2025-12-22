@@ -62,9 +62,9 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 
 ### 6. Ports et Interfaces
 
-**PersistencePort**  
+**IPersistencePort**  
 - Implémenté par : Data Integrity Layer (DIL)  
-- Injecté dans : Live Data Hub, Portfolio Manager, Order Manager  
+- Injecté dans : Portfolio Manager, Order Manager  
 - Responsabilité : Unique point d’accès pour toute écriture en base (snapshots, états courants, résultats de session)  
 - Règles : Accès direct au DIL interdit en dehors de ce port  
 
@@ -82,7 +82,7 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 
 **BrokerGatewayPort**  
 - Implémenté par : IBKR Gateway  
-- Injecté dans : Order Manager (exécution), Portfolio Manager (lecture d’état)  
+- Injecté dans : Order Manager (exécution)
 - Responsabilité : Abstraction complète de la communication avec le broker  
 - Règles : Aucun manager ne dépend directement de l’API IBKR
 
