@@ -67,6 +67,24 @@ Le succès de cette étape permet la transition vers l'initialisation du flux de
 
 ---
 
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | **new Job(PM_Load, ID, Type)** | System Manager | Job (PM) | **Instanciation :** Crée la commande de chargement pour le Portfolio Manager. Inclut le `SessionType` (LIVE/PAPER) dès la création. |
+| 2 | **new Job(RM_Load, ID, Type)** | System Manager | Job (RM) | **Instanciation :** Crée la commande pour le Risk Monitor. Encapsule l'isolation totale entre sessions via l'interface `ILoadRiskStateCommand`. |
+| 3 | **submitParallelJobs(jobs)** | System Manager | Thread Manager | **Orchestration :** Envoi asynchrone des tâches au pool. Libère immédiatement l'émetteur pour respecter le principe de non-blocage. |
+| 4 | **execute(Job)** | Thread Manager | PoolWorker | **Exécution :** Déclenche le travail dans un thread dédié du pool. Applique la politique `IJobTimeoutPolicyPort` pour limiter la durée. |
+| 5 | **getPortfolioSnapshot(ID)** | PoolWorker | Portf. Manager | **Phase LOAD (I/O) :** Requête de lecture seule via `IPortfolioStateReader`. Interdiction d'écriture ou d'accès transactionnel. |
+| 6 | **getRiskLimits(ID)** | PoolWorker | Risk Monitor | **Phase LOAD (I/O) :** Récupération des snapshots immuables via `IRiskStateReader`. Aucune dépendance autorisée envers le PM. |
+| 7 | **fetchData(ID)** | Managers | DB Connector | **Persistance :** Appel effectif à la base de données (DAL). Phase critique pour la maximisation du débit I/O concurrent. |
+| 8 | **report(FATAL)** | Managers | Error Service | **Fail-Fast :** Signalement immédiat via `IErrorHandler`. Court-circuite l'attente des autres jobs pour une réaction système instantanée. |
+| 9 | **HCheckDataIntegrity()** | PoolWorker | Managers | **Phase VALIDATE (CPU) :** Vérification de la cohérence logique post-chargement via `IDataIntegrityCheckPort`. Aucun I/O autorisé ici. |
+| 10 | **notifyFailure(Error)** | PoolWorker | Thread Manager | **Gestion Résilience :** Retour d'erreur structuré. Permet au Thread Manager d'invalider (PAPER) ou de stopper (LIVE) selon le `SessionType`. |
+| 11 | **Return JobStatusList** | Thread Manager | System Manager | **Consolidation :** Remontée synchrone de la liste des résultats par session via `IJobStatusReporterPort` en fin de batch. |
+| 12 | **evaluateBootstrapStatus()**| System Manager | System Manager | **Décision :** Analyse finale des statuts. Déclenche `systemStop()` en cas d'échec sur une session de type LIVE. |
+| 13 | **log(READY / DISABLED)** | System Manager | (Gate/Audit) | **Audit :** Trace finale obligatoire pour l'observabilité. Marque la session comme `SESSION_READY` ou `SESSION_DISABLED`. |
+
+---
+
 ### 6. Ports et Interfaces
 
 **IPortfolioStateReader**
