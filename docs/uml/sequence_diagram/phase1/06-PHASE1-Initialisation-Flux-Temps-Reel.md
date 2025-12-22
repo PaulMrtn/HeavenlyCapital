@@ -39,16 +39,17 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 
 ---
 
-| Fonction / Message | Rôle | Paramètres | Type de Retour |
-| :--- | :--- | :--- | :--- |
-| `getRequiredMarketDataContracts()` | Récupère la liste des tickers auprès de la Config. | `aucun` | `List<Contract>` |
-| `requestMarketDataFeed()` | Initialise l'ordre de récupération des données. | `Contracts` | `void` |
-| `connectToFeedAPI()` | Établit la liaison physique avec IBKR. | `aucun` | `ConnStatus` |
-| `subscribe()` | Transmet les ordres d'abonnement au LDH. | `Contracts` | `void (Asynch)` |
-| `startStreaming()` | Active le flux asynchrone vers le LDH. | `Target: LDH` | `Stream` |
-| `HCheckGlobal()` | Lance le Health Check asynchrone (Couverture + Fraîcheur). | `timeout: ms` | `Promise<Status>` |
-| `validateFlow()` | Logique interne : Seuil ≥ X% ET données fraîches. | `aucun` | `Boolean` |
-| `logCriticalEvent()` | Journalise l'échec définitif (IDs manquants, latence). | `ErrorCode, Meta`| `void` |
-| `systemStop()` | Arrêt inconditionnel du système en cas de `FAILURE`. | `CRITICAL_ERR` | `void (Final)` |
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | `getRequiredMarketDataContracts()` | System Manager | Config | Récupère la liste exhaustive des tickers nécessaires aux sessions actives. |
+| 2 | `requestMarketDataFeed(Contracts)` | System Manager | IBKR Gateway | Ordonne l'initialisation du flux de données pour les contrats spécifiés. |
+| 3 | `connectToFeedAPI()` | IBKR Gateway | IBKR Gateway | Auto-appel pour établir la connexion TCP/API avec le fournisseur Interactive Brokers. |
+| 4 | `subscribe(Contracts)` | IBKR Gateway | Live Data Hub | Transmet les demandes d'abonnement pour acheminer les ticks vers le LDH. |
+| 5 | `startStreaming(LDH)` | IBKR Gateway | IBKR Gateway | Déclenche l'envoi asynchrone des flux de prix vers le cache du LDH. |
+| 6 | `HCheckGlobal(timeout)` | System Manager | Live Data Hub | **[NEW]** Lance le contrôle de santé asynchrone (Couverture + Fraîcheur). |
+| 7 | `validateFlow()` | Live Data Hub | Live Data Hub | **[NEW]** Vérifie en interne : Seuil ≥ 80% ET Delta Temps Tick/Système valide. |
+| 8 | `logCriticalEvent(Error, Meta)` | System Manager | Logger | **[NEW]** Journalise l'échec final (IDs manquants, latence) avant l'arrêt. |
+| 9 | `systemStop(CRITICAL_ERROR)` | System Manager | System Manager | Arrêt inconditionnel du système en cas d'échec du bootstrapping (Zéro Tolérance). |
+| 10 | `call_07-PHASE1...` | System Manager | Next Module | Transition vers la validation croisée si le HCheck est SUCCESS. |
 
 
