@@ -134,3 +134,32 @@ Ce module garantit un **démarrage rapide et résilient** du système en gérant
   - Écriture seule
   - Appel synchrone pour erreurs fatales
   - Interdiction de retry interne
+  - 
+
+
+---
+
+## NOTE 
+
+**Séparation stricte des phases de chargement** :
+Découper chaque job en deux sous-étapes explicites : **Load Phase (I/O uniquement)** puis **Validate Phase (CPU uniquement)**.
+La phase de validation ne doit démarrer que si **tous les chargements de la session sont en succès**.
+Ce découpage est obligatoire pour améliorer l’observabilité et isoler précisément les causes d’échec.
+
+**Propagation immédiate des erreurs critiques** :
+Toute erreur classée **FATAL** doit être transmise immédiatement via `IErrorHandler`.
+L’erreur court-circuite l’attente des autres jobs et déclenche l’action correspondante sans agrégation finale.
+Aucune erreur critique ne doit être masquée par la complétion parallèle des autres sessions.
+
+**Distinction explicite LIVE / PAPER au niveau job** :
+Le **SessionType (LIVE / PAPER)** doit être attaché au job dès sa création.
+Le `Thread Manager` applique directement les règles d’arrêt : échec LIVE ⇒ arrêt global, échec PAPER ⇒ invalidation de la session.
+Le `System Manager` ne doit plus interpréter ce statut a posteriori.
+
+**Trace d’audit de readiness par session** :
+À la fin de PHASE1, une trace d’audit doit être émise pour **chaque session**, succès ou échec.
+Les états possibles sont strictement : `SESSION_READY` ou `SESSION_DISABLED`.
+Cette trace est obligatoire pour le diagnostic post-mortem et l’observabilité opérationnelle.
+
+
+
