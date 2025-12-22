@@ -101,11 +101,17 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Responsabilité :** Fournir des snapshots immuables (`PositionSnapshot`) des positions en temps réel.
   * **Règles d’usage :** **Lecture seule.** Aucun verrou (lock) bloquant autorisé. Interdiction de modifier les objets exposés.
 
-**Port : BrokerGatewayPort**
-  * **Implémenté par :** Gateway externe IBKR.
-  * **Injecté dans :** Order Manager.
-  * **Responsabilité :** Transmission technique des ordres au courtier et réception des callbacks.
-  * **Règles d’usage :** Priorisation native `CRITICAL` vs `STANDARD`. Aucun accès direct autorisé par le PM ou le RM (encapsulation totale dans l'OM).
+**BrokerGatewayPort**
+* **Implémenté par :** Gateway externe IBKR
+* **Injecté dans :** Order Manager (OM)
+* **Responsabilité :**
+  * Abstraction complète de la communication avec le broker
+  * Transmission technique des ordres et réception des callbacks
+  * Gestion de la priorité des ordres (`CRITICAL` vs `STANDARD`)
+* **Règles d’usage :**
+  * Aucun accès direct autorisé par PM ou RM (tout passe par OM)
+  * Le Risk Monitor soumet les ordres urgents via **IOrderSubmissionPort**, qui délègue ensuite vers le **BrokerGatewayPort** dans OM
+* **Objectif :** Isoler le courtier des modules métier tout en permettant le passage sécurisé des ordres critiques et standards
 
 **Port : MarketDataPort**
   * **Implémenté par :** LDH Global.
