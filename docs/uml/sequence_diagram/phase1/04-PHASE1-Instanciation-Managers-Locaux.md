@@ -119,6 +119,14 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Responsabilité :** Diffusion des flux de marché (Prix, Volume) en lecture seule.
   * **Règles d’usage :** Accès immuable. Interdiction de modification. Politiques de `Timeout` et `Retry` appliquées au niveau du port pour protéger l'appelant.
 
+**IOrderSubmissionPort**
+- Implémenté par : Order Manager (OM)
+- Injecté dans : Risk Monitor (RM)
+- Responsabilité : Soumission prioritaire d’ordres d’urgence et de liquidation
+- Règles :
+  - Exclusivité RM
+  - Messages doivent porter le flag CRITICAL pour bypasser la file standard
+
 **Port : ILogger**
   * **Implémenté par :** Logger Global.
   * **Injecté dans :** PM, RM, OM, System Manager.
