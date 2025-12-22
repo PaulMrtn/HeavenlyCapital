@@ -8,42 +8,62 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de charger l'état initial complet de toutes les sessions de trading **en parallèle**. Il vise à minimiser le temps de latence au démarrage en exécutant les opérations de lecture de base de données (I/O) de manière concurrente.
+La finalité de ce module est de charger l'état initial complet de toutes les sessions de trading **en parallèle**. Il vise à minimiser le temps de latence au démarrage en exploitant la parallélisation des opérations de lecture en base de données (I/O) de manière concurrente.
 
 ---
 
 ### 2. Contexte
 
-Cette étape se situe immédiatement après l'**instanciation des managers locaux** (Phase 04) et utilise les **Pools de Threads** (initialisés en Phase 03). Elle est la première phase à exploiter la parallélisation pour préparer les managers (`PM` et `RM`) avec les données nécessaires à leur fonctionnement.
+Cette étape intervient immédiatement après l'**instanciation des managers locaux** (Phase 04) et s'appuie sur les **Pools de Threads** (initialisés en Phase 03). Elle constitue la première phase opérationnelle utilisant le parallélisme pour préparer le **Portfolio Manager (PM)** et le **Risk Monitor (RM)** avec les données nécessaires à leur activation.
 
 ---
 
 ### 3. Logique Générale
 
-Le **`System Manager`** délègue entièrement la charge de travail au **`Thread Manager`**. Pour chaque session active :
+Le **System Manager** orchestre la phase en déléguant la charge de travail au **Thread Manager**. Pour chaque session active, le processus suit une séparation stricte entre les phases I/O et CPU pour garantir l'observabilité.
 
-1.  Deux commandes de travail (`Job`) sont créées : une pour le **`Portfolio Manager`** (`loadInitialState`) et une pour le **`Risk Monitor`** (`loadRiskSnapshot`).
-2.  Ces commandes sont soumises au `Thread Manager` avec l'instruction d'exécution **parallèle**.
-3.  Des **PoolWorkers** distincts (issus des pools alloués) exécutent les tâches, demandant simultanément leurs données respectives au `Database Connector`.
-4.  Une fois les données reçues, chaque manager (PM et RM) effectue son **contrôle d'intégrité métier** (`HCheckDataIntegrity`) sur les objets chargés.
-5.  Le `Thread Manager` consolide les résultats de toutes les tâches et les renvoie sous forme de liste de statuts (`JobStatusList`) au `System Manager` pour la décision finale.
+ **Création et Soumission**
+  * Deux commandes de travail (`Job`) sont créées par session : une via **ILoadPortfolioStateCommand** et une via **ILoadRiskStateCommand**.
+  * Le **SessionType** (LIVE ou PAPER) est impérativement attaché au job dès sa création pour définir les règles de résilience.
+  * Les commandes sont soumises au **Thread Manager** pour exécution.
+
+**Phase de Chargement (I/O Uniquement)**
+  * Des **PoolWorkers** distincts exécutent les tâches simultanément.
+  * Le **PM** utilise **IPortfolioStateReader** pour charger les positions et le cash (Lecture seule, sans accès transactionnel).
+  * Le **RM** utilise **IRiskStateReader** pour charger les snapshots de risques (Données immuables).
+  * Ces opérations sollicitent le **Database Connector** de manière concurrente.
+
+**Phase de Validation (CPU Uniquement)**
+  * Cette phase ne démarre que si **tous les chargements d'une session sont en succès**.
+  * Chaque manager sollicite le port **IDataIntegrityCheckPort** pour effectuer son contrôle d'intégrité métier (**HCheckDataIntegrity**).
+  * Cette étape valide la cohérence logique (ex: somme des lots vs position totale) sans aucun accès I/O supplémentaire.
+
+**Consolidation**
+  * Le **Thread Manager** consolide les résultats via **IJobStatusReporterPort** et renvoie une **JobStatusList** au System Manager pour la clôture de la phase.
+
 ---
 
 ### 4. Règles Critiques
 
-* **Non-Blocage :** Le thread du **`System Manager`** ne doit pas être bloqué par l'attente de la base de données. Il est libéré dès la soumission des tâches.
-* **Gestion d'Erreur Centralisée :** Le `System Manager` applique la logique d'arrêt via **`evaluateBootstrapStatus()`** sur la liste des statuts reçus.
-    * Tout échec de session **`LIVE`** déclenche l'arrêt immédiat via **`systemStop(CRITICAL_ERROR)`**.
-    * Les échecs de session **`PAPER`** sont logués, la session est invalidée, et le processus continue.
 * **I/O Maximisation :** Le parallélisme est utilisé pour masquer la latence des opérations I/O bloquantes de la base de données.
 * **Vérification Métier :** Le **`HCheckDataIntegrity`** est un garde-fou. Il assure la **cohérence logique** des données (ex. : la somme des lots correspond à la position totale) avant la mise en service du manager.
+* **Non-Blocage :** Le thread du **System Manager** est libéré dès la soumission des tâches au Thread Manager. Il ne doit jamais être bloqué par l'attente des réponses de la base de données.
+* **Propagation Immédiate (Fail-Fast) :** Toute erreur classée **FATAL** doit être transmise immédiatement via **IErrorHandler**. Ce signal court-circuite l'attente des autres jobs de la session pour déclencher une action corrective immédiate.
+* **Gestion d'Erreur Différenciée :** Le Thread Manager applique les règles d'arrêt selon le **SessionType** :
+  * **LIVE :** Tout échec entraîne un arrêt global via `systemStop(CRITICAL_ERROR)`.
+  * **PAPER :** L'échec entraîne l'invalidation de la session spécifique, mais le processus global continue.
+* **Timeouts :** L'interface **IJobTimeoutPolicyPort** impose un délai maximum d'exécution. En cas de dépassement, le job est marqué en échec (FAILURE) sans tentative de retry automatique.
+* **Disponibilité :** Le port **IHealthCheckPort** doit être interrogé avant le lancement pour s'assurer de la santé locale des managers, sans I/O bloquant.
 
 ---
 
 ### 5. Conclusion
 
-Ce module garantit un **démarrage rapide et résilient** du système en gérant efficacement l'attente I/O. Il assure également que chaque manager local (PM et RM) est prêt et que son état initial est validé. Le succès de cette étape permet de passer à l'initialisation du flux de données temps réel.
-
+Ce module garantit un démarrage rapide et résilient en gérant efficacement la latence I/O.
+**Trace d'Audit :** À la clôture de la PHASE 1, une trace d'audit est obligatoirement émise pour chaque session. Les états possibles, essentiels pour le diagnostic post-mortem, sont strictement :
+  * **`SESSION_READY`** : Chargement et intégrité validés.
+  * **`SESSION_DISABLED`** : Session invalidée suite à un échec de chargement ou de validation (cas PAPER).
+Le succès de cette étape permet la transition vers l'initialisation du flux de données temps réel.
 
 ---
 
@@ -134,32 +154,7 @@ Ce module garantit un **démarrage rapide et résilient** du système en gérant
   - Écriture seule
   - Appel synchrone pour erreurs fatales
   - Interdiction de retry interne
-  - 
 
-
----
-
-## NOTE 
-
-**Séparation stricte des phases de chargement** :
-Découper chaque job en deux sous-étapes explicites : **Load Phase (I/O uniquement)** puis **Validate Phase (CPU uniquement)**.
-La phase de validation ne doit démarrer que si **tous les chargements de la session sont en succès**.
-Ce découpage est obligatoire pour améliorer l’observabilité et isoler précisément les causes d’échec.
-
-**Propagation immédiate des erreurs critiques** :
-Toute erreur classée **FATAL** doit être transmise immédiatement via `IErrorHandler`.
-L’erreur court-circuite l’attente des autres jobs et déclenche l’action correspondante sans agrégation finale.
-Aucune erreur critique ne doit être masquée par la complétion parallèle des autres sessions.
-
-**Distinction explicite LIVE / PAPER au niveau job** :
-Le **SessionType (LIVE / PAPER)** doit être attaché au job dès sa création.
-Le `Thread Manager` applique directement les règles d’arrêt : échec LIVE ⇒ arrêt global, échec PAPER ⇒ invalidation de la session.
-Le `System Manager` ne doit plus interpréter ce statut a posteriori.
-
-**Trace d’audit de readiness par session** :
-À la fin de PHASE1, une trace d’audit doit être émise pour **chaque session**, succès ou échec.
-Les états possibles sont strictement : `SESSION_READY` ou `SESSION_DISABLED`.
-Cette trace est obligatoire pour le diagnostic post-mortem et l’observabilité opérationnelle.
 
 
 
