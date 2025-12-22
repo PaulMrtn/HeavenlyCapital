@@ -78,7 +78,7 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 ### 6. Ports et Interfaces
 
- **Port : ISessionPersistence**
+ **Port : PersistencePort**
   * **Implémenté par :** DIL / AtomicDBWriteProcess.
   * **Injecté dans :** Portfolio Manager, Order Manager.
   * **Responsabilité :** Persistance atomique des *SessionBooks* et des journaux d'états.
@@ -102,13 +102,13 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Responsabilité :** Soumission prioritaire d’ordres d’urgence et de liquidation.
   * **Règles d’usage :** **Exclusivité RM.** Seul le Risk Monitor peut invoquer ce port. Les messages doivent porter le flag de priorité `CRITICAL` pour bypasser la file d'attente standard.
 
-**Port : IBrokerGateway**
+**Port : BrokerGatewayPort**
   * **Implémenté par :** Gateway externe IBKR.
   * **Injecté dans :** Order Manager.
   * **Responsabilité :** Transmission technique des ordres au courtier et réception des callbacks.
   * **Règles d’usage :** Priorisation native `CRITICAL` vs `STANDARD`. Aucun accès direct autorisé par le PM ou le RM (encapsulation totale dans l'OM).
 
-**Port : ILiveDataHub**
+**Port : MarketDataPort**
   * **Implémenté par :** LDH Global.
   * **Injecté dans :** Portfolio Manager, Risk Monitor.
   * **Responsabilité :** Diffusion des flux de marché (Prix, Volume) en lecture seule.
