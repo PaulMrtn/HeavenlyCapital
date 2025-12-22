@@ -46,9 +46,9 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 | 3 | `connectToFeedAPI()` | IBKR Gateway | IBKR Gateway | Auto-appel pour établir la connexion TCP/API avec le fournisseur Interactive Brokers. |
 | 4 | `subscribe(Contracts)` | IBKR Gateway | Live Data Hub | Transmet les demandes d'abonnement pour acheminer les ticks vers le LDH. |
 | 5 | `startStreaming(LDH)` | IBKR Gateway | IBKR Gateway | Déclenche l'envoi asynchrone des flux de prix vers le cache du LDH. |
-| 6 | `HCheckGlobal(timeout)` | System Manager | Live Data Hub | **[NEW]** Lance le contrôle de santé asynchrone (Couverture + Fraîcheur). |
-| 7 | `validateFlow()` | Live Data Hub | Live Data Hub | **[NEW]** Vérifie en interne : Seuil ≥ 80% ET Delta Temps Tick/Système valide. |
-| 8 | `logCriticalEvent(Error, Meta)` | System Manager | Logger | **[NEW]** Journalise l'échec final (IDs manquants, latence) avant l'arrêt. |
+| 6 | `HCheckGlobal(timeout)` | System Manager | Live Data Hub | Lance le contrôle de santé asynchrone (Couverture + Fraîcheur). |
+| 7 | `validateFlow()` | Live Data Hub | Live Data Hub | Vérifie en interne : Seuil ≥ 80% ET Delta Temps Tick/Système valide. |
+| 8 | `logCriticalEvent(Error, Meta)` | System Manager | Logger | Journalise l'échec final (IDs manquants, latence) avant l'arrêt. |
 | 9 | `systemStop(CRITICAL_ERROR)` | System Manager | System Manager | Arrêt inconditionnel du système en cas d'échec du bootstrapping (Zéro Tolérance). |
 | 10 | `call_07-PHASE1...` | System Manager | Next Module | Transition vers la validation croisée si le HCheck est SUCCESS. |
 
