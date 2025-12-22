@@ -87,11 +87,11 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 - Responsabilité : Lecture unique des configurations statiques, données immuables  
 - Règles : Jamais injecté dans les managers métier  
 
-**MarketDataPort**  
-- Implémenté par : Live Data Hub  
-- Injecté dans : Portfolio Manager, Risk Monitor, Order Manager  
-- Responsabilité : Accès en lecture seule aux données de marché  
-- Règles : Aucune persistance ni accès DIL via ce port  
+**Port : MarketDataPort**
+  * **Implémenté par :** LDH Global (ou Live Data Hub, il faut choisir une terminologie unique dans toute la doc)
+  * **Injecté dans :** Portfolio Manager, Risk Monitor, éventuellement Order Manager si lecture nécessaire
+  * **Responsabilité :** Diffusion des flux de marché en lecture seule (prix, volume, snapshots)
+  * **Règles d’usage :** Accès immuable, interdiction de modification. Timeout et retry gérés au niveau du port. Aucune persistance ni accès direct au DIL.
 
 
 **BrokerGatewayPort**
