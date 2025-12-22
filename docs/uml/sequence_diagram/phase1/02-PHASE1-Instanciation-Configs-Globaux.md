@@ -93,9 +93,19 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 - Responsabilité : Accès en lecture seule aux données de marché  
 - Règles : Aucune persistance ni accès DIL via ce port  
 
-**BrokerGatewayPort**  
-- Implémenté par : IBKR Gateway  
-- Injecté dans : Order Manager (exécution)
-- Responsabilité : Abstraction complète de la communication avec le broker  
-- Règles : Aucun manager ne dépend directement de l’API IBKR
+
+**BrokerGatewayPort**
+* **Implémenté par :** Gateway externe IBKR
+* **Injecté dans :** Order Manager (OM)
+* **Responsabilité :**
+  * Abstraction complète de la communication avec le broker
+  * Transmission technique des ordres et réception des callbacks
+  * Gestion de la priorité des ordres (`CRITICAL` vs `STANDARD`)
+* **Règles d’usage :**
+  * Aucun accès direct autorisé par PM ou RM (tout passe par OM)
+  * Le Risk Monitor soumet les ordres urgents via **IOrderSubmissionPort**, qui délègue ensuite vers le **BrokerGatewayPort** dans OM
+* **Objectif :** Isoler le courtier des modules métier tout en permettant le passage sécurisé des ordres critiques et standards
+
+
+
 
