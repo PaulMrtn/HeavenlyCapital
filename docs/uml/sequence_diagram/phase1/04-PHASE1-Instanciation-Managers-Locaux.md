@@ -114,7 +114,7 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Responsabilité :** Diffusion des flux de marché (Prix, Volume) en lecture seule.
   * **Règles d’usage :** Accès immuable. Interdiction de modification. Politiques de `Timeout` et `Retry` appliquées au niveau du port pour protéger l'appelant.
 
-**Port : ILogger / IAuditLogger**  
+**Port : ILogger**
   * **Implémenté par :** Logger Global.
   * **Injecté dans :** PM, RM, OM, System Manager.
   * **Responsabilité :** Journalisation technique et audit de conformité.
