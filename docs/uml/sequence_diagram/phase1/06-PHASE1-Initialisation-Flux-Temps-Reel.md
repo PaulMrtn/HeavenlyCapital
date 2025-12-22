@@ -39,15 +39,17 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 
 ---
 
-| Message / Fonction | Rôle | Paramètres | Type de Retour |
+| Fonction / Message | Rôle | Paramètres | Type de Retour |
 | :--- | :--- | :--- | :--- |
-| `getRequiredMarketDataContracts()` | Récupère la liste des instruments financiers nécessaires aux sessions actives auprès du composant Config. | `aucun` | `Contracts List` |
-| `requestMarketDataFeed()` | Ordonne à la passerelle d'initialiser le processus de récupération des données. | `Contracts` | `void` |
-| `connectToFeedAPI()` | Auto-appel de la Gateway pour établir la connexion physique avec le fournisseur (IBKR). | `aucun` | `Connection Status` |
-| `subscribe()` | Transmet les demandes d'abonnement spécifiques au Live Data Hub (LDH). | `Contracts` | `void` |
-| `startStreaming()` | Déclenche l'envoi asynchrone des flux de ticks vers le LDH. | `LDH (Target)` | `Stream` |
-| `HCheckFirstTickReceived()` | Vérification de santé initiée par le System Manager pour confirmer la réception de données. | `Timeout (ms)` | `SUCCESS / FAILURE` |
-| `systemStop()` | Procédure d'arrêt d'urgence déclenchée en cas d'absence de flux (Timeout). | `CRITICAL_ERROR`| `void (Terminaison)`|
+| `getRequiredMarketDataContracts()` | Récupère la liste des tickers auprès de la Config. | `aucun` | `List<Contract>` |
+| `requestMarketDataFeed()` | Initialise l'ordre de récupération des données. | `Contracts` | `void` |
+| `connectToFeedAPI()` | Établit la liaison physique avec IBKR. | `aucun` | `ConnStatus` |
+| `subscribe()` | Transmet les ordres d'abonnement au LDH. | `Contracts` | `void (Asynch)` |
+| `startStreaming()` | Active le flux asynchrone vers le LDH. | `Target: LDH` | `Stream` |
+| `HCheckGlobal()` | **[NEW]** Lance le Health Check asynchrone (Couverture + Fraîcheur). | `timeout: ms` | `Promise<Status>` |
+| `validateFlow()` | **[NEW]** Logique interne : Seuil ≥ X% ET données fraîches. | `aucun` | `Boolean` |
+| `logCriticalEvent()` | **[NEW]** Journalise l'échec définitif (IDs manquants, latence). | `ErrorCode, Meta`| `void` |
+| `systemStop()` | Arrêt inconditionnel du système en cas de `FAILURE`. | `CRITICAL_ERR` | `void (Final)` |
 
 ---
 
