@@ -55,6 +55,8 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 
 ---
 
+### 6. Ports et Interfaces
+
 **StaticConfigPort**
 - **Implémenté par** : Data Access Layer (DAL)
 - **Injecté dans / Utilisé par** : System Manager
