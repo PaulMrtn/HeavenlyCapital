@@ -78,29 +78,28 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 ### 6. Ports et Interfaces
 
- **Port : PersistencePort**
-  * **Implémenté par :** DIL / AtomicDBWriteProcess.
-  * **Injecté dans :** Portfolio Manager, Order Manager.
-  * **Responsabilité :** Persistance atomique des *SessionBooks* et des journaux d'états.
-  * **Règles d’usage :** Accès exclusif via thread pool `AUDIT_POOL` ou `BULK_POOL`. Supporte obligatoirement `startTransaction / commit / rollback`. Interdiction stricte d'accès direct aux objets métier (passage par DTO/Snapshots).
-
-**Port : IOrderRepository**
-  * **Implémenté par :** DIL / AtomicDBWriteProcess.
-  * **Injecté dans :** Order Manager.
-  * **Responsabilité :** Persistance persistante des ordres et des exécutions (Fills).
-  * **Règles d’usage :** Transaction atomique obligatoire. Accès via `BULK_POOL`. Isolation totale : les données ne doivent pas être exposées aux modules externes sans passer par ce port.
-
+**PersistencePort**
+* **Implémenté par :** Data Integrity Layer (DIL) / AtomicDBWriteProcess
+* **Injecté dans :** Portfolio Manager (PM), Order Manager (OM), Live Data Hub (LDH) si nécessaire
+* **Responsabilité :** Point unique d’accès pour toute persistance critique du système :
+  * Snapshots de positions et portefeuilles
+  * Journaux de sessions et SessionBooks
+  * Ordres et exécutions (Fills)
+  * États courants du système métier
+* **Règles d’accès :**
+  * Accès direct au DIL interdit en dehors de ce port
+  * Persistance **atomique** obligatoire : startTransaction / commit / rollback
+  * Isolation stricte : aucun module externe ne peut modifier ou lire directement les objets métier sans passer par ce port
+  * Supporte les écritures synchronisées et sécurisées pour les opérations critiques
+* **Phase d’utilisation :**
+  * Bootstrapping et runtime métier, selon contexte
+  * Tous accès critiques doivent transiter par ce port
+* **Objectif :** Assurer la cohérence, atomicité et auditabilité des données critiques à travers tout le système
 **Port : IPositionProvider**
   * **Implémenté par :** Portfolio Manager.
   * **Injecté dans :** Risk Monitor (et tout module en lecture seule).
   * **Responsabilité :** Fournir des snapshots immuables (`PositionSnapshot`) des positions en temps réel.
   * **Règles d’usage :** **Lecture seule.** Aucun verrou (lock) bloquant autorisé. Interdiction de modifier les objets exposés.
-
-**Port : IOrderSubmissionPort**
-  * **Implémenté par :** Order Manager.
-  * **Injecté dans :** Risk Monitor.
-  * **Responsabilité :** Soumission prioritaire d’ordres d’urgence et de liquidation.
-  * **Règles d’usage :** **Exclusivité RM.** Seul le Risk Monitor peut invoquer ce port. Les messages doivent porter le flag de priorité `CRITICAL` pour bypasser la file d'attente standard.
 
 **Port : BrokerGatewayPort**
   * **Implémenté par :** Gateway externe IBKR.
