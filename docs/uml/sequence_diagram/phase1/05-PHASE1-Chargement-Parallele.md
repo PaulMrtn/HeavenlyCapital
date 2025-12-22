@@ -47,8 +47,7 @@ Ce module garantit un **démarrage rapide et résilient** du système en gérant
 
 ---
 
-
-# Ports / Interfaces – Séquence 05-PHASE1-Chargement-Parallèle (Hedge Fund Grade)
+### 6. Ports et Interfaces
 
 **IPortfolioStateReader**
 - **Implémenté par** : Data Access Layer (DAL)
