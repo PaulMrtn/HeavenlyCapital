@@ -53,3 +53,62 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 | 10 | `call_07-PHASE1...` | System Manager | Next Module | Transition vers la validation croisée si le HCheck est SUCCESS. |
 
 
+---
+
+**StaticConfigPort**
+- **Implémenté par** : Data Access Layer (DAL)
+- **Injecté dans / Utilisé par** : System Manager
+- **Responsabilité opérationnelle** :
+  - Fourniture de la configuration statique de la session
+  - Exposition de l’univers de trading (liste exhaustive des instruments)
+- **Règles d’accès ou d’usage** :
+  - Lecture seule
+  - Snapshot immuable pour toute la PHASE1
+  - Interdiction d’usage en runtime
+
+**IMarketDataBootstrapPort** *(nouveau)*
+- **Implémenté par** : Broker Gateway (IBKR Gateway)
+- **Injecté dans / Utilisé par** : System Manager
+- **Responsabilité opérationnelle** :
+  - Établissement de la connexion technique au fournisseur de données
+  - Initialisation et enregistrement des abonnements marché
+- **Règles d’accès ou d’usage** :
+  - Appels synchrones uniquement
+  - Usage strictement limité au bootstrapping
+  - Aucun accès direct aux flux de prix
+  - Échec ⇒ CRITICAL_FAILURE immédiat
+
+**IMarketDataHealthPort** *(nouveau)*
+- **Implémenté par** : Live Data Hub (LDH)
+- **Injecté dans / Utilisé par** : System Manager
+- **Responsabilité opérationnelle** :
+  - Validation de la preuve de vie du flux de données marché
+  - Vérification de la couverture des instruments requis
+  - Contrôle de la fraîcheur des ticks reçus
+- **Règles d’accès ou d’usage** :
+  - Appel synchrone avec timeout dur
+  - Aucune opération I/O externe bloquante
+  - Logique de validation strictement encapsulée
+  - Échec ⇒ arrêt immédiat du système
+
+**MarketDataPort**
+- **Implémenté par** : Live Data Hub (LDH Global)
+- **Injecté dans / Utilisé par** : Portfolio Manager, Risk Monitor
+- **Responsabilité opérationnelle** :
+  - Diffusion des données de marché validées (prix, volumes, snapshots)
+- **Règles d’accès ou d’usage** :
+  - Lecture seule
+  - Objets immuables
+  - Activation interdite avant validation complète du flux
+  - Inactif durant toute la PHASE1
+
+**ILogger**
+- **Implémenté par** : Logger Global
+- **Injecté dans / Utilisé par** : System Manager
+- **Responsabilité opérationnelle** :
+  - Journalisation des événements critiques du bootstrapping
+  - Enregistrement des métadonnées d’échec avant arrêt
+- **Règles d’accès ou d’usage** :
+  - Appels synchrones pour erreurs fatales
+  - Aucune logique métier
+  - Non bloquant hors chemin critique
