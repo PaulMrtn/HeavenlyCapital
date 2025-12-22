@@ -63,108 +63,65 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 ### 6. Ports et Interfaces
 
-**Port : ISessionPersistence**
-
-* Implémenté par : DIL / AtomicDBWriteProcess
-* Injecté dans : Portfolio Manager, Order Manager
-* Responsabilité opérationnelle : Persistance atomique des SessionBooks et logs d’ordres/fills
-* Règles d’usage : Accès exclusif via thread pool AUDIT_POOL ou BULK_POOL. Support startTransaction / commit / rollback. Aucun accès direct aux objets métier.
+ **Port : ISessionPersistence**
+  * **Implémenté par :** DIL / AtomicDBWriteProcess.
+  * **Injecté dans :** Portfolio Manager, Order Manager.
+  * **Responsabilité :** Persistance atomique des *SessionBooks* et des journaux d'états.
+  * **Règles d’usage :** Accès exclusif via thread pool `AUDIT_POOL` ou `BULK_POOL`. Supporte obligatoirement `startTransaction / commit / rollback`. Interdiction stricte d'accès direct aux objets métier (passage par DTO/Snapshots).
 
 **Port : IOrderRepository**
-
-* Implémenté par : DIL / AtomicDBWriteProcess
-* Injecté dans : Order Manager
-* Responsabilité opérationnelle : Persistance des ordres et exécutions
-* Règles d’usage : Transaction atomique obligatoire. Accès via BULK_POOL. Ne pas exposer les données aux modules externes.
+  * **Implémenté par :** DIL / AtomicDBWriteProcess.
+  * **Injecté dans :** Order Manager.
+  * **Responsabilité :** Persistance persistante des ordres et des exécutions (Fills).
+  * **Règles d’usage :** Transaction atomique obligatoire. Accès via `BULK_POOL`. Isolation totale : les données ne doivent pas être exposées aux modules externes sans passer par ce port.
 
 **Port : IPositionProvider**
-
-* Implémenté par : Portfolio Manager
-* Injecté dans : Risk Monitor, autres modules lecture seule
-* Responsabilité opérationnelle : Fournir des snapshots immuables des positions
-* Règles d’usage : Lecture seule. Aucun verrou bloquant. Pas de modification des objets exposés.
+  * **Implémenté par :** Portfolio Manager.
+  * **Injecté dans :** Risk Monitor (et tout module en lecture seule).
+  * **Responsabilité :** Fournir des snapshots immuables (`PositionSnapshot`) des positions en temps réel.
+  * **Règles d’usage :** **Lecture seule.** Aucun verrou (lock) bloquant autorisé. Interdiction de modifier les objets exposés.
 
 **Port : IOrderSubmissionPort**
-
-* Implémenté par : Order Manager
-* Injecté dans : Risk Monitor
-* Responsabilité opérationnelle : Soumission d’ordres d’urgence et liquidation
-* Règles d’usage : Seul RM peut soumettre via ce port. Respecter la priorité CRITICAL.
+  * **Implémenté par :** Order Manager.
+  * **Injecté dans :** Risk Monitor.
+  * **Responsabilité :** Soumission prioritaire d’ordres d’urgence et de liquidation.
+  * **Règles d’usage :** **Exclusivité RM.** Seul le Risk Monitor peut invoquer ce port. Les messages doivent porter le flag de priorité `CRITICAL` pour bypasser la file d'attente standard.
 
 **Port : IBrokerGateway**
-
-* Implémenté par : Gateway externe IBKR
-* Injecté dans : Order Manager
-* Responsabilité opérationnelle : Transmission des ordres au courtier
-* Règles d’usage : Priorisation CRITICAL vs STANDARD. Aucun accès direct par PM ou RM.
+  * **Implémenté par :** Gateway externe IBKR.
+  * **Injecté dans :** Order Manager.
+  * **Responsabilité :** Transmission technique des ordres au courtier et réception des callbacks.
+  * **Règles d’usage :** Priorisation native `CRITICAL` vs `STANDARD`. Aucun accès direct autorisé par le PM ou le RM (encapsulation totale dans l'OM).
 
 **Port : ILiveDataHub**
+  * **Implémenté par :** LDH Global.
+  * **Injecté dans :** Portfolio Manager, Risk Monitor.
+  * **Responsabilité :** Diffusion des flux de marché (Prix, Volume) en lecture seule.
+  * **Règles d’usage :** Accès immuable. Interdiction de modification. Politiques de `Timeout` et `Retry` appliquées au niveau du port pour protéger l'appelant.
 
-* Implémenté par : LDH global
-* Injecté dans : Portfolio Manager, Risk Monitor
-* Responsabilité opérationnelle : Fournir flux de marché en lecture seule
-* Règles d’usage : Accès immuable. Ne jamais modifier les données. Timeout et retry appliqués sur chaque appel.
-
-**Port : ILogger / IAuditLogger**
-
-* Implémenté par : Logger global
-* Injecté dans : PM, RM, OM, System Manager
-* Responsabilité opérationnelle : Journalisation synchronisée et asynchrone
-* Règles d’usage : Ne pas exposer aux threads critiques d’exécution métier. Respect des priorités d’audit.
+**Port : ILogger / IAuditLogger**  
+  * **Implémenté par :** Logger Global.
+  * **Injecté dans :** PM, RM, OM, System Manager.
+  * **Responsabilité :** Journalisation technique et audit de conformité.
+  * **Règles d’usage :** Non-bloquant. Ne doit jamais impacter les threads critiques d'exécution. Respect rigoureux des niveaux de priorité d'audit.
 
 **Port : ISessionConfigProvider**
-
-* Implémenté par : Config Service global
-* Injecté dans : System Manager, OM
-* Responsabilité opérationnelle : Fournir les paramètres et seuils par session
-* Règles d’usage : Lecture seule. Pas de modification dynamique. Utilisation uniquement au démarrage ou lors de refresh contrôlé.
-
+  * **Implémenté par :** Config Service Global.
+  * **Injecté dans :** System Manager, Order Manager.
+  * **Responsabilité :** Fournir les paramètres statiques et les seuils de risque par session.
+  * **Règles d’usage :** **Lecture seule.** Pas de modification dynamique autorisée pendant la session de trading.
 
 **Port : IHealthCheckPort**
-
-* **Implémenté par**
-  *System Health Service* (infrastructure layer)
-
-* **Injecté dans / Utilisé par**
-  `Portfolio Manager`
-  `Risk Monitor`
-  `Order Manager`
-  `System Manager` (lecture agrégée)
-
-* **Responsabilité opérationnelle**
-  Exposer l’état opérationnel des dépendances critiques, des threads associés et de la readiness locale du manager.
-
-* **Règles d’accès / d’usage**
-
-  * Lecture uniquement
-  * Appel autorisé uniquement hors chemin critique d’exécution
-  * État calculé localement, sans I/O bloquante
-  * Cycle de vie aligné sur celui du manager
-  * Aucun déclenchement d’action métier autorisé
-
-
+  * **Implémenté par :** HealthService (Infrastructure Layer).
+  * **Injecté dans :** PM, RM, OM, System Manager.
+  * **Responsabilité :** Exposer l’état de santé des threads, des files d'attente et des dépendances critiques.
+  * **Règles d’usage :** Appel autorisé uniquement hors chemin critique (hors boucle de calcul). État calculé localement sans I/O bloquante. Cycle de vie aligné sur le manager hôte.
 
 **Port : IErrorHandler**
-
-* **Implémenté par**
-  *Critical Error Handling Service* (infrastructure / core)
-
-* **Injecté dans / Utilisé par**
-  `Portfolio Manager`
-  `Risk Monitor`
-  `Order Manager`
-
-* **Responsabilité opérationnelle**
-  Centraliser la remontée des erreurs critiques, classifier la sévérité et déclencher les actions Fail-Fast appropriées.
-
-* **Règles d’accès / d’usage**
-
-  * Écriture uniquement
-  * Appels synchrones autorisés uniquement pour erreurs critiques
-  * Aucun retour métier exploitable
-  * Interdiction de retry interne
-  * Peut déclencher arrêt de session ou arrêt système
-  * Instance unique partagée, thread-safe
+  * **Implémenté par :** ErrorService (Core Infrastructure).
+  * **Injecté dans :** PM, RM, OM.
+  * **Responsabilité :** Centralisation des erreurs critiques, classification de sévérité et déclenchement des protocoles **Fail-Fast**.
+  * **Règles d’usage :** **Écriture uniquement.** Appels synchrones pour les erreurs fatales uniquement. Interdiction de "Retry" interne au port. Instance unique, partagée et Thread-Safe.
 
 
 ---
