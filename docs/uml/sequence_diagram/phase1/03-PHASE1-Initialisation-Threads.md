@@ -62,7 +62,7 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 ### 6. Ports et Interfaces
 
 
-**ThreadManagerPort**
+**IThreadManagerPort**
 - **Implémenté par :** Thread Manager
 - **Injecté dans / Utilisé par :** System Manager
 - **Responsabilité opérationnelle :** Allocation et gestion des pools de threads, démarrage des loops persistantes, reporting de l’état initialisation
@@ -70,17 +70,10 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Invocation synchrone depuis System Manager uniquement.
   - Retour obligatoire de `Initialization_Complete` avant passage à la séquence suivante.
   - Interdiction d’accéder directement aux PoolWorkers depuis d’autres modules.
+  - Phase autorisée : BOOTSTRAP_ONLY
+  - Interdit en runtime métier
 
-**PoolWorkerInterface**
-- **Implémenté par :** PoolWorker
-- **Injecté dans / Utilisé par :** Thread Manager
-- **Responsabilité opérationnelle :** Exécution persistante des jobs selon priorité (CRITICAL, STANDARD, BULK, AUDIT)
-- **Règles d’accès ou d’usage :**
-  - Priorité définie à l’instanciation et non modifiable.
-  - Ne jamais détruire le PoolWorker pendant la session.
-  - Isolation stricte : aucun partage inter-pools des jobs critiques.
-
-**ConfigurationStorePort**
+**IThreadPoolConfigPort**
 - **Implémenté par :** Configuration Store
 - **Injecté dans / Utilisé par :** Thread Manager
 - **Responsabilité opérationnelle :** Fournir tailles et priorités des pools
@@ -88,8 +81,9 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Lecture seule pendant l’initialisation.
   - Interdiction de modification en runtime.
   - Doit être disponible avant la création des PoolWorkers.
+  - Phase autorisée : BOOTSTRAP_ONLY
 
-**LoggerPort**
+**ILogger**
 - **Implémenté par :** Logger
 - **Injecté dans / Utilisé par :** Thread Manager
 - **Responsabilité opérationnelle :** Journalisation des étapes d’initialisation, tests de priorité et reporting des erreurs critiques
@@ -97,15 +91,6 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
   - Log synchronisé pour toutes les étapes critiques.
   - Toute alerte critique doit être loguée avant propagation à System Manager.
   - Aucun bypass possible pour écriture directe par les PoolWorkers.
-
-**HCheckPriorityInterface**
-- **Implémenté par :** Thread Manager
-- **Injecté dans / Utilisé par :** PoolWorker CRITICAL_POOL
-- **Responsabilité opérationnelle :** Vérifier que la priorité maximale OS est respectée
-- **Règles d’accès ou d’usage :**
-  - Test obligatoire avant retour SUCCESS au System Manager.
-  - Échec → signal CRITICAL_FAILURE et déclenchement de `systemStop`.
-  - Ne pas utiliser pour pools non critiques.
 
 **SystemManagerPort**
 - **Implémenté par :** System Manager
@@ -123,3 +108,21 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 
 **Monitoring & Alerting Thread Pools** : Ajouter un suivi temps réel des pools de threads via un port de monitoring interne, avec alertes synchronisées sur saturation ou blocage des threads critiques. Complète les H-Checks et garantit la visibilité continue sans affecter les pools non critiques.
 
+**PoolWorkerInterface**
+- **Implémenté par :** PoolWorker
+- **Injecté dans / Utilisé par :** Thread Manager
+- **Responsabilité opérationnelle :** Exécution persistante des jobs selon priorité (CRITICAL, STANDARD, BULK, AUDIT)
+- **Règles d’accès ou d’usage :**
+  - Priorité définie à l’instanciation et non modifiable.
+  - Ne jamais détruire le PoolWorker pendant la session.
+  - Isolation stricte : aucun partage inter-pools des jobs critiques.
+
+
+**HCheckPriorityInterface**
+- **Implémenté par :** Thread Manager
+- **Injecté dans / Utilisé par :** PoolWorker CRITICAL_POOL
+- **Responsabilité opérationnelle :** Vérifier que la priorité maximale OS est respectée
+- **Règles d’accès ou d’usage :**
+  - Test obligatoire avant retour SUCCESS au System Manager.
+  - Échec → signal CRITICAL_FAILURE et déclenchement de `systemStop`.
+  - Ne pas utiliser pour pools non critiques.
