@@ -46,9 +46,9 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 | `connectToFeedAPI()` | Établit la liaison physique avec IBKR. | `aucun` | `ConnStatus` |
 | `subscribe()` | Transmet les ordres d'abonnement au LDH. | `Contracts` | `void (Asynch)` |
 | `startStreaming()` | Active le flux asynchrone vers le LDH. | `Target: LDH` | `Stream` |
-| `HCheckGlobal()` | **[NEW]** Lance le Health Check asynchrone (Couverture + Fraîcheur). | `timeout: ms` | `Promise<Status>` |
-| `validateFlow()` | **[NEW]** Logique interne : Seuil ≥ X% ET données fraîches. | `aucun` | `Boolean` |
-| `logCriticalEvent()` | **[NEW]** Journalise l'échec définitif (IDs manquants, latence). | `ErrorCode, Meta`| `void` |
+| `HCheckGlobal()` | Lance le Health Check asynchrone (Couverture + Fraîcheur). | `timeout: ms` | `Promise<Status>` |
+| `validateFlow()` | Logique interne : Seuil ≥ X% ET données fraîches. | `aucun` | `Boolean` |
+| `logCriticalEvent()` | Journalise l'échec définitif (IDs manquants, latence). | `ErrorCode, Meta`| `void` |
 | `systemStop()` | Arrêt inconditionnel du système en cas de `FAILURE`. | `CRITICAL_ERR` | `void (Final)` |
 
 ---
