@@ -59,6 +59,8 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 
 ---
 
+### 6. Ports et Interfaces
+
 * **IHealthCheckPort** (Sect. 6) : 
     * *Méthode* : `checkStatus()`
     * *Rôle* : Interface générique fournie par le Monitor pour interroger sa santé technique.
