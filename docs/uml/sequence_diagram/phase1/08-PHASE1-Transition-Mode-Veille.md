@@ -50,4 +50,50 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 | 7 | MarketOpenEvent() | Market Clock | System Manager | Signal d'interruption horaire indiquant l'ouverture officielle des marchés. |
 | 8 | LogCriticalEvent("Market Open Signal Received") | System Manager | Log Service | Enregistrement immuable de l'horodatage de réception pour audit et réconciliation. |
 | 9 | call_PHASE2-Execution() | System Manager | System Manager | Transition vers la logique métier active d'exécution des ordres. |
- 
+
+---
+
+### 6. Ports et Interfaces
+
+**ISessionStatusWriter**
+- **Implémenté par** : `Data Integration Layer (DIL)`
+- **Injecté dans / Utilisé par** : `SystemManager`
+- **Responsabilité opérationnelle** : Persistance centralisée des statuts de validation de chaque composant.
+- **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite`. Interdiction d'usage par les managers locaux.
+
+**IThreadManagerPort**
+- **Implémenté par** : `Thread Manager`
+- **Injecté dans / Utilisé par** : `System Manager`
+- **Responsabilité opérationnelle** : Allocation des pools, démarrage des loops persistantes et reporting de l'état d'initialisation.
+- **Règles d’accès ou d’usage** : Invocation synchrone uniquement. BOOTSTRAP_ONLY. Aucun accès direct aux PoolWorkers.
+
+**IExternalConnectivity**
+- **Implémenté par** : `OrderManager`
+- **Injecté dans / Utilisé par** : `SystemManager`
+- **Responsabilité opérationnelle** : Vérification de la liaison physique et logique avec le courtier (Gateway/FIX).
+- **Règles d’accès ou d’usage** : Timeout strict de 5000ms. Tout échec est considéré comme une erreur critique en mode LIVE.
+
+**BrokerGatewayPort**
+- **Implémenté par** : `Gateway externe (IBKR)`
+- **Injecté dans / Utilisé par** : `Order Manager`
+- **Responsabilité opérationnelle** : Transmission technique des ordres, réception des callbacks broker et gestion CRITICAL vs STANDARD.
+- **Règles d’accès ou d’usage** : Aucun accès direct par PM ou RM. Encapsulation totale dans l’Order Manager.
+
+**IMarketEventProvider**
+- **Implémenté par** : `Market Clock`
+- **Injecté dans / Utilisé par** : `System Manager`
+- **Responsabilité opérationnelle** : Émission de signaux asynchrones basés sur les horaires officiels d'échange et notification des événements de structure de session (MarketOpen, MarketClose, PreOpen).
+- **Règles d’accès ou d’usage** : Diffusion en mode "Publish/Subscribe" ou callback asynchrone pour ne pas bloquer l'orchestrateur. Précision milliseconde requise. Doit être auditable via le Log Service dès réception.
+
+**ILogger**
+- **Implémenté par** : `Logger Global`
+- **Injecté dans / Utilisé par** : `Tous les managers`
+- **Responsabilité opérationnelle** : Journalisation des logs techniques, opérationnels et audit.
+- **Règles d’accès ou d’usage** : Mode synchrone pour bootstrapping et erreurs fatales. Mode non-bloquant en runtime. Les PoolWorkers ne loguent jamais directement.
+
+**IErrorHandler**
+- **Implémenté par** : `ErrorService`
+- **Injecté dans / Utilisé par** : `PM, RM, OM, System Manager`
+- **Responsabilité opérationnelle** : Classification et propagation des erreurs fatales.
+- **Règles d’accès ou d’usage** : Écriture seule. Appels synchrones pour erreurs critiques. Instance unique thread-safe.
+
