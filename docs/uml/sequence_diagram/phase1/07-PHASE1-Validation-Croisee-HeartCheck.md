@@ -56,20 +56,23 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1 | HCheckPortfolioReady() | System Manager | Portfolio Manager | Vérifie l'instanciation correcte des structures de données et de la logique de stratégie. |
-| 2 | HCheckRiskMonitorReady() | System Manager | Risk Monitor | Confirme l'activation des limites et le lancement des threads de surveillance. |
-| 3 | ValidateRiskLimits(RM) | System Manager | Portfolio Manager | Demande au PM de valider sa compatibilité technique avec les notifications du RM. |
-| 4 | updateStatus(PM_Validation_Status) | Portfolio Manager | SessionStatusList | Enregistre le résultat de la validation croisée du PM dans la structure de données centrale. |
-| 5 | ValidatePortfolioState(PM) | System Manager | Risk Monitor | Demande au RM de vérifier que les limites chargées sont cohérentes avec l'état actuel du PM. |
-| 6 | updateStatus(RM_Validation_Status) | Risk Monitor | SessionStatusList | Enregistre le résultat de la validation de cohérence du RM. |
-| 7 | HCheckExternalConnection() | System Manager | Order Manager | Teste la connectivité physique et logique avec l'API du courtier (ex: IBKR). |
-| 8 | updateStatus(OM_Check_Status) | Order Manager | SessionStatusList | Enregistre l'état de la connexion sortante (ordres). |
-| 9 | HCheckMarketDataAvailable() | System Manager | Live Data Hub | Vérifie la réception effective d'un flux de prix récent (Données de marché). |
-| 10 | updateStatus(LDH_Check_Status) | Live Data Hub | SessionStatusList | Enregistre l'état de la connexion entrante (flux). |
-| 11 | getFinalStatusList() | System Manager | SessionStatusList | Récupère l'agrégat de tous les statuts pour évaluation finale. |
-| 12 | evaluateBootstrapStatus(List) | System Manager | System Manager | Analyse les résultats (Logique de tolérance Live vs Paper). |
-| 13 | UpdateSystemStatus(READY_FOR_TRADING) | System Manager | System Manager | Transition interne vers l'état opérationnel final si succès. |
-| 14 | Wait for MarketOpenEvent() | System Manager | System Manager | Mise en veille asynchrone en attente du signal d'ouverture du marché. |
+1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IHeartCheck). |
+| 2  | updateStatus(PM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du PM (ISessionStatusWriter). |
+| 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IHeartCheck). |
+| 4  | updateStatus(RM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du RM (ISessionStatusWriter). |
+| 5  | ValidateRiskLimits(RM)            | System Manager | Portfolio Manager  | Demande au PM de valider sa compatibilité technique avec le RM (ICrossValidator). |
+| 6  | updateStatus(PM_CrossVal_Status)  | System Manager | SessionStatusList  | Enregistre le résultat de la validation de cohérence métier du PM. |
+| 7  | ValidatePortfolioState(PM)        | System Manager | Risk Monitor       | Demande au RM de vérifier la cohérence limites/positions (ICrossValidator). |
+| 8  | updateStatus(RM_CrossVal_Status)  | System Manager | SessionStatusList  | Enregistre le résultat de la validation de cohérence métier du RM. |
+| 9  | HCheckExternalConnection()        | System Manager | Order Manager      | Teste la liaison courtier via IExternalConnectivity (Timeout 5s). |
+| 10 | updateStatus(OM_Check_Status)     | System Manager | SessionStatusList  | Enregistre l'état de la connexion sortante (ordres). |
+| 11 | HCheckMarketDataAvailable()       | System Manager | Live Data Hub      | Vérifie la réception effective du flux de prix via MarketDataPort. |
+| 12 | updateStatus(LDH_Check_Status)    | System Manager | SessionStatusList  | Enregistre l'état de la connexion entrante (flux). |
+| 13 | getFinalStatusList()              | System Manager | SessionStatusList  | Récupère l'agrégat de tous les statuts pour évaluation. |
+| 14 | evaluateBootstrapStatus(List)     | System Manager | System Manager     | Arbitrage final basé sur la logique LIVE vs PAPER (IBootstrapCoordinator). |
+| 15 | UpdateSystemStatus(READY)         | System Manager | System Manager     | Transition interne vers l'état opérationnel READY_FOR_TRADING. |
+| 16 | systemStop(CRITICAL_ERROR)        | System Manager | Error Service      | Arrêt fatal immédiat via IErrorHandler si erreur détectée en mode LIVE. |
+| 17 | Wait for MarketOpenEvent()        | System Manager | System Manager     | Mise en veille asynchrone en attente du signal d'ouverture du marché. |
 
 ---
 
