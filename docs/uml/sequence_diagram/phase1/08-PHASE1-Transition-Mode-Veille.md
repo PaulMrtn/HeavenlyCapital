@@ -36,3 +36,17 @@ Le **`System Manager (SM)`** commence par mettre à jour l'état global du syst�
 ### 5. Conclusion
 
 Ce module garantit que le système reste **sain et réactif** pendant la période d'attente. Il s'assure que toutes les conditions techniques sont remplies pour un démarrage immédiat et sécurisé, assurant une transition sans accroc de l'état de préparation à l'état d'exécution au moment précis de l'ouverture du marché.
+
+---
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:--- |:--- |:--- |:--- |
+| 1 | UpdateSystemStatus(READY_FOR_TRADING) | System Manager | System Manager | Auto-appel pour mettre à jour l'état interne du système vers la préparation finale. |
+| 2 | Wait for MarketOpenEvent() | System Manager | System Manager | Passage en mode écoute asynchrone pour l'événement déclencheur temporel. |
+| 3 | HCheckExternalConnectionHeartbeat() | System Manager | Order Manager | Déclenchement périodique de la vérification de santé de la connexion. |
+| 4 | pingConnectionStatus() | Order Manager | IBKR Gateway | Appel technique vers l'infrastructure externe pour tester la réactivité du tunnel. |
+| 5 | Return ConnectionStatus | IBKR Gateway | Order Manager | Réponse de l'infrastructure externe sur l'état du lien (OK/KO). |
+| 6 | Return Status | Order Manager | System Manager | Transmission du résultat du heartbeat pour décision de maintien ou d'arrêt critique. |
+| 7 | MarketOpenEvent() | Market Clock | System Manager | Signal d'interruption horaire indiquant l'ouverture officielle des marchés. |
+| 8 | LogCriticalEvent("Market Open Signal Received") | System Manager | Log Service | Enregistrement immuable de l'horodatage de réception pour audit et réconciliation. |
+| 9 | call_PHASE2-Execution() | System Manager | System Manager | Transition vers la logique métier active d'exécution des ordres. |
