@@ -47,9 +47,9 @@ Cette fonction garantit que le système est sécurisé en priorisant l'**intégr
 | 5  | markInvalid()                  | System Manager | TradingSession  | Invalidation de l'instance en mémoire (le DIL est ignoré selon tes instructions).                             |
 | 6  | Return SUCCESS                   | System Manager | Appelant        | Retourne le contrôle uniquement si aucune erreur fatale (LIVE) n'a interrompu la boucle.                       |
 
+---
 
-
-### 6. f
+### 6. Ports et Interfaces
 
 ### **IJobStatusReporterPort**
 * **Implémenté par** : `Thread Manager`
