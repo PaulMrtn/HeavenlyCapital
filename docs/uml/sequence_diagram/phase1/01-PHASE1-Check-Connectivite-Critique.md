@@ -105,3 +105,11 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
   * **Contraintes** : L'appel à `systemStop` doit être atomique et garantir la fermeture des descripteurs de fichiers ouverts.
 
 
+### NOTE
+
+1. **Phase 01 Scope** : Phase 01 valide uniquement l’environnement (I/O + calendrier) ; aucun état métier ni persistance critique à ce stade.
+2. **Error Flow** : Les composants détectent l’erreur ; **le System Manager décide** et appelle explicitement l’ErrorService (Monitor ≠ décideur).
+3. **Market Events** : Les événements temporels (MarketOpen, SYSTEM_WAKEUP) sont déclencheurs uniques ; ajouter un garde-fou d’idempotence côté SM.
+4. **Heartbeat Policy** : En mode WAITING : échec Heartbeat LIVE → relancer le bootstrapping ; PAPER → retries conditionnels selon le temps restant avant l’open.
+5. **Process Stop Contract** :`systemStop()` doit garantir la libération des ressources (sockets, threads) même en arrêt fatal.
+
