@@ -89,4 +89,9 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 
 ### TODO
 
-Assurer l’idempotence du MarketOpenEvent : ne déclencher l’entrée en exécution que si l’état courant est WAITING, ignorer tout événement dupliqué, retardé ou reçu hors séquence.
+* Assurer l’idempotence du MarketOpenEvent : ne déclencher l’entrée en exécution que si l’état courant est WAITING, ignorer tout événement dupliqué, retardé ou reçu hors séquence.
+
+* En phase `WAITING`, si le Heartbeat OM échoue :
+  * **LIVE** → relancer le **bootstrapping complet** (retry progressif à définir).
+  * **PAPER** → ne rien bloquer par défaut ; autoriser des retries conditionnels **si le temps restant avant l’ouverture le permet**.
+
