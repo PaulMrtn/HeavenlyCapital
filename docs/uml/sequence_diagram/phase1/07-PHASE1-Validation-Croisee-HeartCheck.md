@@ -66,7 +66,7 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 ### 6. Ports et Interfaces
 
-**IHeartCheck**
+**IBootstrapReadinessCheck**
 * **Implémenté par** : `PortfolioManager`, `RiskMonitor`, `OrderManager`, `LiveDataHub`
 * **Injecté dans / Utilisé par** : `SystemManager`
 * **Responsabilité opérationnelle** : Validation de l'intégrité technique (instanciation des structures, état des threads, readiness local).
