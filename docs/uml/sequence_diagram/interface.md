@@ -164,18 +164,22 @@ Configuration statique par session.
   - Aucun accès direct aux flux de prix
   - Échec ⇒ CRITICAL_FAILURE immédiat
 
-### MarketDataPort
-Diffusion des données de marché.
+---
 
-- Implémenté par : Live Data Hub (LDH Global)
-- Utilisé par : Portfolio Manager, Risk Monitor, éventuellement Order Manager
-- Responsabilités :
-  - Prix, volumes, snapshots de marché
-- Règles :
-  - Lecture seule
-  - Objets immuables
-  - Timeout et retry gérés au niveau du port
-  - Aucun accès DIL
+### MarketDataPort
+Diffusion des données de marché validées aux consommateurs métier.
+
+* **Implémenté par** : Live Data Hub (LDH Global)
+* **Utilisé par** : Portfolio Manager, Risk Monitor, éventuellement Order Manager
+* **Responsabilités** :
+  * Diffusion des prix, volumes et snapshots de marché **après validation minimale** par le flux d’ingestion (`MarketDataSinkPort`)
+  * Fournir un flux stable et immuable pour la consommation métier
+* **Règles** :
+  * Lecture seule côté consommateurs
+  * Objets immuables
+  * Timeout et retry gérés au niveau du port
+  * Aucun accès direct au DIL
+  * **Activation interdite avant validation complète du flux**
 
 ---
 
