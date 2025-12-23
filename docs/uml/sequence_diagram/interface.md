@@ -354,7 +354,7 @@ Gestion centralisée des erreurs critiques.
     
 ---
 
-### IHeartCheck
+### IBootstrapReadinessCheck
 * **Implémenté par** : `PortfolioManager`, `RiskMonitor`, `OrderManager`, `LiveDataHub`
 * **Injecté dans / Utilisé par** : `SystemManager`
 * **Responsabilité opérationnelle** : Validation de l'intégrité technique (instanciation des structures, état des threads, readiness local).
