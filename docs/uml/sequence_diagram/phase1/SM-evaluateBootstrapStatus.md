@@ -31,7 +31,7 @@ Le **`System Manager`** récupère l'état des travaux via le **`IJobStatusRepor
 ### 4. Règles Critiques
 
 * **Tolérance Zéro (LIVE) :** Toute défaillance `LIVE` déclenche un arrêt fatal synchrone via **`IErrorHandler.handleFatalError(CRITICAL_ERROR)`**. Cette action est terminale.
-* **Tolérance Conditionnelle (PAPER) :** Les échecs `PAPER` sont isolés et persistés via **`ISessionStatusWriter.markInvalid()`**, permettant au bootstrapping de se poursuivre pour les sessions valides.
+* **Tolérance Conditionnelle (PAPER) :** Les échecs `PAPER` sont isolés, permettant au bootstrapping de se poursuivre pour les sessions valides.
 * **Performance & Sécurité :** L'utilisation du **`StaticConfigPort`** garantit que la vérification du type de session se fait en mémoire (RAM), sans latence I/O ni risque de modification dynamique de la configuration.
 * **Séparation des Responsabilités :** Le `SM` (via `IBootstrapCoordinator`) est le seul composant habilité à interpréter la criticité d'un échec de job.
 
@@ -80,15 +80,7 @@ Cette fonction garantit la sécurité du système en priorisant l'**intégrité 
 * **Responsabilité opérationnelle** : Journalisation technique et audit. Utilisé pour enregistrer les échecs de sessions non-critiques (`PAPER`).
 * **Règles d’accès ou d’usage** : Mode synchrone pour le bootstrapping. Doit enregistrer l'erreur avant que le SM ne continue l'évaluation.
 
-### **ISessionStatusWriter**
-* **Implémenté par** : `Data Integration Layer (DIL)`
-* **Injecté dans / Utilisé par** : `System Manager`
-* **Responsabilité opérationnelle** : Persistance du marquage d'invalidité d'une session. Correspond au message `markInvalid()` de la séquence.
-* **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite` (bien que simplifié dans la discussion, ce port garantit la cohérence de l'état en cas de reboot).
 
-### **IBootstrapCoordinator**
-* **Implémenté par** : `System Manager`
-* **Injecté dans / Utilisé par** : `Main Entry / Bootstrap Thread`
-* **Responsabilité opérationnelle** : Arbitrage final des statuts. Cette séquence (`evaluateBootstrapStatus`) est la méthode concrète de cette interface pour décider du passage à l'état `READY_FOR_TRADING`.
-* **Règles d’accès ou d’usage** : Logique de "Fail-fast". Retourne `Return SUCCESS` à l'appelant si et seulement si aucune erreur `LIVE` n'a été rencontrée.
+### NOTE 
 
+* evaluateBootstrapStatus est l’unique point de décision : les managers rapportent, le System Manager arbitre (LIVE vs PAPER), puis appelle explicitement l’ErrorService qui exécute l’arrêt sans jamais interpréter le contexte.
