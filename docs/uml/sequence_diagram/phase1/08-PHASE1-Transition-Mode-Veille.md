@@ -27,7 +27,7 @@ Le **`System Manager (SM)`** commence par mettre à jour l'état global du syst�
 ### 4. Règles Critiques
 
 * **Point de Non-Retour :** La mise à jour du statut vers **`READY_FOR_TRADING`** confirme que tous les contrôles de sécurité (LIVE vs PAPER) ont été passés avec succès.
-* **Surveillance Obligatoire :** La boucle de **Heartbeat** doit être maintenue. Si la vérification périodique de la connexion externe par l'`OM` échoue durant cette phase, le `SM` doit déclencher un **arrêt d'urgence** (`systemStop(CRITICAL_ERROR)`) car l'exécution serait impossible à l'ouverture. (**A negocier**)
+* **Surveillance Obligatoire :** La boucle de **Heartbeat** doit être maintenue. Si la vérification périodique de la connexion externe par l'`OM` échoue durant cette phase, le `SM` doit déclencher un **arrêt d'urgence** (`systemStop(CRITICAL_ERROR)`) car l'exécution serait impossible à l'ouverture.
 * **Déclenchement Auditable** : La réception du signal d'ouverture doit obligatoirement être enregistrée via un log critique. Cette trace auditable est essentielle pour la réconciliation des horaires et la preuve de l'heure exacte du début d'exécution.
 * **Déclenchement Temporel :** Le seul événement qui met fin à l'attente est le signal asynchrone émis par le **`Market Clock`** à l'heure d'ouverture définie.
 
