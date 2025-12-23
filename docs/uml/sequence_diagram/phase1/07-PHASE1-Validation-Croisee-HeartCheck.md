@@ -133,7 +133,6 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 ### NOTE 
 
-Intégration DIL : Encapsuler les mises à jour de statut (4, 6, 8, 10) dans des appels au DIL avec le fragment AtomicDBWrite pour garantir la traçabilité en base de données.
 Découplage : Préférer un modèle où les Managers retournent leur statut au System Manager, lequel met à jour la SessionStatusList. Cela évite que chaque Manager ait besoin d'une dépendance vers la <<Data Structure>>.
 Timeout : Ajouter une protection de timeout sur l'appel 7 (HCheckExternalConnection) pour éviter un gel indéfini de l'orchestrateur.
 
