@@ -285,6 +285,22 @@ Gestion centralisée des erreurs critiques.
 
 ---
 
+### IMarketDataHealthPort
+
+- **Implémenté par** : Live Data Hub (LDH)
+- **Injecté dans / Utilisé par** : System Manager
+- **Responsabilité opérationnelle** :
+  - Validation de la preuve de vie du flux de données marché
+  - Vérification de la couverture des instruments requis
+  - Contrôle de la fraîcheur des ticks reçus
+- **Règles d’accès ou d’usage** :
+  - Appel synchrone avec timeout dur
+  - Aucune opération I/O externe bloquante
+  - Logique de validation strictement encapsulée
+  - Échec ⇒ arrêt immédiat du système
+    
+---
+
 ### HCheckPriorityInterface
 Validation OS de la priorité temps réel.
 
