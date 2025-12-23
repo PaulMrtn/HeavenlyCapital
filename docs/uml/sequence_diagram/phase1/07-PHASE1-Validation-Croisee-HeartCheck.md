@@ -51,3 +51,24 @@ Tous les statuts de vérification sont collectés dans une liste.
 ### 5. Conclusion
 
 Ce module garantit la **double intégrité (données et connexion)** et la **cohérence métier** du système. Le succès de cette étape signifie que l'état du portefeuille est validé par rapport aux règles de risque et que tous les canaux de communication (entrée de prix et sortie d'ordres) sont actifs et testés. Le système est alors sécurisé et prêt à réagir à l'ouverture du marché.
+
+---
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | HCheckPortfolioReady() | System Manager | Portfolio Manager | Vérifie l'instanciation correcte des structures de données et de la logique de stratégie. |
+| 2 | HCheckRiskMonitorReady() | System Manager | Risk Monitor | Confirme l'activation des limites et le lancement des threads de surveillance. |
+| 3 | ValidateRiskLimits(RM) | System Manager | Portfolio Manager | Demande au PM de valider sa compatibilité technique avec les notifications du RM. |
+| 4 | updateStatus(PM_Validation_Status) | Portfolio Manager | SessionStatusList | Enregistre le résultat de la validation croisée du PM dans la structure de données centrale. |
+| 5 | ValidatePortfolioState(PM) | System Manager | Risk Monitor | Demande au RM de vérifier que les limites chargées sont cohérentes avec l'état actuel du PM. |
+| 6 | updateStatus(RM_Validation_Status) | Risk Monitor | SessionStatusList | Enregistre le résultat de la validation de cohérence du RM. |
+| 7 | HCheckExternalConnection() | System Manager | Order Manager | Teste la connectivité physique et logique avec l'API du courtier (ex: IBKR). |
+| 8 | updateStatus(OM_Check_Status) | Order Manager | SessionStatusList | Enregistre l'état de la connexion sortante (ordres). |
+| 9 | HCheckMarketDataAvailable() | System Manager | Live Data Hub | Vérifie la réception effective d'un flux de prix récent (Données de marché). |
+| 10 | updateStatus(LDH_Check_Status) | Live Data Hub | SessionStatusList | Enregistre l'état de la connexion entrante (flux). |
+| 11 | getFinalStatusList() | System Manager | SessionStatusList | Récupère l'agrégat de tous les statuts pour évaluation finale. |
+| 12 | evaluateBootstrapStatus(List) | System Manager | System Manager | Analyse les résultats (Logique de tolérance Live vs Paper). |
+| 13 | UpdateSystemStatus(READY_FOR_TRADING) | System Manager | System Manager | Transition interne vers l'état opérationnel final si succès. |
+| 14 | Wait for MarketOpenEvent() | System Manager | System Manager | Mise en veille asynchrone en attente du signal d'ouverture du marché. |
+
+
