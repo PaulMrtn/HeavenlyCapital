@@ -40,6 +40,14 @@ Point d’accès unique pour toute persistance critique du système.
 
 ---
 
+### ISessionStatusWriter
+* **Implémenté par** : `Data Integration Layer (DIL)`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Persistance centralisée des statuts de validation de chaque composant.
+* **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite`. Interdiction d'usage par les managers locaux.
+
+---
+
 ### IPositionProvider
 Exposition en lecture seule de l’état des positions.
 
@@ -201,6 +209,15 @@ Abstraction du courtier.
 
 ---
 
+### IExternalConnectivity
+
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Vérification de la liaison physique et logique avec le courtier (Gateway/FIX).
+* **Règles d’accès ou d’usage** : Timeout strict de 5000ms. Tout échec est considéré comme une erreur critique en mode LIVE.
+
+---
+
 ### IOrderSubmissionPort
 Soumission d’ordres critiques.
 
@@ -332,6 +349,22 @@ Gestion centralisée des erreurs critiques.
     
 ---
 
+### IHeartCheck
+* **Implémenté par** : `PortfolioManager`, `RiskMonitor`, `OrderManager`, `LiveDataHub`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Validation de l'intégrité technique (instanciation des structures, état des threads, readiness local).
+* **Règles d’accès ou d’usage** : Appel synchrone obligatoire en Phase 1. Interdiction de mutation d'état (Read-Only technique).
+
+---
+
+### ICrossValidator
+* **Implémenté par** : `PortfolioManager`, `RiskMonitor`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Validation de la cohérence métier inter-domaines (compatibilité Risk Limits vs Portfolio State).
+* **Règles d’accès ou d’usage** : Exclusivité au bootstrap. Dépendance requise aux données de marché pour validation des seuils.
+
+---
+
 ### HCheckPriorityInterface
 Validation OS de la priorité temps réel.
 
@@ -367,6 +400,15 @@ Job de chargement initial du risque.
 - Règles :
   - Un job par session
   - Isolation stricte entre sessions
+
+
+---
+
+### IBootstrapCoordinator
+* **Implémenté par** : `SystemManager`
+* **Injecté dans / Utilisé par** : Bootstrap Thread / Main Entry
+* **Responsabilité opérationnelle** : Arbitrage final des statuts collectés et transition vers l'état `READY_FOR_TRADING`.
+* **Règles d’accès ou d’usage** : Logique de "Fail-fast". Exécution prioritaire sur le pool de threads `CRITICAL`.
 
 ---
 
