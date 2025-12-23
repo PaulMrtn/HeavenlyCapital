@@ -45,12 +45,8 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 1.  **Retour d'Échec**: Après la confirmation de l'audit (log synchrone), le `Monitor` lève une exception (`<<exception>> CRITICAL_FAILURE`) en retour au `Client`.
 2.  **Destruction**: Le `Client` (`System Manager`) intercepte l'exception et met fin immédiatement à son activation, modélisée par le marqueur **`destroy` (X)**. Ceci met fin à l'exécution du programme complet.
 
-### 4. Interfaces Clés Utilisées
 
-* **`IConnectionMonitor`**: Interface requise par le `Client` et fournie par le `Monitor` pour interroger l'état de la connexion.
-* **`ILoggingService`**: Interface pour garantir l'enregistrement critique et synchrone des erreurs.
-* **`INotificationService`**: Interface pour l'envoi rapide et asynchrone des alertes aux opérateurs.
-
+---
 
  | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
@@ -60,6 +56,26 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 | 4 | logCriticalError(ErrorObject) | Monitor | Logger | Audit synchrone. **Note :** Doit impérativement cibler un support local (File/Stdout) si le service défaillant est la DB. |
 | 5 | status: Connection_FAILED | Monitor | SystemManager | Notification d'échec définitif après épuisement des tentatives de résilience. |
 | 6 | System.exit() | SystemManager | Runtime Env. | Fermeture forcée du processus par l'autorité centrale en cas d'absence de dépendance critique. |
+
+---
+
+* **IHealthCheckPort** (Sect. 6) : 
+    * *Méthode* : `checkStatus()`
+    * *Rôle* : Interface générique fournie par le Monitor pour interroger sa santé technique.
+
+* **IExternalConnectivity** (Sect. 3) : 
+    * *Rôle* : Utilisé si le Monitor est une passerelle courtier (abstraction de la liaison physique).
+
+* **ILogger** (Sect. 5) : 
+    * *Méthode* : `logCriticalError(ErrorObject)`
+    * *Rôle* : Audit **synchrone** obligatoire. Doit cibler un support local si le service défaillant est la DB.
+
+* **INotificationService**  : 
+    * *Méthode* : `sendCriticalAlert(SystemErrorEvent)`
+    * *Rôle* : Alerte **asynchrone** vers les opérateurs (Email/SMS).
+
+* **IErrorHandler** (Sect. 5) :
+    * *Rôle* : Centralise la classification de l'erreur. C'est le composant qui décide si l'erreur justifie un arrêt du système.
 
 
 ### Note 
