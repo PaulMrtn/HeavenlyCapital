@@ -65,3 +65,4 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 ### Note 
 
 * Permettez l'Injection d'une Action par le Client après un succès de connexion (ex: une routine de configuration post-connexion), améliorant ainsi la réutilisabilité du fragment pour toutes les étapes d'initialisation.
+* Sécurisation du Logging :  Logger pour spécifier que l'audit de défaillance critique ne doit pas dépendre du DIL/Base de données (Fallback sur FileSystem).
