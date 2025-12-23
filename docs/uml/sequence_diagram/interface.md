@@ -426,6 +426,21 @@ Job de chargement initial du risque.
 
 ---
 
+## 8. Notification & Alerting (New)
+
+### INotificationService
+Service d'alerte externe (Hors-Log).
+* **Implémenté par** : AlertingService (Email, SMS, PagerDuty)
+* **Utilisé par** : Monitor, SystemManager
+* **Responsabilité opérationnelle** : 
+  * Envoi immédiat d'alertes critiques aux opérateurs humains.
+  * Doit être non-bloquant (Asynchrone).
+* **Règles d’accès ou d’usage** : 
+  * Usage limité aux erreurs de sévérité CRITICAL ou FATAL.
+  * Ne remplace pas le Logger (Audit technique).
+
+---
+
 ## Règle de Gouvernance
 
 - Toute nouvelle interface doit :
