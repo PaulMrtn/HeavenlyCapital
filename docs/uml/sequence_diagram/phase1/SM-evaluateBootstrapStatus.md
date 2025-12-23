@@ -40,9 +40,9 @@ Cette fonction garantit que le système est sécurisé en priorisant l'**intégr
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:--- |:--- |:--- |:--- |
-| 1  | getJobResults()                | System Manager | JobStatusList   | Récupère la liste exhaustive des résultats d'exécution des jobs de bootstrapping.                             |
-| 2  | getSessionType(SessionID)      | System Manager | Config          | Requête synchrone pour déterminer si la session en échec est de type 'LIVE' ou 'PAPER'.                       |
-| 3  | systemStop(CRITICAL_ERROR)     | System Manager | System Manager  | Appel interne (auto-appel) déclenchant la procédure d'arrêt d'urgence suite à l'échec d'une session LIVE.     |
-| 4  | LogError(SESSION_FAILURE)      | System Manager | Log Service     | Enregistre l'incident pour une session PAPER sans interrompre le flux global.                                 |
-| 5  | markInvalid()                  | System Manager | TradingSession  | Marque l'instance de la session comme invalide pour empêcher son exécution ultérieure.                        |
-| 6  | Return SUCCESS                 | System Manager | Appelant initial| Fin de l'évaluation : indique que le processus peut continuer (si aucun arrêt critique n'a été déclenché).     |
+| 1  | getJobResults()                  | System Manager | JobStatusList   | Récupère la liste des résultats de bootstrapping.                                                             |
+| 2  | getSessionType(SessionID)        | System Manager | System Manager  | AUTO-APPEL : Accès immédiat au dictionnaire immuable (StaticConfigPort) chargé en RAM.                        |
+| 3  | handleFatalError(CRITICAL_ERROR) | System Manager | IErrorHandler   | Appel synchrone vers le service centralisé. Déclenche l'arrêt immédiat du système si la session est LIVE.     |
+| 4  | LogError(SESSION_FAILURE)        | System Manager | Log Service     | Notification d'erreur pour une session PAPER.                                                                 |
+| 5  | markInvalid()                  | System Manager | TradingSession  | Invalidation de l'instance en mémoire (le DIL est ignoré selon tes instructions).                             |
+| 6  | Return SUCCESS                   | System Manager | Appelant        | Retourne le contrôle uniquement si aucune erreur fatale (LIVE) n'a interrompu la boucle.                       |
