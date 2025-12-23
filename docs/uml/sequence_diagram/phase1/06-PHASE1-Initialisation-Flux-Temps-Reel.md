@@ -74,7 +74,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   - Snapshot immuable pour toute la PHASE1
   - Interdiction d’usage en runtime
 
-**IMarketDataBootstrapPort** *(nouveau)*
+**IMarketDataBootstrapPort**
 - **Implémenté par** : Broker Gateway (IBKR Gateway)
 - **Injecté dans / Utilisé par** : System Manager
 - **Responsabilité opérationnelle** :
@@ -86,7 +86,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   - Aucun accès direct aux flux de prix
   - Échec ⇒ CRITICAL_FAILURE immédiat
 
-**IMarketDataHealthPort** *(nouveau)*
+**IMarketDataHealthPort**
 - **Implémenté par** : Live Data Hub (LDH)
 - **Injecté dans / Utilisé par** : System Manager
 - **Responsabilité opérationnelle** :
@@ -121,7 +121,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   - Aucune logique métier
   - Non bloquant hors chemin critique
  
-**MarketDataSinkPort** (nouveau)
+**MarketDataSinkPort** 
 * **Implémenté par** : Live Data Hub (LDH) ou tout service capable de recevoir et traiter les flux de marché entrants.
 * **Injecté dans / Utilisé par** : IBKR Gateway, System Manager (pour orchestration initiale).
 * **Responsabilité opérationnelle** :
@@ -136,7 +136,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   * Gestion des erreurs : tout échec critique dans le traitement doit remonter au System Manager pour déclencher des alertes ou un arrêt sécuritaire.
 
 
-**TradingUniversePort** (nouveau)
+**TradingUniversePort**
 * **Implémenté par** : Data Access Layer (DAL) ou tout service fournissant l’univers de trading
 * **Injecté dans / Utilisé par** : System Manager
 * **Responsabilité opérationnelle** :
