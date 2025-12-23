@@ -8,7 +8,7 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'effectuer la **validation croisée finale** et un **contrôle de santé global (`HeartCheck`)** sur l'ensemble du système. Il garantit la cohérence opérationnelle et la sécurité des liens entre les managers via les interfaces `IHeartCheck` et `ICrossValidator` avant de faire la transition vers l'état `READY_FOR_TRADING`.
+La finalité de ce module est d'effectuer la **validation croisée finale** et un **contrôle de santé global (`HeartCheck`)** sur l'ensemble du système. Il garantit la cohérence opérationnelle et la sécurité des liens entre les managers via les interfaces `IBootstrapReadinessCheck` et `ICrossValidator` avant de faire la transition vers l'état `READY_FOR_TRADING`.
 
 ---
 
@@ -22,7 +22,7 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 
 Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
-* **Vérifications Unitaires (`IHeartCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads.
+* **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads.
 * **Validations Croisées (`ICrossValidator`) :** Validation de la cohérence métier inter-domaines, comme la compatibilité entre les limites de risque et l'état du portefeuille.
 * **Vérification de l'Infrastructure (`IExternalConnectivity`) :** Test de la liaison physique et logique avec le courtier avec un **timeout strict de 5000ms**.
 * **Centralisation des Statuts :** Pour garantir le découplage, les managers retournent leurs résultats au `System Manager`, qui se charge seul de mettre à jour la `SessionStatusList` via `ISessionStatusWriter`.
@@ -44,9 +44,9 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IHeartCheck). |
+1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IBootstrapReadinessCheck). |
 | 2  | updateStatus(PM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du PM (ISessionStatusWriter). |
-| 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IHeartCheck). |
+| 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IBootstrapReadinessCheck). |
 | 4  | updateStatus(RM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du RM (ISessionStatusWriter). |
 | 5  | ValidateRiskLimits(RM)            | System Manager | Portfolio Manager  | Demande au PM de valider sa compatibilité technique avec le RM (ICrossValidator). |
 | 6  | updateStatus(PM_CrossVal_Status)  | System Manager | SessionStatusList  | Enregistre le résultat de la validation de cohérence métier du PM. |
