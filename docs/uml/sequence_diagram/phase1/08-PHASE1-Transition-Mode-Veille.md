@@ -55,18 +55,6 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 
 ### 6. Ports et Interfaces
 
-**ISessionStatusWriter**
-- **Implémenté par** : `Data Integration Layer (DIL)`
-- **Injecté dans / Utilisé par** : `SystemManager`
-- **Responsabilité opérationnelle** : Persistance centralisée des statuts de validation de chaque composant.
-- **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite`. Interdiction d'usage par les managers locaux.
-
-**IThreadManagerPort**
-- **Implémenté par** : `Thread Manager`
-- **Injecté dans / Utilisé par** : `System Manager`
-- **Responsabilité opérationnelle** : Allocation des pools, démarrage des loops persistantes et reporting de l'état d'initialisation.
-- **Règles d’accès ou d’usage** : Invocation synchrone uniquement. BOOTSTRAP_ONLY. Aucun accès direct aux PoolWorkers.
-
 **IExternalConnectivity**
 - **Implémenté par** : `OrderManager`
 - **Injecté dans / Utilisé par** : `SystemManager`
