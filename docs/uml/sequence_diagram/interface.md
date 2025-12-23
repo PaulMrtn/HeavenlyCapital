@@ -236,6 +236,15 @@ Soumission d’ordres critiques.
 
 ---
 
+### IMarketEventProvider
+
+- **Implémenté par** : `Market Clock`
+- **Injecté dans / Utilisé par** : `System Manager`
+- **Responsabilité opérationnelle** : Émission de signaux asynchrones basés sur les horaires officiels d'échange et notification des événements de structure de session (MarketOpen, MarketClose, PreOpen).
+- **Règles d’accès ou d’usage** : Diffusion en mode "Publish/Subscribe" ou callback asynchrone pour ne pas bloquer l'orchestrateur. Précision milliseconde requise. Doit être auditable via le Log Service dès réception.
+
+---
+
 ## 4. Threading, Jobs & Execution
 
 ### IThreadManagerPort
