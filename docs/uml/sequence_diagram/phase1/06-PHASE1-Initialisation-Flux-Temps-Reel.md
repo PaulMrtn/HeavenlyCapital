@@ -8,29 +8,35 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'établir la **connexion en temps réel** aux données de marché et de **valider** que le flux de prix est actif et correctement acheminé vers le cache du système.
+La finalité de ce module est d'établir la connexion technique aux serveurs de données de marché et de valider que le flux de prix est actif, conforme aux besoins de l'univers de trading, et correctement acheminé vers le cache du `Live Data Hub` (LDH).
 
 ---
 
 ### 2. Contexte
 
-Cette étape intervient immédiatement après le chargement des données statiques (positions initiales, limites de risque). Elle est essentielle car elle prépare la source d'information principale pour l'exécution du trading. Sans prix temps réel, le `Risk Monitor` et le `Portfolio Manager` ne peuvent pas fonctionner. Elle établit la liaison entre l'`IBKR Gateway` et le `Live Data Hub (LDH)`.
+Cette étape intervient immédiatement après le chargement des données statiques. Elle est le pont critique entre l'infrastructure externe (`IBKR Gateway`) et le cœur analytique du système. Sans la validation de cette phase via le `IMarketDataHealthPort`, le `Risk Monitor` et le `Portfolio Manager` restent inactifs pour garantir la sécurité des opérations.
 
 ---
 
 ### 3. Logique Générale
 
-Le **`System Manager`** commence par récupérer la liste complète de tous les instruments nécessaires à la surveillance et à l'exécution de toutes les sessions actives. Il ordonne ensuite à l'`IBKR Gateway` d'établir la connexion physique et de demander l'abonnement à ces données. L'`IBKR Gateway` configure le **`LDH`** pour qu'il reçoive les **ticks de prix** asynchrones. Pour finaliser, le `System Manager` effectue un **contrôle de santé** sur le `LDH`, attendant la confirmation de la **réception d'au moins un *tick*** dans un délai imparti. Le succès de cette vérification permet de passer à la phase de validation finale.
+1. **Extraction :** Le `System Manager` interroge le **`TradingUniversePort`** (via la DAL) pour obtenir la liste exhaustive des instruments à surveiller.
+2. **Initialisation :** Il transmet cette liste à l'**`IMarketDataBootstrapPort`** de l'IBKR Gateway pour ouvrir la connexion API et souscrire aux flux.
+3. **Acheminement :** L'IBKR Gateway dirige les ticks entrants vers le **`MarketDataSinkPort`** du LDH.
+4. **Validation :** Le `System Manager` déclenche un contrôle de santé via l'interface **`IMarketDataHealthPort`**. Le LDH doit confirmer qu'il reçoit des données fraîches pour une majorité de l'univers demandé avant la fin du temps imparti.
+5. **Arbitrage :** En cas de succès, le système passe à la validation croisée. En cas d'échec (timeout ou couverture insuffisante), le système s'arrête immédiatement.
+
 
 ---
 
 ### 4. Règles Critiques
 
 * **Activation du Flux :** L'établissement de la connexion doit être synchrone, mais l'arrivée des données (`ticks`) est **asynchrone** et ne doit pas bloquer le fil d'orchestration.
-* **Validation Critique :** Le contrôle **`HCheckGlobal(timeout)`** est une contrainte non-fonctionnelle cruciale. Il s'agit d'une preuve de vie : si aucun prix n'est reçu avant l'expiration du *timeout*, l'opération est considérée comme une **défaillance critique**, et le *bootstrapping* doit être annulé.
-* **Encapsulation :** Le `LDH` est le seul récepteur des prix bruts provenant de l'`IBKR Gateway`. Les autres managers ne doivent pas communiquer directement avec la passerelle pour les données de marché.
-* **Arrêt Inconditionnel :** Si le `LDH` échoue à confirmer la réception du premier *tick* (erreur de connexion, timeout, etc.), cela signifie que l'infrastructure de données de marché est compromise. Le `System Manager` doit immédiatement appeler **`systemStop(CRITICAL_ERROR)`**.
-  
+* **Validation Critique :** Le contrôle `HCheckGlobal(timeout)` n'est validé que si au moins 100% des instruments demandés reçoivent des prix actifs avec un delta de temps (latence) conforme aux paramètres système. Il s'agit d'une preuve de vie : si aucun prix n'est reçu avant l'expiration du *timeout*, l'opération est considérée comme une **défaillance critique**, et le *bootstrapping* doit être annulé.
+* **Encapsulation :** Le `LDH` est le seul récepteur des prix bruts provenant de l'`IBKR Gateway` via l'interface `MarketDataSinkPort`. Les autres managers ne doivent pas communiquer directement avec la passerelle pour les données de marché.
+* **Zéro Tolérance :** Tout échec de l'interface `IMarketDataBootstrapPort` (erreur API) ou de `IMarketDataHealthPort` (timeout/seuil non atteint) déclenche un `systemStop(CRITICAL_ERROR)`.
+* **Immuabilité :** L'univers de trading récupéré au début de cette phase est considéré comme figé pour toute la durée de l'initialisation.
+
 ---
 
 ### 5. Conclusion
@@ -142,5 +148,4 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   * Snapshot immuable pendant les phases critiques (PHASE1, PHASE4)
   * Interdiction d’écriture directe par les consommateurs
   * Toute modification doit passer par un service central de mise à jour de l’univers, versionné et auditable
-
 
