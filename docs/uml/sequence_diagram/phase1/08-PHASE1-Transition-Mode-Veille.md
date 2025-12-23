@@ -85,3 +85,8 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 - **Responsabilité opérationnelle** : Classification et propagation des erreurs fatales.
 - **Règles d’accès ou d’usage** : Écriture seule. Appels synchrones pour erreurs critiques. Instance unique thread-safe.
 
+
+
+### TODO
+
+Assurer l’idempotence du MarketOpenEvent : ne déclencher l’entrée en exécution que si l’état courant est WAITING, ignorer tout événement dupliqué, retardé ou reçu hors séquence.
