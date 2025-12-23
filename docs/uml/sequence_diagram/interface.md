@@ -108,15 +108,16 @@ Validation métier post-chargement.
 ## 2. Configuration & Static Data
 
 ### StaticConfigPort
-Accès aux configurations globales immuables.
-
-- Implémenté par : Data Access Layer (DAL)
-- Utilisé par : System Manager
-- Responsabilités :
-  - Lecture unique des configurations statiques
-- Règles :
-  - Bootstrapping uniquement
-  - Jamais injecté dans les managers métier
+Accès aux configurations globales immuables, hors univers de trading.
+* **Implémenté par** : Data Access Layer (DAL)
+* **Utilisé par** : System Manager
+* **Responsabilités** :
+  * Lecture unique des configurations statiques générales (paramètres système, seuils globaux, flags d’activation)
+  * **Ne fournit pas l’univers de trading** (liste d’instruments et métadonnées associées → `TradingUniversePort`)
+* **Règles** :
+  * Bootstrapping uniquement
+  * Jamais injecté dans les managers métier
+  * Lecture seule, snapshot immuable
 
 ---
 
