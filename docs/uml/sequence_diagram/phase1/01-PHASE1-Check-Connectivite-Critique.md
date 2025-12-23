@@ -44,13 +44,14 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1 | publish(MarketEvent{SYSTEM_WAKEUP}) | Market Clock | System Manager | Événement asynchrone déclenchant le réveil du système et le début du bootstrapping. |
-| ref | checkStatus(Service_Name) | System Manager | SM-RESILIENT-CHECK-CONNECTION | Appel au fragment de résilience pour vérifier Database, IBKR et EODHD. |
-| 2,3,4| systemStop(CRITICAL_ERROR) | System Manager | System Manager | Auto-appel déclenchant la procédure d'arrêt d'urgence et la destruction du runtime. |
-| 5 | calculateMarketDayStatus() | System Manager | System Manager | Logique interne pour déterminer si le jour actuel est un jour de trading (calendrier). |
-| 6 | persistMarketDayStatus() | System Manager | Data Ingestion Layer| Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles. |
-| 7 | transitionTo(Off-Cycle) | System Manager | System Manager | Mise en veille du système si le marché est fermé (pas d'instanciation nécessaire). |
-| 8 | call_02-PHASE1...() | System Manager | System Manager | Passage à la séquence suivante d'instanciation globale si tous les feux sont au vert. |
+|1|publish(MarketEvent{SYSTEM_WAKEUP})|Market Clock|System Manager|Événement asynchrone déclenchant le réveil du système et le début du bootstrapping.|
+|ref|SM-RESILIENT-CHECK-CONNECTION(Service_Name)|System Manager|Fragment Résilience|Vérification séquentielle (DB, IBKR, EODHD) avec timeouts différenciés (2s, 10s, 5s).|
+|2,3,4|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Auto-appel déclenchant la procédure d'arrêt d'urgence et la destruction du runtime.|
+|5|calculateMarketDayStatus()|System Manager|System Manager|Logique interne déterminant si le jour actuel est un jour de trading via le module Calendar.|
+|6|persistMarketDayStatus()|System Manager|Data Ingestion Layer|Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles.|
+|7a|cleanupConnections()|System Manager|System Manager|Libération des sockets et ressources (DB/IBKR) pour éviter toute fuite de ressources en mode Off-Cycle.|
+|7b|transitionTo(Off-Cycle)|System Manager|System Manager|Mise en veille du système si le marché est fermé (pas d'instanciation nécessaire).|
+|8|call_02-PHASE1...()|System Manager|System Manager|Passage à la séquence suivante d'instanciation globale si toutes les conditions sont validées.|
 
 ---
 
