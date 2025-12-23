@@ -82,3 +82,4 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 
 * Permettez l'Injection d'une Action par le Client après un succès de connexion (ex: une routine de configuration post-connexion), améliorant ainsi la réutilisabilité du fragment pour toutes les étapes d'initialisation.
 * Sécurisation du Logging :  Logger pour spécifier que l'audit de défaillance critique ne doit pas dépendre du DIL/Base de données (Fallback sur FileSystem).
+* Error Handling : Les composants Monitor se limitent à détecter et qualifier l’erreur (exception métier) ; le System Manager décide toujours de la politique à appliquer selon le contexte (phase, LIVE/PAPER) et appelle explicitement l’ErrorService, qui exécute l’audit et la notification sans jamais piloter le flux.
