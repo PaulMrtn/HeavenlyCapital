@@ -79,6 +79,7 @@ Le fragment alternatif `alt` définit les deux résultats possibles après l'ép
 * **IErrorHandler** (Sect. 5) :
     * *Rôle* : Centralise la classification de l'erreur. C'est le composant qui décide si l'erreur justifie un arrêt du système.
 
+---
 
 ### Note 
 
