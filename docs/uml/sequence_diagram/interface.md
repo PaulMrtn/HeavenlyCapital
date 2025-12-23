@@ -127,6 +127,18 @@ Configuration statique par session.
 
 ## 3. Market Data & Broker Connectivity
 
+**IMarketDataBootstrapPort**
+- **Implémenté par** : Broker Gateway (IBKR Gateway)
+- **Injecté dans / Utilisé par** : System Manager
+- **Responsabilité opérationnelle** :
+  - Établissement de la connexion technique au fournisseur de données
+  - Initialisation et enregistrement des abonnements marché
+- **Règles d’accès ou d’usage** :
+  - Appels synchrones uniquement
+  - Usage strictement limité au bootstrapping
+  - Aucun accès direct aux flux de prix
+  - Échec ⇒ CRITICAL_FAILURE immédiat
+
 ### MarketDataPort
 Diffusion des données de marché.
 
