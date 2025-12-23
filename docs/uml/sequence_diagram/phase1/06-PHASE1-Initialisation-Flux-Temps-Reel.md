@@ -114,3 +114,33 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   - Appels synchrones pour erreurs fatales
   - Aucune logique métier
   - Non bloquant hors chemin critique
+ 
+**MarketDataSinkPort** (nouveau)
+* **Implémenté par** : Live Data Hub (LDH) ou tout service capable de recevoir et traiter les flux de marché entrants.
+* **Injecté dans / Utilisé par** : IBKR Gateway, System Manager (pour orchestration initiale).
+* **Responsabilité opérationnelle** :
+  * Recevoir les flux de prix bruts provenant de la passerelle du courtier.
+  * Acheminer ces données vers le cache interne et les composants consommateurs (Portfolio Manager, Risk Monitor) après validation minimale.
+  * Garantir la **séquentialité** et la **complétude** des ticks pour permettre la persistance atomique.
+  * Préparer les données pour la distribution aux services de persistance ou de calcul stratégique.
+* **Règles d’accès ou d’usage** :
+  * Aucun accès direct par PM, RM ou autres consommateurs métiers.
+  * Lecture seule côté consommateurs : ils ne doivent jamais écrire dans ce flux.
+  * Les écritures doivent passer uniquement par des services producteurs de flux (ex : IBKR Gateway).
+  * Gestion des erreurs : tout échec critique dans le traitement doit remonter au System Manager pour déclencher des alertes ou un arrêt sécuritaire.
+
+
+**TradingUniversePort**
+* **Implémenté par** : Data Access Layer (DAL) ou tout service fournissant l’univers de trading
+* **Injecté dans / Utilisé par** : System Manager, Portfolio Manager, Risk Monitor
+* **Responsabilité opérationnelle** :
+  * Fournir la liste complète et à jour des instruments de marché disponibles pour le trading
+  * Exposer les métadonnées associées à chaque instrument (type d’instrument, marché, devise, lot size, etc.)
+  * Servir de source unique pour la validation et la préparation des flux de données et des abonnements
+* **Règles d’accès ou d’usage** :
+  * Lecture seule pendant tout le cycle de trading
+  * Snapshot immuable pendant les phases critiques (PHASE1, PHASE4)
+  * Interdiction d’écriture directe par les consommateurs
+  * Toute modification doit passer par un service central de mise à jour de l’univers, versionné et auditable
+
+
