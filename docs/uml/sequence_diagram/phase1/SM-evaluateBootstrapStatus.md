@@ -34,3 +34,15 @@ Le **`System Manager`** itère sur la liste des résultats d'exécution (`JobSta
 ### 5. Conclusion
 
 Cette fonction garantit que le système est sécurisé en priorisant l'**intégrité des sessions en direct**. Elle gère les défaillances non critiques sans interrompre le processus et assure un arrêt sécurisé et rapide en cas d'échec d'une session `LIVE`.
+
+
+---
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:--- |:--- |:--- |:--- |
+| 1  | getJobResults()                | System Manager | JobStatusList   | Récupère la liste exhaustive des résultats d'exécution des jobs de bootstrapping.                             |
+| 2  | getSessionType(SessionID)      | System Manager | Config          | Requête synchrone pour déterminer si la session en échec est de type 'LIVE' ou 'PAPER'.                       |
+| 3  | systemStop(CRITICAL_ERROR)     | System Manager | System Manager  | Appel interne (auto-appel) déclenchant la procédure d'arrêt d'urgence suite à l'échec d'une session LIVE.     |
+| 4  | LogError(SESSION_FAILURE)      | System Manager | Log Service     | Enregistre l'incident pour une session PAPER sans interrompre le flux global.                                 |
+| 5  | markInvalid()                  | System Manager | TradingSession  | Marque l'instance de la session comme invalide pour empêcher son exécution ultérieure.                        |
+| 6  | Return SUCCESS                 | System Manager | Appelant initial| Fin de l'évaluation : indique que le processus peut continuer (si aucun arrêt critique n'a été déclenché).     |
