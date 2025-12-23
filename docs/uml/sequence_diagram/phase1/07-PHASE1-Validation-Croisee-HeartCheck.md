@@ -71,4 +71,70 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 | 13 | UpdateSystemStatus(READY_FOR_TRADING) | System Manager | System Manager | Transition interne vers l'état opérationnel final si succès. |
 | 14 | Wait for MarketOpenEvent() | System Manager | System Manager | Mise en veille asynchrone en attente du signal d'ouverture du marché. |
 
+---
+
+### 6. Ports et Interfaces
+
+**IHeartCheck**
+* **Implémenté par** : `PortfolioManager`, `RiskMonitor`, `OrderManager`, `LiveDataHub`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Validation de l'intégrité technique (instanciation des structures, état des threads, readiness local).
+* **Règles d’accès ou d’usage** : Appel synchrone obligatoire en Phase 1. Interdiction de mutation d'état (Read-Only technique).
+
+**ICrossValidator**
+* **Implémenté par** : `PortfolioManager`, `RiskMonitor`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Validation de la cohérence métier inter-domaines (compatibilité Risk Limits vs Portfolio State).
+* **Règles d’accès ou d’usage** : Exclusivité au bootstrap. Dépendance requise aux données de marché pour validation des seuils.
+
+**IExternalConnectivity**
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Vérification de la liaison physique et logique avec le courtier (Gateway/FIX).
+* **Règles d’accès ou d’usage** : Timeout strict de 5000ms. Tout échec est considéré comme une erreur critique en mode LIVE.
+
+**MarketDataPort**
+* **Implémenté par** : `LiveDataHub`
+* **Injecté dans / Utilisé par** : `PortfolioManager`, `RiskMonitor`
+* **Responsabilité opérationnelle** : Diffusion des derniers prix de marché pour la validation de la santé du flux et des Stop-Loss.
+* **Règles d’accès ou d’usage** : Lecture seule. Objets immuables. Accès via cache local uniquement.
+
+**IPositionProvider**
+* **Implémenté par** : `PortfolioManager`
+* **Injecté dans / Utilisé par** : `RiskMonitor`
+* **Responsabilité opérationnelle** : Fourniture des snapshots de positions pour contrôle de conformité par le risque.
+* **Règles d’accès ou d’usage** : Lecture seule. Interdiction de verrous bloquants (Lock-free ou snapshotting).
+
+**ISessionStatusWriter**
+* **Implémenté par** : `Data Integration Layer (DIL)`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Persistance centralisée des statuts de validation de chaque composant.
+* **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite`. Interdiction d'usage par les managers locaux.
+
+**IBootstrapCoordinator**
+* **Implémenté par** : `SystemManager`
+* **Injecté dans / Utilisé par** : Bootstrap Thread / Main Entry
+* **Responsabilité opérationnelle** : Arbitrage final des statuts collectés et transition vers l'état `READY_FOR_TRADING`.
+* **Règles d’accès ou d’usage** : Logique de "Fail-fast". Exécution prioritaire sur le pool de threads `CRITICAL`.
+
+**IErrorHandler**
+* **Implémenté par** : `ErrorService`
+* **Injecté dans / Utilisé par** : Tous les composants
+* **Responsabilité opérationnelle** : Gestion et propagation des exceptions fatales lors des échecs de validation.
+* **Règles d’accès ou d’usage** : Appel synchrone pour les erreurs bloquantes. Instance unique (Singleton).
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : Tous les composants
+* **Responsabilité opérationnelle** : Audit trail de la séquence de validation et traçabilité des succès/échecs.
+* **Règles d’accès ou d’usage** : Mode synchrone exigé durant cette phase de bootstrap pour garantir l'écriture des logs avant un crash potentiel.
+
+---
+
+### NOTE 
+
+Intégration DIL : Encapsuler les mises à jour de statut (4, 6, 8, 10) dans des appels au DIL avec le fragment AtomicDBWrite pour garantir la traçabilité en base de données.
+Découplage : Préférer un modèle où les Managers retournent leur statut au System Manager, lequel met à jour la SessionStatusList. Cela évite que chaque Manager ait besoin d'une dépendance vers la <<Data Structure>>.
+Timeout : Ajouter une protection de timeout sur l'appel 7 (HCheckExternalConnection) pour éviter un gel indéfini de l'orchestrateur.
+
 
