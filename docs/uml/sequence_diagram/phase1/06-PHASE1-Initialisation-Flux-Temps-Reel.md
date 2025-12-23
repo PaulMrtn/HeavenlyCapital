@@ -130,7 +130,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
   * Gestion des erreurs : tout échec critique dans le traitement doit remonter au System Manager pour déclencher des alertes ou un arrêt sécuritaire.
 
 
-**TradingUniversePort** (univers)
+**TradingUniversePort** (nouveau)
 * **Implémenté par** : Data Access Layer (DAL) ou tout service fournissant l’univers de trading
 * **Injecté dans / Utilisé par** : System Manager
 * **Responsabilité opérationnelle** :
