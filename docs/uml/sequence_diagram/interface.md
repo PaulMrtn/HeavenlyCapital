@@ -149,6 +149,15 @@ Configuration statique par session.
 
 ---
 
+## ICalendarServicePort
+  * **Implémenté par** : `Internal Calendar Service`
+  * **Injecté dans / Utilisé par** : `System Manager`
+  * **Responsabilité opérationnelle** : Déterminer si la date actuelle correspond à une session de trading ouverte selon les calendriers des bourses cibles.
+  * **Règles d’accès ou d’usage** : Fournit une réponse booléenne immédiate (calcul in-memory).
+  * **Contraintes** : Doit être initialisé avant l'appel à `calculateMarketDayStatus()`.
+
+---
+
 ## 3. Market Data & Broker Connectivity
 
 ### IMarketDataBootstrapPort
@@ -184,7 +193,6 @@ Diffusion des données de marché validées aux consommateurs métier.
 ---
 
 ### MarketDataSinkPort
-
 * **Implémenté par** : Live Data Hub (LDH) ou tout service capable de recevoir et traiter les flux de marché entrants.
 * **Injecté dans / Utilisé par** : IBKR Gateway, System Manager (pour orchestration initiale).
 * **Responsabilité opérationnelle** :
@@ -242,6 +250,16 @@ Soumission d’ordres critiques.
 - **Injecté dans / Utilisé par** : `System Manager`
 - **Responsabilité opérationnelle** : Émission de signaux asynchrones basés sur les horaires officiels d'échange et notification des événements de structure de session (MarketOpen, MarketClose, PreOpen).
 - **Règles d’accès ou d’usage** : Diffusion en mode "Publish/Subscribe" ou callback asynchrone pour ne pas bloquer l'orchestrateur. Précision milliseconde requise. Doit être auditable via le Log Service dès réception.
+
+---
+
+### IEODHDConnectivityPort
+
+  * **Implémenté par** : `EODHD Service` (External API Gateway)
+  * **Injecté dans / Utilisé par** : `System Manager` / `SM-RESILIENT-CHECK-CONNECTION`
+  * **Responsabilité opérationnelle** : Vérifier la validité de l'authentification et l'accessibilité de l'API externe EODHD (données de marché historiques/référence).
+  * **Règles d’accès ou d’usage** : Appel synchrone. Timeout à configuré.
+  * **Contraintes** : Usage strictement limité au bootstrapping.
 
 ---
 
@@ -392,6 +410,15 @@ Validation OS de la priorité temps réel.
 
 ---
 
+### IDatabaseConnectivityPort
+  * **Implémenté par** : `Database Service` (Infrastructure Layer)
+  * **Injecté dans / Utilisé par** : `System Manager` / `SM-RESILIENT-CHECK-CONNECTION`
+  * **Responsabilité opérationnelle** : Fournir une preuve de vie (Heartbeat) et valider la disponibilité du pool de connexions à la base de données principale.
+  * **Règles d’accès ou d’usage** : Appel synchrone obligatoire au démarrage. Timeout à configuré.
+  * **Contraintes** : Ne doit effectuer aucune lecture métier à ce stade, uniquement un test de liaison (`ping`).
+
+---
+
 ## 7. Commands (Bootstrapping)
 
 ### ILoadPortfolioStateCommand
@@ -438,6 +465,17 @@ Service d'alerte externe (Hors-Log).
 * **Règles d’accès ou d’usage** : 
   * Usage limité aux erreurs de sévérité CRITICAL ou FATAL.
   * Ne remplace pas le Logger (Audit technique).
+
+---
+
+## 9. System Control & Lifecycle
+
+**IProcessControlPort**
+  * **Implémenté par** : `Runtime Environment` / `System Manager`
+  * **Injecté dans / Utilisé par** : `System Manager`
+  * **Responsabilité opérationnelle** : Gérer les transitions d'état de vie du processus, notamment l'arrêt immédiat en cas d'erreur fatale ou la mise en veille.
+  * **Règles d’accès ou d’usage** : Invoqué via `systemStop(CRITICAL_ERROR)` ou `transitionTo(Off-Cycle)`.
+  * **Contraintes** : L'appel à `systemStop` doit être atomique et garantir la fermeture des descripteurs de fichiers ouverts.
 
 ---
 
