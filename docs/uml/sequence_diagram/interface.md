@@ -112,6 +112,21 @@ Accès aux configurations globales immuables.
 
 ---
 
+### TradingUniversePort
+* **Implémenté par** : Data Access Layer (DAL) ou tout service fournissant l’univers de trading
+* **Injecté dans / Utilisé par** : System Manager
+* **Responsabilité opérationnelle** :
+  * Fournir la liste complète et à jour des instruments de marché disponibles pour le trading
+  * Exposer les métadonnées associées à chaque instrument (type d’instrument, marché, devise, lot size, etc.)
+  * Servir de source unique pour la validation et la préparation des flux de données et des abonnements
+* **Règles d’accès ou d’usage** :
+  * Lecture seule pendant tout le cycle de trading
+  * Snapshot immuable pendant les phases critiques (PHASE1, PHASE4)
+  * Interdiction d’écriture directe par les consommateurs
+  * Toute modification doit passer par un service central de mise à jour de l’univers, versionné et auditable
+    
+---
+
 ### ISessionConfigProvider
 Configuration statique par session.
 
