@@ -83,7 +83,7 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 - **Implémenté par** : `ErrorService`
 - **Injecté dans / Utilisé par** : `PM, RM, OM, System Manager`
 - **Responsabilité opérationnelle** : Classification et propagation des erreurs fatales.
-- **Règles d’accès ou d’usage** : Écriture seule. Appels synchrones pour erreurs critiques. Instance unique thread-safe.
+- **Règles d’accès ou d’usage** : Écriture seule. Appels synchrones pour erreurs critiques. Instance unique thread-safe
 
 
 
