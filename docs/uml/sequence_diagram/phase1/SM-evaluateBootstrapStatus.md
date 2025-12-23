@@ -46,3 +46,45 @@ Cette fonction garantit que le système est sécurisé en priorisant l'**intégr
 | 4  | LogError(SESSION_FAILURE)        | System Manager | Log Service     | Notification d'erreur pour une session PAPER.                                                                 |
 | 5  | markInvalid()                  | System Manager | TradingSession  | Invalidation de l'instance en mémoire (le DIL est ignoré selon tes instructions).                             |
 | 6  | Return SUCCESS                   | System Manager | Appelant        | Retourne le contrôle uniquement si aucune erreur fatale (LIVE) n'a interrompu la boucle.                       |
+
+
+
+### 6. f
+
+### **IJobStatusReporterPort**
+* **Implémenté par** : `Thread Manager`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Fournir le reporting structuré des résultats d'exécution des jobs de bootstrapping (succès ou échec de chaque session).
+* **Règles d’accès ou d’usage** : Transmission synchrone. Utilisé par le SM pour obtenir la liste `JobStatusList` au début de l'évaluation.
+
+### **StaticConfigPort**
+* **Implémenté par** : `Data Access Layer (DAL)`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Fournir l'accès aux configurations immuables (Dictionnaire/Map) chargées en RAM. Dans cette séquence, il permet de résoudre le type de session (`LIVE` vs `PAPER`) sans accès I/O.
+* **Règles d’accès ou d’usage** : Bootstrapping uniquement. Lecture seule d'un snapshot immuable injecté au démarrage.
+
+### **IErrorHandler**
+* **Implémenté par** : `ErrorService`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Gestion et propagation des erreurs fatales. Reçoit le signal `handleFatalError` si une session `LIVE` est en échec.
+* **Règles d’accès ou d’usage** : Appel synchrone obligatoire pour les erreurs critiques. Instance unique thread-safe. Déclenche l'arrêt immédiat du flux.
+
+### **ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Journalisation technique et audit. Utilisé pour enregistrer les échecs de sessions non-critiques (`PAPER`).
+* **Règles d’accès ou d’usage** : Mode synchrone pour le bootstrapping. Doit enregistrer l'erreur avant que le SM ne continue l'évaluation.
+
+### **ISessionStatusWriter**
+* **Implémenté par** : `Data Integration Layer (DIL)`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Persistance du marquage d'invalidité d'une session. Correspond au message `markInvalid()` de la séquence.
+* **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite` (bien que simplifié dans la discussion, ce port garantit la cohérence de l'état en cas de reboot).
+
+### **IBootstrapCoordinator**
+* **Implémenté par** : `System Manager`
+* **Injecté dans / Utilisé par** : `Main Entry / Bootstrap Thread`
+* **Responsabilité opérationnelle** : Arbitrage final des statuts. Cette séquence (`evaluateBootstrapStatus`) est la méthode concrète de cette interface pour décider du passage à l'état `READY_FOR_TRADING`.
+* **Règles d’accès ou d’usage** : Logique de "Fail-fast". Retourne `Return SUCCESS` à l'appelant si et seulement si aucune erreur `LIVE` n'a été rencontrée.
+
+
