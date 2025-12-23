@@ -132,7 +132,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 
 **TradingUniversePort** (univers)
 * **Implémenté par** : Data Access Layer (DAL) ou tout service fournissant l’univers de trading
-* **Injecté dans / Utilisé par** : System Manager, Portfolio Manager, Risk Monitor
+* **Injecté dans / Utilisé par** : System Manager
 * **Responsabilité opérationnelle** :
   * Fournir la liste complète et à jour des instruments de marché disponibles pour le trading
   * Exposer les métadonnées associées à chaque instrument (type d’instrument, marché, devise, lot size, etc.)
