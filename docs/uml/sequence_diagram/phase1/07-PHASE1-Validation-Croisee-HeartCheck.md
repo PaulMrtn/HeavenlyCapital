@@ -8,7 +8,7 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'effectuer la **validation croisée finale** et un **contrôle de santé global (`HeartCheck`)** sur l'ensemble du système. Il garantit la cohérence opérationnelle et la sécurité des liens entre les managers avant de faire la transition vers l'état `READY_FOR_TRADING` et le mode veille.
+La finalité de ce module est d'effectuer la **validation croisée finale** et un **contrôle de santé global (`HeartCheck`)** sur l'ensemble du système. Il garantit la cohérence opérationnelle et la sécurité des liens entre les managers via les interfaces `IHeartCheck` et `ICrossValidator` avant de faire la transition vers l'état `READY_FOR_TRADING`.
 
 ---
 
@@ -20,32 +20,20 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 
 ### 3. Logique Générale
 
-Le **`System Manager`** orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants :
+Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
-* **Vérifications Unitaires (Prêt à Opérer) :**
-    * **`HCheckPortfolioReady()` :** Le `Portfolio Manager (PM)` confirme que toutes ses structures de données sont chargées et que sa logique de stratégie est instanciée correctement.
-    * **`HCheckRiskMonitorReady()` :** Le `Risk Monitor (RM)` confirme que ses limites de risque sont activées et que ses mécanismes de surveillance (thread d'écoute) sont lancés.
-
-* **Validations Croisées (Cohérence Métier) :**
-    * **`ValidateRiskLimits(RM)` (par le PM) :** Le `PM` vérifie la compatibilité de son état avec les contraintes du `RM`. *Exemple : Le PM vérifie qu'il s'est correctement abonné au topic de notification du RM pour les événements de liquidation ou de déclenchement de Stop-Loss.*
-    * **`ValidatePortfolioState(PM)` (par le RM) :** Le `RM` vérifie que les limites qu'il a chargées sont applicables à l'état du `PM`. *Exemple : Confirmer qu'aucun Stop-Loss chargé n'est déjà dépassé par les prix actuels disponibles dans le `LDH`.*
-
-* **Vérification de l'Infrastructure :**
-    * **`HCheckExternalConnection()` (par l'OM) :** L'`Order Manager (OM)` confirme que la connexion physique et logique avec l'API du courtier (`IBKR Gateway`) est active et capable d'envoyer des ordres.
-    * **`HCheckMarketDataAvailable()` (par le LDH) :** Le `Live Data Hub (LDH)` confirme qu'il reçoit un flux actif et récent de données de marché.
-
-Tous les statuts de vérification sont collectés dans une liste.
+* **Vérifications Unitaires (`IHeartCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads.
+* **Validations Croisées (`ICrossValidator`) :** Validation de la cohérence métier inter-domaines, comme la compatibilité entre les limites de risque et l'état du portefeuille.
+* **Vérification de l'Infrastructure (`IExternalConnectivity`) :** Test de la liaison physique et logique avec le courtier avec un **timeout strict de 5000ms**.
+* **Centralisation des Statuts :** Pour garantir le découplage, les managers retournent leurs résultats au `System Manager`, qui se charge seul de mettre à jour la `SessionStatusList` via `ISessionStatusWriter`.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Tolérance aux Erreurs Asymétrique :**
-    * Toute défaillance de vérification concernant une session **`LIVE`** entraîne un arrêt immédiat et fatale via **`systemStop(CRITICAL_ERROR)`**.
-    * Les échecs de session **`PAPER`** sont isolés, logués, et la session est invalidée, permettant au *bootstrapping* de continuer pour les sessions critiques.
-* **Évaluation Centralisée :** La décision d'arrêt ou de poursuite est gérée uniquement par la fonction **`evaluateBootstrapStatus()`** du `System Manager` après que tous les résultats ont été recueillis.
-* **Finalité :** Le système ne passe en état **`READY_FOR_TRADING`** qu'après le succès de toutes les vérifications LIVE, puis se place en attente asynchrone (`Wait for MarketOpenEvent()`).
-
+* **Tolérance aux Erreurs Asymétrique :** Toute défaillance concernant une session **`LIVE`** entraîne un arrêt immédiat via `systemStop(CRITICAL_ERROR)`. Les échecs en session **`PAPER`** sont isolés et la session est invalidée sans interrompre le bootstrap global.
+* **Évaluation Centralisée :** La décision finale est gérée uniquement par `evaluateBootstrapStatus()` après la collecte complète des statuts.
+* **Persistance au fil de l'eau :** Chaque statut est écrit immédiatement par le `System Manager` pour garantir la traçabilité en cas de crash durant la phase de HeartCheck.
 ---
 
 ### 5. Conclusion
@@ -133,10 +121,3 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 * **Règles d’accès ou d’usage** : Mode synchrone exigé durant cette phase de bootstrap pour garantir l'écriture des logs avant un crash potentiel.
 
 ---
-
-### NOTE 
-
-Découplage : Préférer un modèle où les Managers retournent leur statut au System Manager, lequel met à jour la SessionStatusList. Cela évite que chaque Manager ait besoin d'une dépendance vers la <<Data Structure>>.
-Timeout : Ajouter une protection de timeout sur l'appel 7 (HCheckExternalConnection) pour éviter un gel indéfini de l'orchestrateur.
-
-
