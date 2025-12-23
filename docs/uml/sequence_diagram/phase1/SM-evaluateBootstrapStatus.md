@@ -4,37 +4,42 @@
   <img src="../img/SM-evaluateBootstrapStatus.jpg" width="900">
 </p>
 
+---
 
 ### 1. Objectif
 
-Cette fonction est le point de contrôle unique pour appliquer la **politique de tolérance aux erreurs asymétrique** du système. Elle décide s'il faut arrêter le *bootstrapping* ou continuer après une défaillance de session.
+Cette fonction est le point de contrôle unique pour appliquer la **politique de tolérance aux erreurs asymétrique** du système. Elle décide, via l'arbitrage du **`IBootstrapCoordinator`**, s'il faut interrompre le processus global ou continuer après une défaillance de session spécifique.
 
 ---
 
 ### 2. Contexte
 
-C'est une méthode interne du **`System Manager`** appelée après chaque étape critique de la Phase 1 (ex. : après le chargement parallèle). Son rôle est d'isoler la logique de décision d'arrêt des managers locaux.
+Méthode interne du **`System Manager`** appelée après chaque étape critique de la Phase 1. Elle isole la logique de décision d'arrêt des managers locaux en s'appuyant sur des données immuables chargées via le **`StaticConfigPort`**.
 
 ---
 
 ### 3. Logique Générale
 
-Le **`System Manager`** itère sur la liste des résultats d'exécution (`JobStatusList`). Pour chaque échec, il interroge le **`Configuration Store`** pour obtenir le type de session (`LIVE` ou `PAPER`). Si une session **`LIVE`** a échoué, il exécute **l'arrêt d'urgence**. Si seule une session **`PAPER`** a échoué, il logue l'erreur, marque la session comme invalide et continue l'évaluation des autres sessions.
+Le **`System Manager`** récupère l'état des travaux via le **`IJobStatusReporterPort`** (`JobStatusList`). Pour chaque échec détecté :
+
+1. Il identifie le type de session (`LIVE` ou `PAPER`) par un accès local aux données immuables (provenant du **`StaticConfigPort`**).
+2. Si une session **`LIVE`** a échoué, il délègue l'arrêt immédiat au service centralisé.
+3. Si une session **`PAPER`** a échoué, il consigne l'incident via le **`ILogger`**, marque la session comme invalide via le **`ISessionStatusWriter`** et poursuit l'évaluation.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Tolérance Zéro (LIVE) :** Toute défaillance `LIVE` déclenche l'arrêt immédiat et fatal via **`systemStop(CRITICAL_ERROR)`**.
-* **Tolérance Conditionnelle (PAPER) :** Les échecs `PAPER` sont isolés et logués (`markInvalid()`), permettant au *bootstrapping* de se poursuivre pour les sessions valides.
-* **Séparation des Responsabilités :** Le `SM` est le seul composant à connaître cette règle d'arrêt.
+* **Tolérance Zéro (LIVE) :** Toute défaillance `LIVE` déclenche un arrêt fatal synchrone via **`IErrorHandler.handleFatalError(CRITICAL_ERROR)`**. Cette action est terminale.
+* **Tolérance Conditionnelle (PAPER) :** Les échecs `PAPER` sont isolés et persistés via **`ISessionStatusWriter.markInvalid()`**, permettant au bootstrapping de se poursuivre pour les sessions valides.
+* **Performance & Sécurité :** L'utilisation du **`StaticConfigPort`** garantit que la vérification du type de session se fait en mémoire (RAM), sans latence I/O ni risque de modification dynamique de la configuration.
+* **Séparation des Responsabilités :** Le `SM` (via `IBootstrapCoordinator`) est le seul composant habilité à interpréter la criticité d'un échec de job.
 
 ---
 
 ### 5. Conclusion
 
-Cette fonction garantit que le système est sécurisé en priorisant l'**intégrité des sessions en direct**. Elle gère les défaillances non critiques sans interrompre le processus et assure un arrêt sécurisé et rapide en cas d'échec d'une session `LIVE`.
-
+Cette fonction garantit la sécurité du système en priorisant l'**intégrité des sessions en direct**. En centralisant la gestion des erreurs critiques vers le **`IErrorHandler`**, elle assure un arrêt déterministe en cas de défaillance `LIVE` tout en préservant la continuité opérationnelle des sessions de test (`PAPER`) valides.
 
 ---
 
@@ -86,5 +91,4 @@ Cette fonction garantit que le système est sécurisé en priorisant l'**intégr
 * **Injecté dans / Utilisé par** : `Main Entry / Bootstrap Thread`
 * **Responsabilité opérationnelle** : Arbitrage final des statuts. Cette séquence (`evaluateBootstrapStatus`) est la méthode concrète de cette interface pour décider du passage à l'état `READY_FOR_TRADING`.
 * **Règles d’accès ou d’usage** : Logique de "Fail-fast". Retourne `Return SUCCESS` à l'appelant si et seulement si aucune erreur `LIVE` n'a été rencontrée.
-
 
