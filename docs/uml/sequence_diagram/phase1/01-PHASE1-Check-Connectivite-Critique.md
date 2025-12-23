@@ -58,8 +58,51 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 
 ### 6. Ports et Interfaces
 
-* **Interface DIL** : introduire une interface `MarketDayStatusWriter` côté DIL pour gérer la persistance du `MarketDayStatus`.
-* **Port côté System Manager** : ajouter un port `MarketDayStatusWriterPort` dans le `System Manager` pour communiquer avec cette interface.
+### IMarketEventProvider
+- **Implémenté par** : `Market Clock`
+- **Injecté dans / Utilisé par** : `System Manager`
+- **Responsabilité opérationnelle** : Émission de signaux asynchrones basés sur les horaires officiels d'échange et notification des événements de structure de session (MarketOpen, MarketClose, PreOpen).
+- **Règles d’accès ou d’usage** : Diffusion en mode "Publish/Subscribe" ou callback asynchrone pour ne pas bloquer l'orchestrateur. Précision milliseconde requise. Doit être auditable via le Log Service dès réception.
+
+### ISessionStatusWriter
+* **Implémenté par** : `Data Integration Layer (DIL)`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Persistance centralisée des statuts de validation de chaque composant.
+* **Règles d’accès ou d’usage** : Passage exclusif par le fragment `AtomicDBWrite`. Interdiction d'usage par les managers locaux.
+
+### IExternalConnectivity
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Vérification de la liaison physique et logique avec le courtier (Gateway/FIX).
+* **Règles d’accès ou d’usage** : Timeout strict de 5000ms. Tout échec est considéré comme une erreur critique en mode LIVE.
+
+**IDatabaseConnectivityPort**
+  * **Implémenté par** : `Database Service` (Infrastructure Layer)
+  * **Injecté dans / Utilisé par** : `System Manager` / `SM-RESILIENT-CHECK-CONNECTION`
+  * **Responsabilité opérationnelle** : Fournir une preuve de vie (Heartbeat) et valider la disponibilité du pool de connexions à la base de données principale.
+  * **Règles d’accès ou d’usage** : Appel synchrone obligatoire au démarrage. Timeout à configuré.
+  * **Contraintes** : Ne doit effectuer aucune lecture métier à ce stade, uniquement un test de liaison (`ping`).
+
+**IEODHDConnectivityPort**
+  * **Implémenté par** : `EODHD Service` (External API Gateway)
+  * **Injecté dans / Utilisé par** : `System Manager` / `SM-RESILIENT-CHECK-CONNECTION`
+  * **Responsabilité opérationnelle** : Vérifier la validité de l'authentification et l'accessibilité de l'API externe EODHD (données de marché historiques/référence).
+  * **Règles d’accès ou d’usage** : Appel synchrone. Timeout à configuré.
+  * **Contraintes** : Usage strictement limité au bootstrapping.
+
+**ICalendarServicePort**
+  * **Implémenté par** : `Internal Calendar Service`
+  * **Injecté dans / Utilisé par** : `System Manager`
+  * **Responsabilité opérationnelle** : Déterminer si la date actuelle correspond à une session de trading ouverte selon les calendriers des bourses cibles.
+  * **Règles d’accès ou d’usage** : Fournit une réponse booléenne immédiate (calcul in-memory).
+  * **Contraintes** : Doit être initialisé avant l'appel à `calculateMarketDayStatus()`.
+
+**IProcessControlPort**
+  * **Implémenté par** : `Runtime Environment` / `System Manager`
+  * **Injecté dans / Utilisé par** : `System Manager`
+  * **Responsabilité opérationnelle** : Gérer les transitions d'état de vie du processus, notamment l'arrêt immédiat en cas d'erreur fatale ou la mise en veille.
+  * **Règles d’accès ou d’usage** : Invoqué via `systemStop(CRITICAL_ERROR)` ou `transitionTo(Off-Cycle)`.
+  * **Contraintes** : L'appel à `systemStop` doit être atomique et garantir la fermeture des descripteurs de fichiers ouverts.
 
 ---
 
