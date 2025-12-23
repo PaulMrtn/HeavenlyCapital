@@ -127,7 +127,8 @@ Configuration statique par session.
 
 ## 3. Market Data & Broker Connectivity
 
-**IMarketDataBootstrapPort**
+### IMarketDataBootstrapPort
+
 - **Implémenté par** : Broker Gateway (IBKR Gateway)
 - **Injecté dans / Utilisé par** : System Manager
 - **Responsabilité opérationnelle** :
