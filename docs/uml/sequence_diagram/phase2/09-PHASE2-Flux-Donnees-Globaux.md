@@ -53,3 +53,40 @@ Ce module établit le socle de données de marché pour la Phase II. Il garantit
 | 3 | AcquisitionStarted | IBKR Gateway | Live Data Hub | Signal de confirmation indiquant que le flux de données est actif et que la réception a commencé. |
 | ref | 09a-PHASE2-Flux-Critique-FastLane | Live Data Hub | Data Cache | Sous-processus parallèle gérant l'acheminement ultra-rapide des MarketQuotes vers la mémoire vive. |
 | ref | 09b-PHASE2-Persistance-Bulk-IO | Live Data Hub | Data Ingestion Layer | Sous-processus parallèle gérant l'écriture asynchrone et massive des données pour l'audit et l'historique. |
+
+
+---
+
+### 1. Ports et Interfaces
+
+**IMarketDataBootstrapPort**
+* **Implémenté par** : IBKR Gateway
+* **Injecté dans / Utilisé par** : Live Data Hub (via orchestration System Manager)
+* **Responsabilité opérationnelle** : Établissement de la connexion technique et initialisation de l'acquisition des flux (Message 2 : `startAcquisition`).
+* **Règles d’accès ou d’usage** : Appel synchrone pour le démarrage ; échec entraîne un arrêt immédiat.
+
+**MarketDataSinkPort**
+* **Implémenté par** : Live Data Hub (LDH)
+* **Injecté dans / Utilisé par** : IBKR Gateway
+* **Responsabilité opérationnelle** : Réception des flux de prix bruts (Message 3 : `AcquisitionStarted` et flux suivants). Garantit la préparation des données pour les deux "Lanes" (Fast/Slow).
+* **Règles d’accès ou d’usage** : Source unique de vérité pour le système. Les écritures proviennent exclusivement de la Gateway.
+
+**PersistencePort**
+* **Implémenté par** : Data Integrity Layer (DIL)
+* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09b)
+* **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des journaux de marché pour l'audit et l'historique.
+* **Règles d’accès ou d’usage** : Passage obligatoire par le DIL. Utilisation du pool de threads `BULK` pour ne pas impacter la latence.
+
+**IMarketDataCacheWriter**
+* **Implémenté par** : Data Cache
+* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
+* **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
+* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence.
+
+**ILiveDataOrchestrator**
+* **Implémenté par** : Live Data Hub
+* **Injecté dans / Utilisé par** : System Manager
+* **Responsabilité opérationnelle** : Point d'entrée pour le pilotage du cycle de vie des données de marché (Message 1 : `startMarketDataService`).
+* **Règles d’accès ou d’usage** : Gère la transition vers le mode "In-Trade". Doit confirmer que les deux flux (Fast/Slow) sont opérationnels.
+
+---
