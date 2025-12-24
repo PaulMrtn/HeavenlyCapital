@@ -236,29 +236,68 @@ Il regroupe toutes les cotations consolidées (MarketQuote) pour le TradingSyste
   - Un snapshot regroupe l’ensemble des cotations de marché pour une date donnée.
   
 
-#### 2.1. `MarketQuote`
 
-MarketQuote représente la cotation consolidée d’un actif au sein d’un snapshot donné.
-Contrairement à TickData (granularité tick-par-tick), MarketQuote regroupe les informations résumées sur l’intervalle du snapshot (1m, 5m, etc.).
+## 2.1 `MarketQuote`
 
-**Attributs :**
+**Définition**
+`MarketQuote` représente un **snapshot immutable, auto-suffisant et horodaté** de l’état consolidé du marché pour un actif donné.  
+Il est produit exclusivement par le **LiveDataHub** et consommé en **lecture seule** par les composants temps réel (Risk Monitor, Portfolio Manager) ainsi que par les pipelines d’audit.
+`MarketQuote` est conçu pour être :
+- partagé entre plusieurs threads sans verrou,
+- transporté via des queues asynchrones,
+- persisté tel quel sans transformation métier.
+Il ne contient **aucune logique**, uniquement des données figées.
 
-* **`quote_id`** (`UUID`, *Primary Key*): ID de le cotation de marché
-* `snapshot_id_ref` (`UUID`, *Foreign Key*): Vers `SnapshotHeader.snapshot_id`
-* `asset_id_ref` (`UUID`, *Foreign Key*): Vers `Asset.asset_id`
-* `bid` (`float`): Prix du meilleur Bid.
-* `bid_size` (`float`): Volume disponible au meilleur Bid.
-* `ask` (`float`): Prix du meilleur Ask.
-* `ask_size` (`float`): Volume disponible au meilleur Ask.
-* `volume` (`float`): Volume cumulé depuis le dernier snapshot.
-* `last_price` (`float`): Le prix de la dernière transaction depuis le dernier snapshot.
+**Attributs (tous immuables)**
+* `asset_id` (`UUID`)  
+  Identifiant unique de l’actif concerné.
+* `snapshot_timestamp` (`int64` – epoch nanoseconds)  
+  Horodatage exact du snapshot, généré par le LiveDataHub au moment de la consolidation.
+* `snapshot_interval` (`enum`)  
+  Granularité temporelle du snapshot (`TICK`, `1S`, `1M`, `5M`, …).
+* `bid_price` (`int64`, fixed-point)  
+  Prix du meilleur Bid au moment du snapshot.
+* `bid_size` (`int64`)  
+  Volume disponible au meilleur Bid.
+* `ask_price` (`int64`, fixed-point)  
+  Prix du meilleur Ask au moment du snapshot.
+* `ask_size` (`int64`)  
+  Volume disponible au meilleur Ask.
+* `last_trade_price` (`int64`, fixed-point)  
+  Prix de la dernière transaction observée durant l’intervalle du snapshot.
+* `trade_volume` (`int64`)  
+  Volume total échangé durant l’intervalle du snapshot.
+* `schema_version` (`int16`)  
+  Version du schéma de données pour compatibilité ascendante et audit.
 
-**Relations entre entités :**
 
-* `MarketQuote` 0..* --- 1 `SnapshotHeader` 
-  - Une cotation de marché à un instant donné est contenue dans un snapshot.
-* `MarketQuote` 0..* --- 1 `Asset` 
-  - Chaque cotation de marché est lié à un actif.
+**Règles d’immutabilité (contrat strict)**
+- Tous les champs sont **final / readonly**
+- Aucun setter
+- Aucune référence vers des objets mutables
+- Aucune dépendance vers la couche de persistance
+- Création atomique avant publication
+- Lecture exclusivement **lock-free**
+- Une instance ne doit **jamais être modifiée** après sa création
+
+**Relations conceptuelles**
+Les relations avec les entités suivantes sont **logiques uniquement** :
+- `Asset`
+- `SnapshotHeader`
+Ces relations existent au niveau **conceptuel et persistance**,  
+mais **ne sont jamais matérialisées par des références objets** dans le runtime.
+
+**Contraintes d’usage**
+- `MarketQuote` est produit uniquement par le **LiveDataHub**
+- Toute transformation donne lieu à la création d’une **nouvelle instance**
+- Les consommateurs ne doivent jamais enrichir, corriger ou recalculer une quote
+- Toute violation de ce contrat est considérée comme une **erreur critique**
+
+**Notes de persistance**
+Lors de l’écriture en base de données :
+- une clé technique peut être générée par le DIL,
+- les relations FK sont reconstruites côté infrastructure,
+- l’objet runtime reste totalement **agnostique du modèle SQL**.
 
 ---
 
