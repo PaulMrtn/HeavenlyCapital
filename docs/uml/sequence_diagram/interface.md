@@ -263,6 +263,22 @@ Soumission d’ordres critiques.
 
 ---
 
+### IMarketDataCacheWriter**
+  * **Implémenté par** : Data Cache
+  * **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
+  * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
+  * **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence.
+
+---
+
+### ILiveDataOrchestrator**
+  * **Implémenté par** : Live Data Hub
+  * **Injecté dans / Utilisé par** : System Manager
+  * **Responsabilité opérationnelle** : Point d'entrée pour le pilotage du cycle de vie des données de marché (Message 1 : `startMarketDataService`).
+  * **Règles d’accès ou d’usage** : Gère la transition vers le mode "In-Trade". Doit confirmer que les deux flux (Fast/Slow) sont opérationnels.
+
+---
+
 ## 4. Threading, Jobs & Execution
 
 ### IThreadManagerPort
