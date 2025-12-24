@@ -41,10 +41,11 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
 * **Garantie de Parallélisme :** L'utilisation du fragment Parallèle est fondamentale pour garantir que la charge de travail du `Pool I/O Bulk` (Slow-Lane) ne perturbe jamais la boucle critique du `Pool I/O Real-Time` (Fast-Lane).
 * **Source Unique :** Le `LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
 * **Résilience Intrinsèque :** Bien que les flux soient indépendants, le mécanisme de surveillance de la latence du `09a` reste prioritaire. Une défaillance de la Fast-Lane entraîne un arrêt (Kill Switch) potentiel du système entier, y compris de la Slow-Lane.
-* **Immutabilité des MarketQuotes : **
+* **Immutabilité des MarketQuotes :**
   * Tout MarketQuote émis par le LiveDataHub est considéré comme un snapshot figé.
   * La même instance logique (ou une copie binaire équivalente) est utilisée simultanément par la Fast-Lane (DataCache) et la Slow-Lane (persistance).
   * Aucune modification, enrichissement ou recalcul n’est autorisé après publication.
+* **Périmètre de responsabilité :** La séquence 09 est exclusivement responsable de la production, de l’agrégation et de l’écriture des données de marché (Fast-Lane / Slow-Lane). Toute logique de lecture, de consommation ou d’interprétation des données du DataCache est volontairement hors périmètre et définie dans les séquences consommatrices ultérieures.
 
 
 ---
