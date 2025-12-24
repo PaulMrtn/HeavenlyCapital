@@ -235,7 +235,7 @@ Il regroupe toutes les cotations consolidées (MarketQuote) pour le TradingSyste
 * `SnapshotHeader` 1 --- 0..* `MarketQuote` 
   - Un snapshot regroupe l’ensemble des cotations de marché pour une date donnée.
   
-
+---
 
 #### 2.1 `MarketQuote`
 
