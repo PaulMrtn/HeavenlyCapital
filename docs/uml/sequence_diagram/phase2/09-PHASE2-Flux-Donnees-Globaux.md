@@ -25,7 +25,11 @@ Ce module s'inscrit comme le premier grand processus de la Phase II (In-Trade), 
 Le processus est déclenché par le `SystemManager` qui ordonne au `LiveDataHub` de commencer l'acquisition des données. Une fois l'écoute des Ticks démarrée via `IBKR Gateway`, le `LiveDataHub` initie **simultanément** deux processus indépendants modélisés par le fragment parallèle :
 
 * **Fast-Lane (Référence 09a) :** Le flux ultra-rapide et non bloquant qui conduit les `MarketQuote` agrégés vers le `DataCache` via une queue asynchrone pour une disponibilité immédiate (destination : Risk Monitor / Portfolio Manager).
+  * Le DataCache stocke exclusivement des MarketQuotes immuables. Toute mise à jour correspond à un remplacement atomique de référence et non à une mutation de l’objet existant.
+
 * **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui transfère les buffers de données agrégées vers le `DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
+  * La persistance Bulk I/O écrit les MarketQuotes tels que reçus, sans transformation métier ni recalcul. Toute normalisation ou mapping est du ressort exclusif du DIL.
+
 
 L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du marché.
 
@@ -37,6 +41,11 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
 * **Garantie de Parallélisme :** L'utilisation du fragment Parallèle est fondamentale pour garantir que la charge de travail du `Pool I/O Bulk` (Slow-Lane) ne perturbe jamais la boucle critique du `Pool I/O Real-Time` (Fast-Lane).
 * **Source Unique :** Le `LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
 * **Résilience Intrinsèque :** Bien que les flux soient indépendants, le mécanisme de surveillance de la latence du `09a` reste prioritaire. Une défaillance de la Fast-Lane entraîne un arrêt (Kill Switch) potentiel du système entier, y compris de la Slow-Lane.
+* **Immutabilité des MarketQuotes : **
+  * Tout MarketQuote émis par le LiveDataHub est considéré comme un snapshot figé.
+  * La même instance logique (ou une copie binaire équivalente) est utilisée simultanément par la Fast-Lane (DataCache) et la Slow-Lane (persistance).
+  * Aucune modification, enrichissement ou recalcul n’est autorisé après publication.
+
 
 ---
 
