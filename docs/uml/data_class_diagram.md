@@ -237,7 +237,7 @@ Il regroupe toutes les cotations consolidées (MarketQuote) pour le TradingSyste
   
 
 
-## 2.1 `MarketQuote`
+#### 2.1 `MarketQuote`
 
 **Définition**
 `MarketQuote` représente un **snapshot immutable, auto-suffisant et horodaté** de l’état consolidé du marché pour un actif donné.  
