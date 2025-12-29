@@ -15,8 +15,9 @@ Garantir l'auditabilité et la traçabilité complète de l'activité de marché
 
 ### 2. Contexte
 
-Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. Il opère en **Slow-Lane**, de manière totalement asynchrone par rapport à la réception des flux. Le point d'entrée est  le **`Data Cache`**, où sont récupérées les cotations consolidées pour assembler une image cohérente du marché (le `SnapshotHeader`) destinée à l'historique.
-
+Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. Il opère en **Slow-Lane**, de manière totalement asynchrone par rapport à la réception des flux. Le point d'entrée est  le **`Data Cache`**, où sont récupérées les cotations consolidées pour assembler une image cohérente du marché (le `SnapshotHeader`) destinée à l'historique. L'architecture distingue clairement deux flux sortants après la reconstruction du snapshot par le `Data Ingestion Layer` (DIL) :
+  * **Flux d'Audit :** Persistance exhaustive en base de données pour analyse offline.
+  * **Flux d'Observabilité :** Diffusion d'événements "push" vers des abonnés passifs pour le monitoring live.
 ---
 
 ### 3. Logique Générale
@@ -24,8 +25,9 @@ Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. I
 1. **Extraction du Cache :** Le `Data Ingestion Layer` (DIL) interroge périodiquement le `Data Cache` pour récupérer les dernières `MarketQuote` immuables déposées par la Fast-Lane.
 2. **Reconstruction du Snapshot :** Le DIL exécute la fonction `validateAndBuildSnapshot()`. Il génère un `snapshot_id` unique et vérifie la présence de tous les actifs attendus.
 3. **Qualification (Auditabilité) :** Si des données manquent ou sont obsolètes, le snapshot est marqué comme `DEGRADED` ou `PARTIAL`. S'il est complet, il est marqué `NOMINAL`. Cette qualification garantit la fidélité de l'audit post-trade.
-4. **Encapsulation et Job :** Les données sont préparées en tant qu'objet `PersistenceObject`. Ce "Job" est transmis au `Job Manager` (JM).
-5. **Exécution Asynchrone :** Le `JM` alloue la tâche au **`Pool I/O Bulk`** (basse priorité) via le `Thread Manager`. Un thread dédié exécute l'insertion massive en base de données sans bloquer les autres processus.
+4. **Observabilité :** Le DIL émet des signaux bruts (latence, drops, statut) vers le `MetricManager` via l'interface `IMarketDataObserverPort`.
+5. **Encapsulation et Job :** Les données sont préparées en tant qu'objet `PersistenceObject`. Ce "Job" est transmis au `Job Manager` (JM).
+6. **Exécution Asynchrone :** Le `JM` alloue la tâche au **`Pool I/O Bulk`** (basse priorité) via le `Thread Manager`. Un thread dédié exécute l'insertion massive en base de données sans bloquer les autres processus.
 ---
 
 ### 4. Règles Critiques
@@ -34,6 +36,9 @@ Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. I
 * **Priorité Basse :** Les tâches utilisent exclusivement le **`Pool I/O Bulk`**. Ce pool est configuré avec la priorité la plus basse pour ne pas entrer en compétition avec les ressources CPU/IO requises par l'exécution d'ordres ou le calcul de risque.
 * **Auditabilité vs Exhaustivité :** Le système privilégie l'enregistrement de l'état réel "vu" par le système. Un snapshot incomplet est persisté avec son statut de dégradation pour assurer une transparence totale lors de l'analyse historique.
 * **Déclenchement Temporel :** Le cycle de persistance est déclenché par un timer ou un seuil de volume. Ces paramètres seront calibrés lors des phases de stress-test pour optimiser la charge système.
+* **Séparation des Rôles :** Le DIL ne produit que des signaux bruts ; le calcul, l'agrégation et la qualification des métriques sont la responsabilité exclusive du `MetricManager`.
+* **Modèle Subscriber (Best-Effort) :** L'observabilité repose sur un modèle *Event-driven* sans garantie de livraison forte afin de ne jamais ralentir le DIL ou la Fast-Lane.
+* **Indépendance du Runtime :** Les métriques sont strictement observatoires et n'ont aucun impact sur le runtime (pas de kill-switch ou throttling automatique).
 
 ---
 
@@ -104,4 +109,3 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 * L’acceptation architecturale des trous de données liés à la lecture du Data Cache doit être affirmée comme un comportement nominal de la Slow-Lane et non comme un incident.
 
 * Le caractère best-effort temporel de la persistance Bulk I/O n’est pas explicitement posé et devrait être clarifié pour éviter toute attente implicite de fraîcheur des données historiques.
-
