@@ -43,7 +43,7 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 
 ---
 
-### . Description des Fonctions
+### 6. Description des Fonctions
 
 * **`checkBufferStatus()`** : Auto-appel périodique qui vérifie l'état du buffer de `SnapshotHeader` en attente de persistance. Il compare le temps écoulé et la taille du bloc avec les seuils configurés pour déclencher l'insertion.
 
