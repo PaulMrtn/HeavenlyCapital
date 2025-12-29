@@ -15,7 +15,7 @@ La finalité de ce module est d'orchestrer le traitement complet des données de
 
 ### 2. Contexte
 
-Ce module s'inscrit comme le premier grand processus de la Phase II (In-Trade), démarrant dès l'ouverture du marché. Il est la porte d'entrée de toutes les données de prix pour l'ensemble du système de trading. Il existe pour **isoler** les opérations rapides et critiques (nécessaires pour le risque et l'exécution) des opérations lourdes et lentes (nécessaires pour la conformité et l'historique), assurant ainsi que l'une ne bloque jamais l'autre.
+Ce module s'inscrit comme le premier grand processus de la Phase II (In-Trade), démarrant dès l'ouverture du marché. Il est la porte d'entrée de toutes les données de prix pour l'ensemble du système de trading. Il existe pour **isoler** les opérations rapides et critiques (nécessaires pour le risque et l'exécution) des opérations lourdes et lentes (nécessaires pour la conformité et l'historique), assurant ainsi que l'une ne bloque jamais l'autre. La Fast-Lane produit des MarketQuote auto-contenues, chacune horodatée et associée à un snapshot_id logique. La Slow-Lane reconstruit a posteriori les SnapshotHeader à des fins de persistance et d’audit, sans jamais imposer de synchronisation ou de complétude au runtime critique.
 
 ---
 
