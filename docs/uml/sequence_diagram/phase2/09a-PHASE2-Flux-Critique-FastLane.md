@@ -121,19 +121,6 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 * **Responsabilité opérationnelle** : Journalisation globale du système (logs techniques, opérationnels et audit).
 * **Règles d’accès ou d’usage** : Mode synchrone pour bootstrapping et erreurs fatales ; **mode non-bloquant en runtime** (essentiel pour la Fast-Lane).
 
-**MarketDataSinkPort**
-* **Implémenté par** : Live Data Hub (LDH) ou tout service capable de recevoir et traiter les flux de marché entrants.
-* **Injecté dans / Utilisé par** : IBKR Gateway, System Manager (pour orchestration initiale).
-* **Responsabilité opérationnelle** :
-  * Recevoir les flux de prix bruts provenant de la passerelle du courtier.
-  * Acheminer ces données vers le cache interne et les composants consommateurs (Portfolio Manager, Risk Monitor) après validation minimale.
-  * Garantir la **séquentialité** et la **complétude** des ticks pour permettre la persistance atomique.
-  * Préparer les données pour la distribution aux services de persistance ou de calcul stratégique.
-* **Règles d’accès ou d’usage** :
-  * Aucun accès direct par PM, RM ou autres consommateurs métiers.
-  * Lecture seule côté consommateurs : ils ne doivent jamais écrire dans ce flux.
-  * Les écritures doivent passer uniquement par des services producteurs de flux (ex : IBKR Gateway).
-  * Gestion des erreurs : tout échec critique dans le traitement doit remonter au System Manager pour déclencher des alertes ou un arrêt sécuritaire.
  
 **IThreadManagerPort**
 Gestion de la couche d’exécution.
