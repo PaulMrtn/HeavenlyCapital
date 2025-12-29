@@ -36,3 +36,21 @@ Le `RiskMonitor` fonctionne en boucle continue. À chaque signal `SnapshotReady`
 ### 5. Conclusion
 
 Le module **`10a-PHASE2-Surveillance-Urgence`** est le mécanisme de défense à haute priorité du système. Il garantit que toute violation de risque est détectée, auditée et contrée par une action immédiate (liquidation) dont la priorité d'exécution est formellement supérieure à toute autre opération de trading en cours.
+
+---
+
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|notifySnapshotReady(SnapshotHeader)|Live Data Hub|Risk Monitor|Notification asynchrone indiquant qu'un nouveau bloc de données de marché cohérent est disponible pour analyse.|
+|2|getRequiredQuotes(SnapshotHeader)|Risk Monitor|Data Cache|Requête synchrone pour extraire les prix spécifiques nécessaires au calcul de l'exposition au risque.|
+|3|Return: RequiredQuotes|Data Cache|Risk Monitor|Retour des données de cotation demandées.|
+|4|readCurrentPositionState()|Risk Monitor|Portfolio Manager|Appel pour obtenir l'état actuel des positions ouvertes (quantité, prix d'entrée, etc.).|
+|5|<<return>> PositionState|Portfolio Manager|Risk Monitor|Retour de l'état consolidé du portefeuille.|
+|6|checkThresholds(PositionState, SnapshotHeader)|Risk Monitor|Risk Monitor|Auto-évaluation comparant l'état du portefeuille aux limites de risque définies (ex: Stop-Loss).|
+|7|createEmergencyOrder(PositionState)|Risk Monitor|Risk Monitor|Génération interne d'un ordre de liquidation automatique si un seuil de risque est franchi.|
+|8|logCriticalEvent(OrderEvent)|Risk Monitor|Log Service|Enregistrement synchrone et bloquant de l'incident pour garantir l'auditabilité avant l'exécution.|
+|9|submitEmergencyOrder(RequestOrder, Priority: CRITICAL)|Risk Monitor|Order Manager|Soumission de l'ordre d'urgence avec le niveau de priorité le plus élevé du système.|
+|10|enqueue(OrderRequest)|Order Manager|PriorityQueue|Insertion physique de l'ordre en tête de la file d'attente prioritaire.|
+|11|Return: EnqueueConfirmed|PriorityQueue|Order Manager|Confirmation que l'ordre est sécurisé dans la file d'attente.|
+|12|Return: OrderSubmitted|Order Manager|Risk Monitor|Confirmation finale de la prise en charge de l'ordre d'urgence.|
+|ref|(OM-RouteOrderToBroker)|Order Manager|Externe|Référence à la séquence de routage de l'ordre vers le courtier pour exécution physique.|
