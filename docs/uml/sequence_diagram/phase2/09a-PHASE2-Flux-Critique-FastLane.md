@@ -95,7 +95,7 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 * **Implémenté par** : Data Cache
 * **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
 * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
-* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Les objets écrits sont immuables et versionnés
+* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Usage exclusif de MarketQuotes immuables. Le port garantit l'accès aux seules versions validées (Atomic Versioning).
 
 **ILiveDataControlPort**
 * **Implémenté par** : `Live Data Hub`
