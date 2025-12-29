@@ -60,9 +60,33 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 
 ### 6. Ports et Interfaces
 
+**IMarketDataCacheReader**
+* **Implémenté par** : `DataCache`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (dans le cadre de la séquence 09b)
+* **Responsabilité opérationnelle** : Fournir un accès en lecture seule, non bloquant, aux derniers `MarketQuote` immuables versionnés pour permettre la reconstruction du snapshot.
+* **Règles d’accès ou d’usage** : Lecture lock-free (sans verrou). Aucun accès aux structures internes du cache. Usage exclusif d'objets immuables. Ne doit jamais bloquer la Fast-Lane.
+
 **PersistencePort**
-* **Implémenté par** : Data Integrity Layer (DIL)
-* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09b)
-* **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des journaux de marché pour l'audit et l'historique.
-* **Règles d’accès ou d’usage** : Passage obligatoire par le DIL. Utilisation du pool de threads `BULK` pour ne pas impacter la latence.
+* **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (via fragment 09b)
+* **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des snapshots de marché (`SnapshotHeader` et `MarketQuote`) pour l'audit et l'historique post-trade.
+* **Règles d’accès ou d’usage** : Utilisation obligatoire du pool de threads `BULK`. Transactions atomiques requises. Isolation totale des objets métiers par rapport à la base de données.
+
+**IThreadManagerPort**
+* **Implémenté par** : `Thread Manager`
+* **Injecté dans / Utilisé par** : `System Manager`, `Job Manager` (pour délégation du pool)
+* **Responsabilité opérationnelle** : Allocation des pools de threads et gestion des boucles persistantes.
+* **Règles d’accès ou d’usage** : Dans cette séquence, il est sollicité pour déléguer la tâche au pool `I/O Bulk`. Aucun accès direct aux `PoolWorkers` par les composants métiers.
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer`, `Job Manager`
+* **Responsabilité opérationnelle** : Journalisation des événements de persistance et des erreurs de snapshot.
+* **Règles d’accès ou d’usage** : **Mode non-bloquant impératif** durant le runtime (Phase II) pour ne pas introduire de gigue (jitter).
+
+**IJobSubmissionPort**
+* **Implémenté par** : `Job Manager`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** : Permettre au DIL de soumettre un `PersistenceObject` (Snapshot) dans la file d'attente asynchrone de la Slow-Lane.
+* **Règles d’accès ou d’usage** : Appel asynchrone (Fire-and-forget du point de vue du DIL). Doit supporter l'encapsulation de métadonnées de priorité (Pool: I/O Bulk).
 
