@@ -66,6 +66,12 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 * **Responsabilité opérationnelle** : Fournir un accès en lecture seule, non bloquant, aux derniers `MarketQuote` immuables versionnés pour permettre la reconstruction du snapshot.
 * **Règles d’accès ou d’usage** : Lecture lock-free (sans verrou). Aucun accès aux structures internes du cache. Usage exclusif d'objets immuables. Ne doit jamais bloquer la Fast-Lane.
 
+**IMarketDataObserverPort**
+* **Implémenté par** : `MetricManager`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** : Point d'entrée pour la consommation passive (push) des signaux bruts de performance et d'état des snapshots.
+* **Règles d’accès ou d’usage** : Mode **Best-effort** uniquement. Aucun impact autorisé sur le temps de cycle du DIL. Accès strictement observatoire (pas de boucle de rétroaction sur le trading).
+
 **PersistencePort**
 * **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (via fragment 09b)
@@ -89,7 +95,7 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
 * **Responsabilité opérationnelle** : Permettre au DIL de soumettre un `PersistenceObject` (Snapshot) dans la file d'attente asynchrone de la Slow-Lane.
 * **Règles d’accès ou d’usage** : Appel asynchrone (Fire-and-forget du point de vue du DIL). Doit supporter l'encapsulation de métadonnées de priorité (Pool: I/O Bulk).
-* 
+
 
 ### NOTE
 
