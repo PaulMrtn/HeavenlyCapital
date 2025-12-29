@@ -30,10 +30,11 @@ Le fonctionnement repose sur un modèle **Producteur/Consommateur** découplé p
 
 ### 4.1 Règles Critiques
 
-* **Priorité Sécurité :** La vérification de la latence (`checkLatency()`) est exécutée **avant** toute agrégation ou distribution. En cas de latence critique ou de perte de connexion, le processus s'interrompt immédiatement pour alerter le `SystemManager` via la référence `REF: SM-HandleCriticalDataLoss`. L'enregistrement (`logCriticalError`) de l'incident est synchrone et prioritaire.
-* **Non-Blocage Absolu :** L'opération clé (`enqueue` sur la `:FastLaneQueue`) doit être **non bloquante** pour le thread du `:LiveDataHub`. Cela garantit que l'agrégateur ne perd jamais de temps et peut absorber le flux maximum de `Tick Data`.
-* **Isolation des Tâches :** Le calcul intensif (agrégation en `MarketQuote`) est effectué par le Producteur (`LiveDataHub`), tandis que l'I/O critique (écriture en cache) est effectuée par le Consommateur (`:ThreadManager`). Cela isole le CPU du temps I/O.
-* **Structure de Données :** Seul l'objet **`MarketQuote`** (la cotation consolidée pour un actif) transite par la `FastLaneQueue` et est stocké dans le cache, minimisant la charge utile et la latence.
+* **Priorité Sécurité & Backpressure :** La gestion de charge (Drop Oldest) et la vérification de la latence (`checkLatency()`) sont exécutées **avant** toute agrégation. En cas de latence critique, le `LiveDataHub` alerte le `SystemManager` qui peut ordonner un basculement en **Mode Dégradé**.
+* **Non-Blocage Absolu :** L'opération d'enregistrement des incidents (`logEvent`) est strictement **asynchrone**. L'opération `enqueue` sur la `:FastLaneQueue` reste non bloquante, garantissant que l'agrégateur absorbe le flux maximum sans gigue (jitter).
+* **Isolation des Tâches :** Le calcul (agrégation en `MarketQuote`) est effectué par le Producteur, tandis que l'I/O (écriture cache) est effectuée par le Consommateur, isolant le CPU du temps I/O.
+* **Structure de Données :** Seul l'objet **`MarketQuote`** (cotation consolidée immuable) transite par la queue, minimisant la charge utile.
+* 
 
 ### 4.2 Politique de Gestion de Charge et Dégradation Contrôlée
 
@@ -77,7 +78,7 @@ Ces métriques ont un rôle **strictement observatoire** et ne déclenchent aucu
 
 ### 5. Conclusion
 
-Ce module garantit un flux de prix **déterministe et ultra-rapide** pour le système. Il assure que les données critiques du marché sont disponibles en mémoire avec la plus faible latence possible pour la surveillance du risque (Risk Monitor) et l'exécution des stratégies (Portfolio Manager), tout en intégrant un mécanisme de sécurité immédiat contre la défaillance des données sources.
+Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure la disponibilité des données immuables pour le `RiskMonitor` et le `PortfolioManager`, tout en intégrant une résilience dynamique face à la latence ou aux pics de volume via une orchestration avec le `SystemManager`.
 
 ---
 
@@ -120,4 +121,19 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide** pour le sys
 **Kill Switch** : Interface `ISystemKillSwitchPort` définie, usage strictement contrôlé : aucun composant métier ne déclenche l’arrêt directement, toute action réelle passe par `IProcessControlPort`. À vérifier que l’orchestration respecte cette règle lors de la relecture finale.
 
 **Versioning du flux marché** : Les snapshots et MarketQuotes doivent être immuables et versionnés. Les ports consommateurs (`MarketDataPort`, `IMarketDataCacheWriter`) ne doivent exposer que des versions validées, et tout accès à des données non versionnées doit être impossible.
+
+
+
+---
+
+### 4.2 Politique de Gestion de Charge et Dégradation Contrôlée
+
+Le **Live Data Hub (LDH)** applique une politique explicite pour garantir la continuité de la diffusion, même en conditions extrêmes.
+
+* **Gestion de Charge (Mécanique) :** Application systématique du **Drop Oldest** sur la queue d'entrée en cas de saturation pour privilégier la fraîcheur.
+* **Niveaux de Fonctionnement (Logique) :** * **Fonctionnement nominal :** Agrégation complète (bid, ask, volumes, last price).
+* **Mode Dégradé :** Activé par le `SystemManager`. Le LDH simplifie l'agrégation (ex: focus prioritaire sur le `last_price`) pour réduire la charge CPU et maintenir la fraîcheur des snapshots.
+
+
+
 
