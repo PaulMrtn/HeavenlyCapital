@@ -17,7 +17,7 @@ Garantir l'auditabilité et la traçabilité complète de l'activité de marché
 
 Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. Il opère en **Slow-Lane**, de manière totalement asynchrone par rapport à la réception des flux. Le point d'entrée est  le **`Data Cache`**, où sont récupérées les cotations consolidées pour assembler une image cohérente du marché (le `SnapshotHeader`) destinée à l'historique. L'architecture distingue clairement deux flux sortants après la reconstruction du snapshot par le `Data Ingestion Layer` (DIL) :
   * **Flux d'Audit :** Persistance exhaustive en base de données pour analyse offline.
-  * **Flux d'Observabilité :** Diffusion d'événements "push" vers des abonnés passifs pour le monitoring live.
+  * **Flux d'Observabilité :** Diffusion d'événements push vers des abonnés passifs via l’interface `IMarketDataObserverPort`, pour monitoring live et dashboards futurs.
 ---
 
 ### 3. Logique Générale
@@ -39,6 +39,7 @@ Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. I
 * **Séparation des Rôles :** Le DIL ne produit que des signaux bruts ; le calcul, l'agrégation et la qualification des métriques sont la responsabilité exclusive du `MetricManager`.
 * **Modèle Subscriber (Best-Effort) :** L'observabilité repose sur un modèle *Event-driven* sans garantie de livraison forte afin de ne jamais ralentir le DIL ou la Fast-Lane.
 * **Indépendance du Runtime :** Les métriques sont strictement observatoires et n'ont aucun impact sur le runtime (pas de kill-switch ou throttling automatique).
+* Sécurité et intégrité : Assurée par le caractère immuable des objets `MarketQuote` et `SnapshotHeader`.
 
 ---
 
@@ -104,8 +105,7 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 
 ### NOTE
 
-* La source de vérité définissant la liste des « actifs attendus » lors de la validation du snapshot n’est pas formalisée et doit être explicitement rattachée à une configuration système ou à un univers de trading versionné.
-
+* La liste des « actifs attendus » est injectée via la configuration système lors du bootstrap et constitue la source de vérité pour la reconstruction des snapshots.
 * L’acceptation architecturale des trous de données liés à la lecture du Data Cache doit être affirmée comme un comportement nominal de la Slow-Lane et non comme un incident.
-
 * Le caractère best-effort temporel de la persistance Bulk I/O n’est pas explicitement posé et devrait être clarifié pour éviter toute attente implicite de fraîcheur des données historiques.
+* La granularité exacte et le périmètre des métriques observées seront définis lors des phases de test et calibrés pour le monitoring live via IMarketDataObserverPort.
