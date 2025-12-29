@@ -65,7 +65,7 @@ Les seuils de capacité de la queue, ainsi que les critères précis de dégrada
 
 #### Niveaux de Fonctionnement
 
-Le système supporte plusieurs niveaux de fonctionnement, activés dynamiquement sans interruption :
+La Fast-Lane reste non bloquante en toutes circonstances, tandis que la Slow-Lane reçoit et absorbe les snapshots de manière asynchrone, garantissant que l’agrégation critique reste prioritaire. Le système supporte plusieurs niveaux de fonctionnement, activés dynamiquement sans interruption :
 
 * **Fonctionnement nominal**
   * Agrégation complète des données de marché (bid, ask, volumes, last price)
@@ -108,7 +108,7 @@ Ce module établit le socle de données de marché pour la Phase II. Il garantit
 
 ---
 
-### 1. Ports et Interfaces
+### 6. Ports et Interfaces
 
 **IMarketDataBootstrapPort**
 * **Implémenté par** : IBKR Gateway
