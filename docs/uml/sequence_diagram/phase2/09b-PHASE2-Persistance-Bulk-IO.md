@@ -89,4 +89,13 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
 * **Responsabilité opérationnelle** : Permettre au DIL de soumettre un `PersistenceObject` (Snapshot) dans la file d'attente asynchrone de la Slow-Lane.
 * **Règles d’accès ou d’usage** : Appel asynchrone (Fire-and-forget du point de vue du DIL). Doit supporter l'encapsulation de métadonnées de priorité (Pool: I/O Bulk).
+* 
+
+### NOTE
+
+* La source de vérité définissant la liste des « actifs attendus » lors de la validation du snapshot n’est pas formalisée et doit être explicitement rattachée à une configuration système ou à un univers de trading versionné.
+
+* L’acceptation architecturale des trous de données liés à la lecture du Data Cache doit être affirmée comme un comportement nominal de la Slow-Lane et non comme un incident.
+
+* Le caractère best-effort temporel de la persistance Bulk I/O n’est pas explicitement posé et devrait être clarifié pour éviter toute attente implicite de fraîcheur des données historiques.
 
