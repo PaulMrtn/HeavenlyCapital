@@ -46,6 +46,7 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
   * La même instance logique (ou une copie binaire équivalente) est utilisée simultanément par la Fast-Lane (DataCache) et la Slow-Lane (persistance).
   * Aucune modification, enrichissement ou recalcul n’est autorisé après publication.
 * **Périmètre de responsabilité :** La séquence 09 est exclusivement responsable de la production, de l’agrégation et de l’écriture des données de marché (Fast-Lane / Slow-Lane). Toute logique de lecture, de consommation ou d’interprétation des données du DataCache est volontairement hors périmètre et définie dans les séquences consommatrices ultérieures.
+* **Accès au DataCache :** Le DataCache expose des ports strictement séparés pour l’écriture et la lecture. Le LiveDataHub est l’unique Writer autorisé. RiskMonitor et PortfolioManager accèdent aux données exclusivement via des interfaces Reader en lecture seule, lock-free. Tout accès direct ou toute tentative de mutation est interdit.
 
 
 ---
