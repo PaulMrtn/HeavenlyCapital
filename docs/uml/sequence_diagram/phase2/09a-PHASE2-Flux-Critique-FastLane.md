@@ -43,7 +43,6 @@ Le **Live Data Hub (LDH)** applique une politique explicite de gestion de charge
 
 Le flux de ticks entrants est absorbé via une **queue bornée** en amont de l’agrégation.
 En cas de saturation, la politique **Drop Oldest** est appliquée afin de préserver en priorité les données de marché les plus récentes.
-Aucune forme de *backpressure* ou de blocage n’est autorisée sur le LDH.
 
 Les seuils de capacité de la queue, ainsi que les critères précis de dégradation, ne sont **pas figés à ce stade** et seront calibrés lors des **phases de stress test et de mock de charge**, en fonction des caractéristiques réelles du marché et de la fréquence de snapshot retenue (ex. 1 minute).
 
