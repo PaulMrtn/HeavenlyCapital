@@ -96,11 +96,56 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
 * **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Les objets écrits sont immuables et versionnés
 
-**IMarketDataCacheReader**
-* **Implémenté par** : DataCache
-* **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
-* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord. Les objets écrits sont immuables et versionnés
+**ILiveDataControlPort**
+* **Implémenté par** : `Live Data Hub`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Permettre le changement dynamique du mode de traitement des données de marché suite à une alerte de latence.
+* **Règles d’accès ou d’usage** : Appel synchrone via le message `setOperatingMode(Mode)`. Définit si l'agrégation doit être `NOMINAL` ou `DEGRADED`.
 
+**IMarketDataHealthPort**
+* **Implémenté par** : `Live Data Hub (LDH)`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Validation de la preuve de vie du flux, vérification de la couverture et **contrôle de la fraîcheur (fraîcheur des ticks)**.
+* **Règles d’accès ou d’usage** : Utilisé ici pour le message `notifyHighLatency()`. Toute anomalie de fraîcheur doit être remontée immédiatement.
+
+**ILiveDataOrchestrator**
+* **Implémenté par** : `Live Data Hub`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Point d'entrée pour le pilotage du cycle de vie des données de marché (Message 1 : `startMarketDataService`).
+* **Règles d’accès ou d’usage** : Gère la transition vers le mode "In-Trade". Doit confirmer que les deux flux (Fast/Slow) sont opérationnels.
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Utilisé par** : Tous les managers (dont le `LiveDataHub`)
+* **Responsabilité opérationnelle** : Journalisation globale du système (logs techniques, opérationnels et audit).
+* **Règles d’accès ou d’usage** : Mode synchrone pour bootstrapping et erreurs fatales ; **mode non-bloquant en runtime** (essentiel pour la Fast-Lane).
+
+**MarketDataSinkPort**
+* **Implémenté par** : Live Data Hub (LDH) ou tout service capable de recevoir et traiter les flux de marché entrants.
+* **Injecté dans / Utilisé par** : IBKR Gateway, System Manager (pour orchestration initiale).
+* **Responsabilité opérationnelle** :
+  * Recevoir les flux de prix bruts provenant de la passerelle du courtier.
+  * Acheminer ces données vers le cache interne et les composants consommateurs (Portfolio Manager, Risk Monitor) après validation minimale.
+  * Garantir la **séquentialité** et la **complétude** des ticks pour permettre la persistance atomique.
+  * Préparer les données pour la distribution aux services de persistance ou de calcul stratégique.
+* **Règles d’accès ou d’usage** :
+  * Aucun accès direct par PM, RM ou autres consommateurs métiers.
+  * Lecture seule côté consommateurs : ils ne doivent jamais écrire dans ce flux.
+  * Les écritures doivent passer uniquement par des services producteurs de flux (ex : IBKR Gateway).
+  * Gestion des erreurs : tout échec critique dans le traitement doit remonter au System Manager pour déclencher des alertes ou un arrêt sécuritaire.
+ 
+**IThreadManagerPort**
+Gestion de la couche d’exécution.
+- Implémenté par : Thread Manager
+- Utilisé par : System Manager
+- Responsabilités :
+  - Allocation des pools
+  - Démarrage des loops persistantes
+  - Reporting de l’état d’initialisation
+- Règles :
+  - Invocation synchrone uniquement
+  - BOOTSTRAP_ONLY
+  - Aucun accès direct aux PoolWorkers
 
 ---
 
@@ -113,6 +158,4 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 **Versioning du flux marché** : Les snapshots et MarketQuotes doivent être immuables et versionnés. Les ports consommateurs (`MarketDataPort`, `IMarketDataCacheWriter`) ne doivent exposer que des versions validées, et tout accès à des données non versionnées doit être impossible.
 
 ---
-
-
 
