@@ -43,7 +43,7 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 
 ---
 
-### 6. Description des Fonctions
+### . Description des Fonctions
 
 * **`checkBufferStatus()`** : Auto-appel périodique qui vérifie l'état du buffer de `SnapshotHeader` en attente de persistance. Il compare le temps écoulé et la taille du bloc avec les seuils configurés pour déclencher l'insertion.
 
@@ -60,3 +60,13 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 * **`bulkInsert(SnapshotHeader, MarketQuote)`** : C'est l'opération physique. Le `DIL` exécute la requête optimisée d'insertion en masse (y compris le `SnapshotHeader` parent et toutes les lignes `MarketQuote` enfants) en une seule transaction lourde. Le thread est bloqué sur cette I/O jusqu'à la confirmation de la base de données.
 
 * **`Job Completed`** : Après la confirmation de la transaction, l'état du Job est mis à jour. Le `JM` est notifié, lui permettant de clôturer la tâche et d'enregistrer l'audit de fin d'exécution.
+
+---
+
+### 6. Ports et Interfaces
+
+**PersistencePort**
+* **Implémenté par** : Data Integrity Layer (DIL)
+* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09b)
+* **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des journaux de marché pour l'audit et l'historique.
+* **Règles d’accès ou d’usage** : Passage obligatoire par le DIL. Utilisation du pool de threads `BULK` pour ne pas impacter la latence.
