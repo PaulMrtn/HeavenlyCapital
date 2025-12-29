@@ -46,7 +46,7 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
 | 1 | fetchLatestQuotesFromCache() | Data Ingestion Layer | Data Cache | Requête synchrone pour extraire les dernières MarketQuotes immuables stockées en mémoire. |
-| 2 | List<MarketQuote> | Data Cache | Data Ingestion Layer | Retour de la liste des cotations consolidées disponibles pour le cycle actuel. |
+| 2 | List< MarketQuote > | Data Cache | Data Ingestion Layer | Retour de la liste des cotations consolidées disponibles pour le cycle actuel. |
 | 3 | validateAndBuildSnapshot() | Data Ingestion Layer | Data Ingestion Layer | Auto-appel pour reconstruire le SnapshotHeader global et vérifier l'intégrité des données (Nominal vs Dégradé). |
 | 4 | createPersistenceObjects(FullSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'if Valid' : Préparation des objets de données complets pour l'insertion en base. |
 | 5 | createPersistenceObjects(DegradedSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'else' : Préparation des objets avec marquage spécifique pour les snapshots partiels ou corrompus. |
