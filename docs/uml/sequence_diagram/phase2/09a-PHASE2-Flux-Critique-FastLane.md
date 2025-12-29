@@ -126,14 +126,8 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 Gestion de la couche d’exécution.
 - Implémenté par : Thread Manager
 - Utilisé par : System Manager
-- Responsabilités :
-  - Allocation des pools
-  - Démarrage des loops persistantes
-  - Reporting de l’état d’initialisation
-- Règles :
-  - Invocation synchrone uniquement
-  - BOOTSTRAP_ONLY
-  - Aucun accès direct aux PoolWorkers
+- Responsabilités : Allocation des pools, Démarrage des loops persistantes, Reporting de l’état d’initialisation
+- Règles : Invocation synchrone uniquement, BOOTSTRAP_ONLY, Aucun accès direct aux PoolWorkers
 
 ---
 
