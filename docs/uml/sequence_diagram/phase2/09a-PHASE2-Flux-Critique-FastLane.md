@@ -31,7 +31,7 @@ Le fonctionnement repose sur un modèle **Producteur/Consommateur** découplé p
 ### 4.1 Règles Critiques
 
 * **Priorité Sécurité & Backpressure :** La gestion de charge (Drop Oldest) et la vérification de la latence (`checkLatency()`) sont exécutées **avant** toute agrégation. En cas de latence critique, le `LiveDataHub` alerte le `SystemManager` qui peut ordonner un basculement en **Mode Dégradé**.
-* **Non-Blocage Absolu :** L'opération d'enregistrement des incidents (`logEvent`) est strictement **asynchrone**. L'opération `enqueue` sur la `:FastLaneQueue` reste non bloquante, garantissant que l'agrégateur absorbe le flux maximum sans gigue (jitter).
+* **Non-Blocage Absolu :** L'opération d'enregistrement des incidents (`logEvent`) est strictement **asynchrone**. L'opération `enqueue` sur la `FastLaneQueue` reste non bloquante, garantissant que l'agrégateur absorbe le flux maximum sans gigue (jitter).
 * **Isolation des Tâches :** Le calcul (agrégation en `MarketQuote`) est effectué par le Producteur, tandis que l'I/O (écriture cache) est effectuée par le Consommateur, isolant le CPU du temps I/O.
 * **Structure de Données :** Seul l'objet **`MarketQuote`** (cotation consolidée immuable) transite par la queue, minimisant la charge utile.
 
@@ -62,7 +62,7 @@ Le **Live Data Hub (LDH)** applique une politique explicite de gestion de charge
   * Dégradation contrôlée de l’agrégation (ex. priorité au `last_price`, enrichissement bid/ask optionnel)
   * Snapshots potentiellement moins riches mais **toujours exploitables pour la gestion du risque**
 
-**Observabilité : ** Tout événement de drop ou de dégradation est **mesuré et remonté** vers un composant dédié (`MetricManager`). Ces métriques ont un rôle **strictement observatoire** et ne déclenchent aucun arrêt automatique, l’objectif étant de préserver la capacité du système à produire des décisions de risque et d’exécution même dans les conditions de marché les plus dégradées.
+**Observabilité :** Tout événement de drop ou de dégradation est **mesuré et remonté** vers un composant dédié (`MetricManager`). Ces métriques ont un rôle **strictement observatoire** et ne déclenchent aucun arrêt automatique, l’objectif étant de préserver la capacité du système à produire des décisions de risque et d’exécution même dans les conditions de marché les plus dégradées.
 
 ---
 
@@ -112,18 +112,7 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 
 **Versioning du flux marché** : Les snapshots et MarketQuotes doivent être immuables et versionnés. Les ports consommateurs (`MarketDataPort`, `IMarketDataCacheWriter`) ne doivent exposer que des versions validées, et tout accès à des données non versionnées doit être impossible.
 
-
-
 ---
-
-### 4.2 Politique de Gestion de Charge et Dégradation Contrôlée
-
-Le **Live Data Hub (LDH)** applique une politique explicite pour garantir la continuité de la diffusion, même en conditions extrêmes.
-
-* **Gestion de Charge (Mécanique) :** Application systématique du **Drop Oldest** sur la queue d'entrée en cas de saturation pour privilégier la fraîcheur.
-* **Niveaux de Fonctionnement (Logique) :** * **Fonctionnement nominal :** Agrégation complète (bid, ask, volumes, last price).
-* **Mode Dégradé :** Activé par le `SystemManager`. Le LDH simplifie l'agrégation (ex: focus prioritaire sur le `last_price`) pour réduire la charge CPU et maintenir la fraîcheur des snapshots.
-
 
 
 
