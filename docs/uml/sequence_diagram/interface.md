@@ -207,6 +207,7 @@ Diffusion des données de marché validées aux consommateurs métier.
   * Gestion des erreurs : tout échec critique dans le traitement doit remonter au System Manager pour déclencher des alertes ou un arrêt sécuritaire.
 
 ---
+
 ### BrokerGatewayPort
 Abstraction du courtier.
 
@@ -268,6 +269,13 @@ Soumission d’ordres critiques.
   * **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
   * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
   * **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence.
+
+---
+
+### IMarketDataCacheReader
+  * **Implémenté par** : DataCache
+  * **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
+  * **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord. Les objets écrits sont immuables et versionnés
 
 ---
 
