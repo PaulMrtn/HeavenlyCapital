@@ -93,6 +93,11 @@ Ce module établit le socle de données de marché pour la Phase II. Il garantit
 * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
 * **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence.
 
+**IMarketDataCacheReader**
+* **Implémenté par** : DataCache
+* **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
+* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord
+
 **ILiveDataOrchestrator**
 * **Implémenté par** : Live Data Hub
 * **Injecté dans / Utilisé par** : System Manager
