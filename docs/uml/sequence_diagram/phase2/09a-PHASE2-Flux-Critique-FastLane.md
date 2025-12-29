@@ -98,3 +98,28 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide** pour le sys
 `dequeue()` :  Un thread dédié du Pool I/O Real-Time (Consommateur) retire le `MarketQuote` de la queue. L'opération est modélisée comme un loop continu, représentant la haute fréquence à laquelle le thread vérifie et consomme les nouveaux messages.
 
 `writeToCache(MarketQuote)` : Le thread du Pool I/O Real-Time exécute l'écriture physique du `MarketQuote` dans le cache. C'est l'opération finale de la Fast-Lane. Bien que l'opération soit très rapide (mémoire), elle est synchrone pour le thread consommateur, qui attend la confirmation avant de revenir au `dequeue`.
+
+---
+### 6. Ports et Interfaces
+
+**IMarketDataCacheWriter**
+* **Implémenté par** : Data Cache
+* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
+* **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
+* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Les objets écrits sont immuables et versionnés
+
+**IMarketDataCacheReader**
+* **Implémenté par** : DataCache
+* **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
+* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord. Les objets écrits sont immuables et versionnés
+
+
+---
+
+### NOTE 
+
+**Immutabilité des MarketQuotes :** Tout MarketQuote émis par le LiveDataHub est considéré comme un snapshot figé. Aucune modification, enrichissement ou recalcul n’est autorisé après publication.
+
+**Kill Switch** : Interface `ISystemKillSwitchPort` définie, usage strictement contrôlé : aucun composant métier ne déclenche l’arrêt directement, toute action réelle passe par `IProcessControlPort`. À vérifier que l’orchestration respecte cette règle lors de la relecture finale.
+
+**Versioning du flux marché** : Les snapshots et MarketQuotes doivent être immuables et versionnés. Les ports consommateurs (`MarketDataPort`, `IMarketDataCacheWriter`) ne doivent exposer que des versions validées, et tout accès à des données non versionnées doit être impossible.
