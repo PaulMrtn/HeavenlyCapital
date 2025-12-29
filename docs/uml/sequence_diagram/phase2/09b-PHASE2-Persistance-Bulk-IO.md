@@ -9,51 +9,52 @@
 
 ### 1. Objectif
 
-Garantir l'auditabilité et la traçabilité complète de l'activité de marché en enregistrant massivement les données agrégées (`MarketQuote` et `SnapshotHeader`) en base de données, sans jamais impacter la latence de la boucle d'exécution critique (Fast-Lane).
+Garantir l'auditabilité et la traçabilité complète de l'activité de marché en enregistrant les données reconstruites (`MarketQuote` et `SnapshotHeader`) en base de données. L'opération est conçue pour isoler les traitements lourds en I/O afin de ne jamais impacter la latence de la boucle d'exécution critique (Fast-Lane).
 
 ---
 
 ### 2. Contexte
 
-Ce module existe pour **isoler l'opération la plus lourde en I/O** du système : l'écriture en masse (*Bulk Insert*) des données historiques dans la base de données. Il s'inscrit en parallèle de la boucle de trading et utilise des ressources de **basse priorité** pour opérer en tâche de fond. Le point de départ est le **`SnapshotHeader` complet** (créé dans le `LiveDataHub` par la Fast-Lane), qui sert d'objet cohérent pour l'historique.
+Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. Il opère en **Slow-Lane**, de manière totalement asynchrone par rapport à la réception des flux. Le point d'entrée est  le **`Data Cache`**, où sont récupérées les cotations consolidées pour assembler une image cohérente du marché (le `SnapshotHeader`) destinée à l'historique.
 
 ---
 
 ### 3. Logique Générale
 
-1.  **Accumulation des Enveloppes :** Le `LiveDataHub` reçoit le flux de Ticks et crée les `SnapshotHeader` complets (contenant les `MarketQuote`). En plus de les envoyer à la `FastLaneQueue`, il les accumule dans un **buffer interne** destiné uniquement à la persistance.
-2.  **Déclenchement du Job :** Lorsque ce buffer atteint une taille critique (volume suffisant) et/ou qu'une période de temps définie s'est écoulée, le **LDH soumet le bloc de `SnapshotHeader`** au `Data Ingestion Layer` (`DIL`).
-3.  **Encapsulation Job :** Le `DIL` reçoit les blocs de données déjà structurés (cohérence du `SnapshotHeader` garantie par le LDH) et les prépare en tant qu'objet `PersistenceObject` pour l'insertion. Ce Job est transmis au `Job Manager` (`JM`).
-4.  **Exécution Asynchrone :** Le `JM` l'alloue au **`Pool I/O Bulk`** (Pool de basse priorité) via le `Thread Manager`. Un thread de ce pool exécute alors l'insertion massive et asynchrone des données dans la base de données.
-
+1. **Extraction du Cache :** Le `Data Ingestion Layer` (DIL) interroge périodiquement le `Data Cache` pour récupérer les dernières `MarketQuote` immuables déposées par la Fast-Lane.
+2. **Reconstruction du Snapshot :** Le DIL exécute la fonction `validateAndBuildSnapshot()`. Il génère un `snapshot_id` unique et vérifie la présence de tous les actifs attendus.
+3. **Qualification (Auditabilité) :** Si des données manquent ou sont obsolètes, le snapshot est marqué comme `DEGRADED` ou `PARTIAL`. S'il est complet, il est marqué `NOMINAL`. Cette qualification garantit la fidélité de l'audit post-trade.
+4. **Encapsulation et Job :** Les données sont préparées en tant qu'objet `PersistenceObject`. Ce "Job" est transmis au `Job Manager` (JM).
+5. **Exécution Asynchrone :** Le `JM` alloue la tâche au **`Pool I/O Bulk`** (basse priorité) via le `Thread Manager`. Un thread dédié exécute l'insertion massive en base de données sans bloquer les autres processus.
 ---
 
 ### 4. Règles Critiques
 
-* **Isolation Critique :** L'exécution de l'insertion (`bulkInsert`) est **asynchrone** par rapport au `LiveDataHub`. Le thread du LDH ne doit jamais attendre la fin de l'écriture en base.
-* **Priorité Basse :** La tâche utilise exclusivement le **`Pool I/O Bulk`**. Ce pool a la plus basse priorité afin que ses threads soient suspendus ou ralentis si une tâche critique (Fast-Lane ou exécution d'ordre) nécessite des ressources I/O urgentes.
-* **Condition de Déclenchement :** Le module ne s'active que de manière **périodique** ou **conditionnelle** (par taille de buffer atteinte) afin de maximiser l'efficacité du *Bulk Insert* et de minimiser la surcharge du système.
-* **Cohérence Structurelle :** La cohérence des clés (`snapshot_id`, `asset_id_ref`) est garantie par le `LiveDataHub` en amont. Le rôle du `DIL` est de **préparer les blocs pour la transaction finale**.
+* **Isolation Totale :** La Slow-Lane est strictement séparée de la Fast-Lane. Elle consomme les données du cache sans que le `LiveDataHub` n'ait connaissance du processus de persistance.
+* **Priorité Basse :** Les tâches utilisent exclusivement le **`Pool I/O Bulk`**. Ce pool est configuré avec la priorité la plus basse pour ne pas entrer en compétition avec les ressources CPU/IO requises par l'exécution d'ordres ou le calcul de risque.
+* **Auditabilité vs Exhaustivité :** Le système privilégie l'enregistrement de l'état réel "vu" par le système. Un snapshot incomplet est persisté avec son statut de dégradation pour assurer une transparence totale lors de l'analyse historique.
+* **Déclenchement Temporel :** Le cycle de persistance est déclenché par un timer ou un seuil de volume. Ces paramètres seront calibrés lors des phases de stress-test pour optimiser la charge système.
 
 ---
 
 ### 5. Conclusion
 
-Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'historique. En utilisant l'isolation des ressources du `Pool I/O Bulk` et la soumission par blocs cohérents (`SnapshotHeader`), il permet de capturer une image complète et cohérente du marché pour l'analyse Post-Trade, sans impacter la performance en temps réel de la boucle de trading.
+Ce module est le garant de l'audit et de l'historique par la reconstruction asynchrone des données. En utilisant l'isolation des ressources du `Pool I/O Bulk` et la qualification des blocs cohérents (`SnapshotHeader`), il permet de capturer une image fidèle et horodatée du marché pour l'analyse Post-Trade. Cette architecture garantit la transparence de l'audit, incluant les états dégradés, sans jamais impacter la performance en temps réel de la boucle de trading.
 
 ---
 
-### 6. Description des Fonctions
-
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1 | accumulate(SnapshotHeader) | LiveDataHub (LDH) | LiveDataHub (LDH) | Accumulation interne des snapshots dans un buffer pour atteindre le seuil de Bulk. |
-| 2 | submitBulk(SnapshotHeader[]) | LiveDataHub (LDH) | DataIngestionLayer (DIL) | Envoi du bloc de données structurées pour préparation à la persistance. |
-| 3 | createPersistenceJob(Data) | DataIngestionLayer (DIL) | JobManager (JM) | Encapsulation des données de marché dans une unité de travail (Job) traçable. |
-| 4 | allocate(BulkJob) | JobManager (JM) | ThreadManager (TM) | Demande d'allocation de ressources spécifiques pour une tâche de fond. |
-| 5 | runAsync(BulkPool) | ThreadManager (TM) | ThreadManager (TM) | Assignation du Job au pool de threads à basse priorité (BULK). |
-| 6 | bulkInsert(PersistenceObject) | ThreadManager (TM) | Database (DB) | Exécution physique de l'écriture massive en base de données. |
-| 7 | notifyCompletion() | ThreadManager (TM) | JobManager (JM) | Signalement de la fin de l'opération pour nettoyage du Job. |
+| 1 | fetchLatestQuotesFromCache() | Data Ingestion Layer | Data Cache | Requête synchrone pour extraire les dernières MarketQuotes immuables stockées en mémoire. |
+| 2 | List<MarketQuote> | Data Cache | Data Ingestion Layer | Retour de la liste des cotations consolidées disponibles pour le cycle actuel. |
+| 3 | validateAndBuildSnapshot() | Data Ingestion Layer | Data Ingestion Layer | Auto-appel pour reconstruire le SnapshotHeader global et vérifier l'intégrité des données (Nominal vs Dégradé). |
+| 4 | createPersistenceObjects(FullSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'if Valid' : Préparation des objets de données complets pour l'insertion en base. |
+| 5 | createPersistenceObjects(DegradedSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'else' : Préparation des objets avec marquage spécifique pour les snapshots partiels ou corrompus. |
+| 6 | createJob(Pool: I/O Bulk, Data: PersistenceObject) | Data Ingestion Layer | Job Manager | Création et soumission d'une tâche de persistance asynchrone avec priorité basse. |
+| 7 | delegateJob(Bulk I/O) | Job Manager | Thread Manager | Allocation de la tâche au pool de threads dédié aux opérations d'entrées/sorties massives. |
+| 8 | executeBulkInsert(DataBlock) | Thread Manager | Data Ingestion Layer | Signal d'exécution permettant au thread alloué de piloter l'écriture des données. |
+| 9 | bulkInsert(SnapshotHeader, MarketQuote) | Data Ingestion Layer | Database | Exécution physique de l'insertion massive (Bulk) dans les tables historiques de la base de données. |
+| 10 | notifyCompletion() | Database | Job Manager | Signalement de la fin de l'opération d'écriture pour clôture du Job et libération des ressources. |
 
 ---
 
@@ -65,12 +66,6 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 * **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des journaux de marché pour l'audit et l'historique.
 * **Règles d’accès ou d’usage** : Passage obligatoire par le DIL. Utilisation du pool de threads `BULK` pour ne pas impacter la latence.
 
-
-
----
-
-Voici des **notes / memos / TODO**, **paragraphe par idée**, centrées uniquement sur la documentation **09b actuelle**, en tenant compte de **tout ce qui a été décidé dans 09 et 09a**.
-Aucune reformulation de la doc ici, uniquement ce qui **ne va pas** et **doit être modifié**.
 
 ---
 
@@ -125,4 +120,3 @@ Le texte décrit un LDH qui soumet directement des blocs structurés au DIL, ce 
 ### MEMO 9 — 09b encore trop proche d’une “seconde Fast-Lane”
 
 La logique décrite donne l’impression d’une seconde pipeline orchestrée par le LDH, alors que 09b devrait être un **consommateur asynchrone autonome**, tolérant au retard, à la perte et à la reconstitution différée. La doc doit être réalignée pour montrer que 09b vit à son propre rythme et ne fait aucune hypothèse temps réel.
-
