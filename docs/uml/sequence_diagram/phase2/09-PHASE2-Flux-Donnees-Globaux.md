@@ -22,16 +22,18 @@ Ce module s'inscrit comme le premier grand processus de la Phase II (In-Trade), 
 
 ### 3. Logique Générale
 
-Le processus est déclenché par le `SystemManager` qui ordonne au `LiveDataHub` de commencer l'acquisition des données. Une fois l'écoute des Ticks démarrée via `IBKR Gateway`, le `LiveDataHub` initie **simultanément** deux processus indépendants modélisés par le fragment parallèle :
+Le processus est déclenché par le `SystemManager` qui ordonne au `LiveDataHub` de commencer l'acquisition des données. Une fois l'écoute des Ticks démarrée via `IBKR Gateway`, le `LiveDataHub` initie le traitement parallèle des deux flux :
 
-* **Fast-Lane (Référence 09a) :** Le flux ultra-rapide et non bloquant qui conduit les `MarketQuote` agrégés vers le `DataCache` via une queue asynchrone pour une disponibilité immédiate (destination : Risk Monitor / Portfolio Manager).
+* **Fast-Lane (Référence 09a) :** Le flux ultra-rapide et non bloquant qui **agrège les ticks en temps réel** et conduit les `MarketQuote` vers le `DataCache` pour une disponibilité immédiate (destination : Risk Monitor / Portfolio Manager).
   * Le DataCache stocke exclusivement des MarketQuotes immuables. Toute mise à jour correspond à un remplacement atomique de référence et non à une mutation de l’objet existant.
+  * Les snapshots produits sont immédiatement exploitables par les consommateurs métier.
 
-* **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui transfère les buffers de données agrégées vers le `DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
+* **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui reçoit une **copie asynchrone des snapshots agrégés** de la Fast-Lane et les transfère vers le `DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
   * La persistance Bulk I/O écrit les MarketQuotes tels que reçus, sans transformation métier ni recalcul. Toute normalisation ou mapping est du ressort exclusif du DIL.
+  * La Slow-Lane peut être légèrement en retard par rapport à la Fast-Lane, ce comportement est normal et attendu.
+  * Chaque snapshot produit par la Fast-Lane est transmis à la Slow-Lane sous forme de copie asynchrone, ce qui peut entraîner un léger décalage par rapport à la Fast-Lane, mais garantit que les données restent cohérentes et immuables.
 
-
-L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du marché.
+L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du marché, avec la Fast-Lane en priorité sur l’agrégation et la Slow-Lane en mode asynchrone pour persistance.
 
 ---
 
@@ -66,20 +68,17 @@ Les seuils de capacité de la queue, ainsi que les critères précis de dégrada
 Le système supporte plusieurs niveaux de fonctionnement, activés dynamiquement sans interruption :
 
 * **Fonctionnement nominal**
-
   * Agrégation complète des données de marché (bid, ask, volumes, last price)
   * Snapshots produits à l’intervalle nominal
   * Aucun drop significatif, métriques stables
 
 * **Stress de marché (volatilité élevée)**
-
   * Politique Drop Oldest active sur la queue d’entrée
   * Agrégation maintenue sans interruption
   * Le `MetricManager` est notifié d’un taux de drop élevé
   * Le `RiskMonitor` et le `PortfolioManager` continuent d’opérer sur le **dernier snapshot valide**
 
 * **Stress extrême**
-
   * Toujours aucun blocage ni arrêt du système
   * Maintien impératif de la fraîcheur des snapshots
   * Dégradation contrôlée de l’agrégation (ex. priorité au `last_price`, enrichissement bid/ask optionnel)
@@ -133,12 +132,12 @@ Ce module établit le socle de données de marché pour la Phase II. Il garantit
 * **Implémenté par** : Data Cache
 * **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
 * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
-* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence.
+* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Les objets écrits sont immuables et versionnés
 
 **IMarketDataCacheReader**
 * **Implémenté par** : DataCache
 * **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
-* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord
+* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord. Les objets écrits sont immuables et versionnés
 
 **ILiveDataOrchestrator**
 * **Implémenté par** : Live Data Hub
