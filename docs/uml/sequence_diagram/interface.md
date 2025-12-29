@@ -465,6 +465,19 @@ Validation OS de la priorité temps réel.
 
 ---
 
+### IMarketDataObserverPort
+* **Implémenté par** : `MetricManager`, `WebSocketPublisher` (UI)
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** :
+* Fournir un point d'entrée pour la consommation passive et asynchrone des signaux bruts de performance (latence, drops) et d'état des snapshots.
+* Permettre le découplage entre la logique de persistance (Audit) et la logique d'affichage/calcul de métriques (Observabilité).
+* **Règles d’accès ou d’usage** :
+  * Mode **Best-effort** obligatoire : le producteur (DIL) ne doit jamais être ralenti par un consommateur lent.
+  * Accès strictement **observatoire** : aucune capacité d'action sur le runtime de trading ou sur les flux de la Fast-Lane.
+  * Utilisation recommandée des données issues du `SnapshotHeader` pour garantir une vue cohérente du marché.
+
+---
+
 ## 7. Commands (Bootstrapping)
 
 ### ILoadPortfolioStateCommand
