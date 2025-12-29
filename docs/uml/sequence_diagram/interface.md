@@ -443,6 +443,14 @@ Validation OS de la priorité temps réel.
 
 ---
 
+###IMarketDataHealthPort
+  * **Implémenté par** : `Live Data Hub (LDH)`
+  * **Injecté dans / Utilisé par** : `System Manager`
+  * **Responsabilité opérationnelle** : Validation de la preuve de vie du flux, vérification de la couverture et **contrôle de la fraîcheur (fraîcheur des ticks)**.
+  * **Règles d’accès ou d’usage** : Utilisé ici pour le message `notifyHighLatency()`. Toute anomalie de fraîcheur doit être remontée immédiatement.
+
+---
+
 ## 7. Commands (Bootstrapping)
 
 ### ILoadPortfolioStateCommand
@@ -514,6 +522,15 @@ Interface unique pour signaler une demande d’arrêt global du système.
   - Ne peut être appelé par LDH ni en Phase II
   - Ne déclenche jamais l’arrêt seul, toute action passe par `IProcessControlPort`
   - Aucun scénario décisionnel n’est défini ici
+
+---
+
+**ILiveDataControlPort**
+
+* **Implémenté par** : `Live Data Hub`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Permettre le changement dynamique du mode de traitement des données de marché suite à une alerte de latence.
+* **Règles d’accès ou d’usage** : Appel synchrone via le message `setOperatingMode(Mode)`. Définit si l'agrégation doit être `NOMINAL` ou `DEGRADED`.
 
 ---
 
