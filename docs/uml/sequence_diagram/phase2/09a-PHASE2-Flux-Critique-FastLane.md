@@ -120,14 +120,12 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 * **Utilisé par** : Tous les managers (dont le `LiveDataHub`)
 * **Responsabilité opérationnelle** : Journalisation globale du système (logs techniques, opérationnels et audit).
 * **Règles d’accès ou d’usage** : Mode synchrone pour bootstrapping et erreurs fatales ; **mode non-bloquant en runtime** (essentiel pour la Fast-Lane).
-
  
 **IThreadManagerPort**
-Gestion de la couche d’exécution.
-- Implémenté par : Thread Manager
-- Utilisé par : System Manager
-- Responsabilités : Allocation des pools, Démarrage des loops persistantes, Reporting de l’état d’initialisation
-- Règles : Invocation synchrone uniquement, BOOTSTRAP_ONLY, Aucun accès direct aux PoolWorkers
+  * **Implémenté par** : Thread Manager
+  * **Utilisé par :** System Manager
+  * **Responsabilités :** Allocation des pools, Démarrage des loops persistantes, Reporting de l’état d’initialisation
+  * **Règles :** Invocation synchrone uniquement, BOOTSTRAP_ONLY, Aucun accès direct aux PoolWorkers
 
 ---
 
