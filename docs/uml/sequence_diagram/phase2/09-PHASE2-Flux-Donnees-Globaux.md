@@ -39,7 +39,7 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
 ---
 
 
-### 4.1 Règles Critiques
+### 4 Règles Critiques
 
 * **Garantie de Parallélisme :** L'utilisation du fragment Parallèle est fondamentale pour garantir que la charge de travail du `Pool I/O Bulk` (Slow-Lane) ne perturbe jamais la boucle critique du `Pool I/O Real-Time` (Fast-Lane).
 * **Source Unique :** Le `LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
