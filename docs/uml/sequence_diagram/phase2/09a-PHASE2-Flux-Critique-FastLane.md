@@ -21,7 +21,7 @@ Ce module est le **cœur opérationnel** de la Phase II (In-Trade). Il s'inscrit
 
 ### 3. Logique Générale
 
-Le fonctionnement repose sur un modèle **Producteur/Consommateur** découplé par une **Queue Non Bloquante** (`FastLaneQueue`) :
+Le découplage Producteur / Consommateur est découplé par une **Queue Non Bloquante** (`FastLaneQueue`) de type SPSC (Single Producer / Single Consumer), garantissant une latence minimale, l’absence de contention et un comportement strictement déterministe :
 
 * **Le Producteur (`LiveDataHub`)** reçoit les `TickData` bruts, applique une politique de **Backpressure (Drop Oldest)** en cas de saturation, puis vérifie la latence. Si le flux est sain, il agrège les Ticks en un objet **`MarketQuote`** immuable. En cas de latence, il bascule en **Mode Dégradé** via le `SystemManager`. Il **dépose** ensuite ce `MarketQuote` dans la `FastLaneQueue` de manière asynchrone.
 * **Le Consommateur** (un thread dédié du `ThreadManager` / `Pool I/O Real-Time`) est en **boucle d'écoute persistante** sur la `FastLaneQueue`. Dès qu'un `MarketQuote` est disponible, il le retire et l'écrit dans le `DataCache`.
