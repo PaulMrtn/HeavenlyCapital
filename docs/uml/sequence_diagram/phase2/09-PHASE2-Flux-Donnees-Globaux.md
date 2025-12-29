@@ -91,4 +91,3 @@ Interface unique pour signaler une demande d’arrêt global du système.
 - **Utilisé par** : Aucun composant métier par défaut
 - **Responsabilité** : Exposer un point d’ancrage contractuel pour toute politique future de Kill Switch, sans déclencher directement l’arrêt.
 - **Règles** :  Ne peut être appelé par LDH ni en Phase II, Ne déclenche jamais l’arrêt seul, toute action passe par `IProcessControlPort`, Aucun scénario décisionnel n’est défini ici.
-
