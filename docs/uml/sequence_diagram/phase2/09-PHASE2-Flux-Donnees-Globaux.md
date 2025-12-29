@@ -79,30 +79,13 @@ Ce module établit le socle de données de marché pour la Phase II. Il garantit
 * **Responsabilité opérationnelle** : Réception des flux de prix bruts (Message 3 : `AcquisitionStarted` et flux suivants). Garantit la préparation des données pour les deux "Lanes" (Fast/Slow).
 * **Règles d’accès ou d’usage** : Source unique de vérité pour le système. Les écritures proviennent exclusivement de la Gateway.
 
-**PersistencePort**
-* **Implémenté par** : Data Integrity Layer (DIL)
-* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09b)
-* **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des journaux de marché pour l'audit et l'historique.
-* **Règles d’accès ou d’usage** : Passage obligatoire par le DIL. Utilisation du pool de threads `BULK` pour ne pas impacter la latence.
-
-**IMarketDataCacheWriter**
-* **Implémenté par** : Data Cache
-* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
-* **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
-* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Les objets écrits sont immuables et versionnés
-
-**IMarketDataCacheReader**
-* **Implémenté par** : DataCache
-* **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
-* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Retourne des snapshots immuables. Ne bloque jamais la Fast-Lane. Aucun effet de bord. Les objets écrits sont immuables et versionnés
-
 **ILiveDataOrchestrator**
 * **Implémenté par** : Live Data Hub
 * **Injecté dans / Utilisé par** : System Manager
 * **Responsabilité opérationnelle** : Point d'entrée pour le pilotage du cycle de vie des données de marché (Message 1 : `startMarketDataService`).
 * **Règles d’accès ou d’usage** : Gère la transition vers le mode "In-Trade". Doit confirmer que les deux flux (Fast/Slow) sont opérationnels.
 
-**ISystemKillSwitchPort**
+**ISystemKillSwitchPort** 
 Interface unique pour signaler une demande d’arrêt global du système.
 - **Implémenté par** : `SystemManager`
 - **Utilisé par** : Aucun composant métier par défaut
