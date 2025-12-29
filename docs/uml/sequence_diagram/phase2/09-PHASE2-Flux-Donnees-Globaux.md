@@ -43,9 +43,7 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
 
 * **Garantie de Parallélisme :** L'utilisation du fragment Parallèle est fondamentale pour garantir que la charge de travail du `Pool I/O Bulk` (Slow-Lane) ne perturbe jamais la boucle critique du `Pool I/O Real-Time` (Fast-Lane).
 * **Source Unique :** Le `LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
-* **Résilience Intrinsèque :** Bien que les flux soient indépendants, le mécanisme de surveillance de la latence du `09a` reste prioritaire. Une défaillance de la Fast-Lane entraîne un arrêt (Kill Switch) potentiel du système entier, y compris de la Slow-Lane.
-* **Immutabilité des MarketQuotes :** Tout MarketQuote émis par le LiveDataHub est considéré comme un snapshot figé. Aucune modification, enrichissement ou recalcul n’est autorisé après publication.
-* **Périmètre de responsabilité :** La séquence 09 est exclusivement responsable de la production, de l’agrégation et de l’écriture des données de marché (Fast-Lane / Slow-Lane). Toute logique de lecture, de consommation ou d’interprétation des données du DataCache est volontairement hors périmètre et définie dans les séquences consommatrices ultérieures.
+* **Périmètre de responsabilité :** La séquence 09-09a-09b est exclusivement responsable de la production, de l’agrégation et de l’écriture des données de marché (Fast-Lane / Slow-Lane). Toute logique de lecture, de consommation ou d’interprétation des données du DataCache est volontairement hors périmètre et définie dans les séquences consommatrices ultérieures.
 * **Accès au DataCache :** Le DataCache expose des ports strictement séparés pour l’écriture et la lecture. Le LiveDataHub est l’unique Writer autorisé. RiskMonitor et PortfolioManager accèdent aux données exclusivement via des interfaces Reader en lecture seule, lock-free. Tout accès direct ou toute tentative de mutation est interdit.
 
 ---
@@ -111,11 +109,3 @@ Interface unique pour signaler une demande d’arrêt global du système.
 - **Responsabilité** : Exposer un point d’ancrage contractuel pour toute politique future de Kill Switch, sans déclencher directement l’arrêt.
 - **Règles** :  Ne peut être appelé par LDH ni en Phase II, Ne déclenche jamais l’arrêt seul, toute action passe par `IProcessControlPort`, Aucun scénario décisionnel n’est défini ici.
 
----
-
-
-### NOTE
-
-**Kill Switch** : Interface `ISystemKillSwitchPort` définie, usage strictement contrôlé : aucun composant métier ne déclenche l’arrêt directement, toute action réelle passe par `IProcessControlPort`. À vérifier que l’orchestration respecte cette règle lors de la relecture finale.
-
-**Versioning du flux marché** : Les snapshots et MarketQuotes doivent être immuables et versionnés. Les ports consommateurs (`MarketDataPort`, `IMarketDataCacheWriter`) ne doivent exposer que des versions validées, et tout accès à des données non versionnées doit être impossible.
