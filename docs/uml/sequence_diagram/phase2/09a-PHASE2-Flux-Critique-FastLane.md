@@ -81,25 +81,20 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide** pour le sys
 
 ---
 
-### Description des Fonctions
-
-`tickData(tick_id, asset_id_ref, ...)`:'IBKR Gateway reçoit une mise à jour brute du marché et la transmet de manière asynchrone au Live Data Hub. C'est l'événement déclencheur de chaque itération de la boucle de traitement. Le message transporte l'intégralité des attributs de l'objet `TickData`.
-
-`checkLatency()` : Exécuté immédiatement après la réception du Tick. Le Live Data Hub compare le `timestamp` du `TickData` reçu avec l'heure actuelle du système. Si la différence dépasse un seuil prédéfini (latence max) ou si d'autres métriques de santé du flux sont violées, il renvoie un statut `CRITICAL_ERROR`. C'est le point de décision du fragment **ALT**.
-
-`logCriticalError(EventDetails)` : Si le `checkLatency()` détecte une défaillance critique, le Live Data Hub envoie un message synchrone au service de journalisation. L'opération est synchrone pour garantir que la preuve de l'incident est enregistrée et auditée **avant** que le système ne procède à l'arrêt ou à la tentative de redémarrage.
-
-`REF: SM-HandleCriticalDataLoss(FluxDataLostEvent)`: Ceci est une référence à une séquence UML externe. Si une erreur critique est détectée, le Live Data Hub alerte le System Manager. Le System Manager prend alors le contrôle pour exécuter la procédure d'urgence : annulation des ordres, déconnexion/reconnexion, et décision d'un arrêt fatal ou d'une tentative de reprise.
-
-`aggregateToSnapshot()` : Exécuté uniquement si la latence est jugée acceptable. Le Live Data Hub utilise les Ticks accumulés localement (sur son thread) depuis le dernier snapshot et les consolide. Il calcule les métriques agrégées (Bid/Ask consolidés, Volume cumulé, etc.) et produit l'objet **`MarketQuote`** final prêt à être consommé.
-
-`enqueue(MarketQuote)` : Le Live Data Hub (Producteur) insère l'objet `MarketQuote` (le prix prêt) dans la queue non bloquante. C'est l'opération critique de **découplage**. Le `LiveDataHub` ne se bloque pas et peut passer immédiatement à l'écoute du prochain Tick.
-
-`dequeue()` :  Un thread dédié du Pool I/O Real-Time (Consommateur) retire le `MarketQuote` de la queue. L'opération est modélisée comme un loop continu, représentant la haute fréquence à laquelle le thread vérifie et consomme les nouveaux messages.
-
-`writeToCache(MarketQuote)` : Le thread du Pool I/O Real-Time exécute l'écriture physique du `MarketQuote` dans le cache. C'est l'opération finale de la Fast-Lane. Bien que l'opération soit très rapide (mémoire), elle est synchrone pour le thread consommateur, qui attend la confirmation avant de revenir au `dequeue`.
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | tickData(tick_id, asset_id_ref, ...) | IBKR Gateway | Live Data Hub | Réception de données de marché brutes en streaming continu (Market Open). |
+| 2 | checkLatency() | Live Data Hub | Live Data Hub | Auto-vérification de l'horodatage pour détecter un retard de flux (Stale Data). |
+| 3 | createSnapshotHeader(AccumulatedTicks) | Live Data Hub | Live Data Hub | Agrégation des ticks bruts en un objet consolidé (MarketQuote/Snapshot). |
+| 4 | logCriticalError(EventDetails) | Live Data Hub | Log Service | Enregistrement synchrone d'une anomalie majeure de flux (Audit Trail). |
+| 5 | HandleCriticalDataLoss(FluxDataLostEvent) | Live Data Hub | System Manager | Notification prioritaire pour déclenchement des protocoles de sécurité/alerte. |
+| 6 | enqueue(SnapshotHeader) | Live Data Hub | FastLaneQueue | Dépôt asynchrone non-bloquant de la donnée agrégée dans la file d'attente. |
+| 7 | dequeue() | Thread Manager | FastLaneQueue | Récupération du snapshot par un thread du Pool I/O Real-Time (Consommateur). |
+| 8 | writeToCache(SnapshotHeader) | Thread Manager | Data Cache | Écriture physique de la cotation dans le cache mémoire (IMarketDataCacheWriter). |
+| 9 | Success | Data Cache | Thread Manager | Confirmation d'écriture (Acquittement) pour libérer le thread de la boucle. |
 
 ---
+
 ### 6. Ports et Interfaces
 
 **IMarketDataCacheWriter**
