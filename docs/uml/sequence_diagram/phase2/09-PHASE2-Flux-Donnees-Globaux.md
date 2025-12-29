@@ -30,9 +30,8 @@ Le processus est déclenché par le `SystemManager` qui ordonne au `LiveDataHub`
 
 * **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui reçoit une **copie asynchrone des snapshots agrégés** de la Fast-Lane et les transfère vers le `DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
   * La persistance Bulk I/O écrit les MarketQuotes tels que reçus, sans transformation métier ni recalcul. Toute normalisation ou mapping est du ressort exclusif du DIL.
-  * La Slow-Lane peut être légèrement en retard par rapport à la Fast-Lane, ce comportement est normal et attendu.
   * Chaque snapshot produit par la Fast-Lane est transmis à la Slow-Lane sous forme de copie asynchrone, ce qui peut entraîner un léger décalage par rapport à la Fast-Lane, mais garantit que les données restent cohérentes et immuables.
-  * Observabilité Slow-Lane : La Slow-Lane calcule localement les métriques sur drops, retards et nombre de ticks par snapshot. Ces mesures sont remontées vers le MetricManager sans affecter la Fast-Lane. La fréquence et le mode de reporting seront calibrés ultérieurement, l’objectif étant de suivre la qualité des données persistées sans ralentir la Fast-Lane.
+  * La Slow-Lane calcule localement les métriques sur drops, retards et nombre de ticks par snapshot. Ces mesures sont remontées vers le `MetricManager` sans affecter la Fast-Lane. La fréquence et le mode de reporting seront calibrés ultérieurement, l’objectif étant de suivre la qualité des données persistées sans ralentir la Fast-Lane.
 
 
 L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du marché, avec la Fast-Lane en priorité sur l’agrégation et la Slow-Lane en mode asynchrone pour persistance.
