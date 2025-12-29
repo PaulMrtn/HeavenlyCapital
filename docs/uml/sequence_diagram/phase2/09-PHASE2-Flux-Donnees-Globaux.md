@@ -146,4 +146,11 @@ Ce module établit le socle de données de marché pour la Phase II. Il garantit
 * **Responsabilité opérationnelle** : Point d'entrée pour le pilotage du cycle de vie des données de marché (Message 1 : `startMarketDataService`).
 * **Règles d’accès ou d’usage** : Gère la transition vers le mode "In-Trade". Doit confirmer que les deux flux (Fast/Slow) sont opérationnels.
 
+**ISystemKillSwitchPort**
+Interface unique pour signaler une demande d’arrêt global du système.
+- **Implémenté par** : `SystemManager`
+- **Utilisé par** : Aucun composant métier par défaut
+- **Responsabilité** : Exposer un point d’ancrage contractuel pour toute politique future de Kill Switch, sans déclencher directement l’arrêt.
+- **Règles** :  Ne peut être appelé par LDH ni en Phase II, Ne déclenche jamais l’arrêt seul, toute action passe par `IProcessControlPort`, Aucun scénario décisionnel n’est défini ici.
+
 ---
