@@ -62,10 +62,7 @@ Le **Live Data Hub (LDH)** applique une politique explicite de gestion de charge
   * Dégradation contrôlée de l’agrégation (ex. priorité au `last_price`, enrichissement bid/ask optionnel)
   * Snapshots potentiellement moins riches mais **toujours exploitables pour la gestion du risque**
 
-#### Observabilité
-
-Tout événement de drop ou de dégradation est **mesuré et remonté** vers un composant dédié (`MetricManager`).
-Ces métriques ont un rôle **strictement observatoire** et ne déclenchent aucun arrêt automatique, l’objectif étant de préserver la capacité du système à produire des décisions de risque et d’exécution même dans les conditions de marché les plus dégradées.
+**Observabilité : ** Tout événement de drop ou de dégradation est **mesuré et remonté** vers un composant dédié (`MetricManager`). Ces métriques ont un rôle **strictement observatoire** et ne déclenchent aucun arrêt automatique, l’objectif étant de préserver la capacité du système à produire des décisions de risque et d’exécution même dans les conditions de marché les plus dégradées.
 
 ---
 
