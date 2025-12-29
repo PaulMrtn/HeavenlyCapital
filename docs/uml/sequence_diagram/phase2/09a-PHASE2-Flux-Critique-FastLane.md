@@ -28,12 +28,50 @@ Le fonctionnement repose sur un modèle **Producteur/Consommateur** découplé p
 
 ---
 
-### 4. Règles Critiques
+### 4.1 Règles Critiques
 
 * **Priorité Sécurité :** La vérification de la latence (`checkLatency()`) est exécutée **avant** toute agrégation ou distribution. En cas de latence critique ou de perte de connexion, le processus s'interrompt immédiatement pour alerter le `SystemManager` via la référence `REF: SM-HandleCriticalDataLoss`. L'enregistrement (`logCriticalError`) de l'incident est synchrone et prioritaire.
 * **Non-Blocage Absolu :** L'opération clé (`enqueue` sur la `:FastLaneQueue`) doit être **non bloquante** pour le thread du `:LiveDataHub`. Cela garantit que l'agrégateur ne perd jamais de temps et peut absorber le flux maximum de `Tick Data`.
 * **Isolation des Tâches :** Le calcul intensif (agrégation en `MarketQuote`) est effectué par le Producteur (`LiveDataHub`), tandis que l'I/O critique (écriture en cache) est effectuée par le Consommateur (`:ThreadManager`). Cela isole le CPU du temps I/O.
 * **Structure de Données :** Seul l'objet **`MarketQuote`** (la cotation consolidée pour un actif) transite par la `FastLaneQueue` et est stocké dans le cache, minimisant la charge utile et la latence.
+
+### 4.2 Politique de Gestion de Charge et Dégradation Contrôlée
+
+Le **Live Data Hub (LDH)** applique une politique explicite de gestion de charge visant à garantir **la continuité de la diffusion des données de marché**, y compris en conditions de volatilité extrême, sans jamais bloquer le producteur ni interrompre le système.
+
+#### Principe Général
+
+Le flux de ticks entrants est absorbé via une **queue bornée** en amont de l’agrégation.
+En cas de saturation, la politique **Drop Oldest** est appliquée afin de préserver en priorité les données de marché les plus récentes.
+Aucune forme de *backpressure* ou de blocage n’est autorisée sur le LDH.
+
+Les seuils de capacité de la queue, ainsi que les critères précis de dégradation, ne sont **pas figés à ce stade** et seront calibrés lors des **phases de stress test et de mock de charge**, en fonction des caractéristiques réelles du marché et de la fréquence de snapshot retenue (ex. 1 minute).
+
+#### Niveaux de Fonctionnement
+
+La Fast-Lane reste non bloquante en toutes circonstances, tandis que la Slow-Lane reçoit et absorbe les snapshots de manière asynchrone, garantissant que l’agrégation critique reste prioritaire. Le système supporte plusieurs niveaux de fonctionnement, activés dynamiquement sans interruption :
+
+* **Fonctionnement nominal**
+  * Agrégation complète des données de marché (bid, ask, volumes, last price)
+  * Snapshots produits à l’intervalle nominal
+  * Aucun drop significatif, métriques stables
+
+* **Stress de marché (volatilité élevée)**
+  * Politique Drop Oldest active sur la queue d’entrée
+  * Agrégation maintenue sans interruption
+  * Le `MetricManager` est notifié d’un taux de drop élevé
+  * Le `RiskMonitor` et le `PortfolioManager` continuent d’opérer sur le **dernier snapshot valide**
+
+* **Stress extrême**
+  * Toujours aucun blocage ni arrêt du système
+  * Maintien impératif de la fraîcheur des snapshots
+  * Dégradation contrôlée de l’agrégation (ex. priorité au `last_price`, enrichissement bid/ask optionnel)
+  * Snapshots potentiellement moins riches mais **toujours exploitables pour la gestion du risque**
+
+#### Observabilité
+
+Tout événement de drop ou de dégradation est **mesuré et remonté** vers un composant dédié (`MetricManager`).
+Ces métriques ont un rôle **strictement observatoire** et ne déclenchent aucun arrêt automatique, l’objectif étant de préserver la capacité du système à produire des décisions de risque et d’exécution même dans les conditions de marché les plus dégradées.
 
 ---
 
