@@ -45,21 +45,15 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 
 ### 6. Description des Fonctions
 
-* **`checkBufferStatus()`** : Auto-appel périodique qui vérifie l'état du buffer de `SnapshotHeader` en attente de persistance. Il compare le temps écoulé et la taille du bloc avec les seuils configurés pour déclencher l'insertion.
-
-* **`submitTask(SnapshotHeaderBuffer)`** : Le `LDH` transfère le bloc de `SnapshotHeader` complets et structurés au `DIL`. Le `LDH` efface ensuite son buffer pour commencer une nouvelle accumulation.
-
-* **`createPersistenceObjects()`** : Fonction de préparation. Le `DIL` reçoit les `SnapshotHeader` déjà cohérents et les formate dans la structure la plus efficace pour le pilote de base de données (ex : conversion en un grand tableau de lignes SQL). Il ne crée plus les clés primaires/étrangères.
-
-* **`createJob(Pool: I/O Bulk, Data: PersistenceObject)`** : Le `DIL` encapsule le bloc de données finalisé et spécifie le type de ressource requis : `Pool I/O Bulk` (basse priorité). Le `JM` prend le relais, enregistre le Job et le met en file d'attente.
-
-* **`delegateJob(Bulk I/O)`** : Lorsque c'est le tour du Job d'être exécuté, le `JM` demande au `TM` de lui fournir un thread libre et de basse priorité du `Pool I/O Bulk`.
-
-* **`executeBulkInsert(DataBlock)`** : Le thread alloué lance la fonction d'insertion réelle via le `DIL`. Cet appel est asynchrone du point de vue de la boucle critique du système.
-
-* **`bulkInsert(SnapshotHeader, MarketQuote)`** : C'est l'opération physique. Le `DIL` exécute la requête optimisée d'insertion en masse (y compris le `SnapshotHeader` parent et toutes les lignes `MarketQuote` enfants) en une seule transaction lourde. Le thread est bloqué sur cette I/O jusqu'à la confirmation de la base de données.
-
-* **`Job Completed`** : Après la confirmation de la transaction, l'état du Job est mis à jour. Le `JM` est notifié, lui permettant de clôturer la tâche et d'enregistrer l'audit de fin d'exécution.
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | accumulate(SnapshotHeader) | LiveDataHub (LDH) | LiveDataHub (LDH) | Accumulation interne des snapshots dans un buffer pour atteindre le seuil de Bulk. |
+| 2 | submitBulk(SnapshotHeader[]) | LiveDataHub (LDH) | DataIngestionLayer (DIL) | Envoi du bloc de données structurées pour préparation à la persistance. |
+| 3 | createPersistenceJob(Data) | DataIngestionLayer (DIL) | JobManager (JM) | Encapsulation des données de marché dans une unité de travail (Job) traçable. |
+| 4 | allocate(BulkJob) | JobManager (JM) | ThreadManager (TM) | Demande d'allocation de ressources spécifiques pour une tâche de fond. |
+| 5 | runAsync(BulkPool) | ThreadManager (TM) | ThreadManager (TM) | Assignation du Job au pool de threads à basse priorité (BULK). |
+| 6 | bulkInsert(PersistenceObject) | ThreadManager (TM) | Database (DB) | Exécution physique de l'écriture massive en base de données. |
+| 7 | notifyCompletion() | ThreadManager (TM) | JobManager (JM) | Signalement de la fin de l'opération pour nettoyage du Job. |
 
 ---
 
