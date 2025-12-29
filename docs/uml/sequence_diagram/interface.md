@@ -344,6 +344,20 @@ Remontée des statuts d’exécution.
 
 ---
 
+### IJobSubmissionPort
+
+* **Implémenté par** : `Job Manager`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`, `Order Manager` (éventuellement)
+* **Responsabilité opérationnelle** :
+* Point d'entrée unique pour la soumission de tâches asynchrones vers les files d'attente système.
+* Permet de découpler l'émetteur de l'action de l'exécution physique de la tâche.
+* **Règles d’accès ou d’usage** :
+  * Appel **non-bloquant** (Fire-and-forget).
+  * Doit impérativement inclure la définition du pool cible (ex: `Bulk Pool`) pour l'arbitrage par le Thread Manager.
+  * Toute tâche soumise doit être encapsulée dans un objet de type `Job` ou `PersistenceObject` immuable.
+
+---
+
 ## 5. Logging, Audit & Errors
 
 ### ILogger
