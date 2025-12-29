@@ -64,3 +64,65 @@ Le module `09b-PHASE2-Persistance-Bulk-IO` est le garant de l'audit et de l'hist
 * **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09b)
 * **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des journaux de marché pour l'audit et l'historique.
 * **Règles d’accès ou d’usage** : Passage obligatoire par le DIL. Utilisation du pool de threads `BULK` pour ne pas impacter la latence.
+
+
+
+---
+
+Voici des **notes / memos / TODO**, **paragraphe par idée**, centrées uniquement sur la documentation **09b actuelle**, en tenant compte de **tout ce qui a été décidé dans 09 et 09a**.
+Aucune reformulation de la doc ici, uniquement ce qui **ne va pas** et **doit être modifié**.
+
+---
+
+### MEMO 1 — Responsabilité de création du SnapshotHeader (ERREUR MAJEURE)
+
+La documentation indique que le `SnapshotHeader` est créé dans le `LiveDataHub` par la Fast-Lane. Cette hypothèse est désormais **fausse et incohérente** avec l’architecture validée. La Fast-Lane ne doit jamais créer de snapshot global ni garantir une cohérence inter-assets. Le `SnapshotHeader` doit être **construit exclusivement en Slow-Lane**, à partir des `MarketQuote` reçues, sur la base d’un cycle logique (`snapshot_id`, timestamp). Toute mention laissant penser que la Fast-Lane produit des snapshots complets doit être supprimée ou déplacée.
+
+---
+
+### MEMO 2 — Accumulation interne côté LDH (ANTI-PATTERN)
+
+Le texte décrit une accumulation de `SnapshotHeader` dans un buffer interne du `LiveDataHub`. Cela introduit une **responsabilité de persistance et de batching dans un composant critique**, ce qui viole le principe d’isolation stricte Fast-Lane / Slow-Lane. Le LDH ne doit jamais bufferiser des structures destinées à la persistance. Il doit uniquement **émettre des MarketQuote immuables** vers une queue asynchrone Slow-Lane. Toute logique de buffering, seuil, fenêtre temporelle ou regroupement doit être déplacée dans le Dispatcher / DIL.
+
+---
+
+### MEMO 3 — Point de départ logique de la Slow-Lane mal positionné
+
+La doc présente le `SnapshotHeader` comme point d’entrée de la Slow-Lane. C’est conceptuellement incorrect. Le **point de départ réel de la Slow-Lane est le flux de MarketQuote** produit par la Fast-Lane. Le snapshot global est une **reconstruction a posteriori**, pas un artefact amont. La logique actuelle inverse la causalité et doit être corrigée pour refléter un modèle événementiel unidirectionnel.
+
+---
+
+### MEMO 4 — Garantie de cohérence attribuée au mauvais composant
+
+La cohérence structurelle (`snapshot_id`, `asset_id_ref`) est présentée comme garantie par le LiveDataHub. En réalité, le LDH garantit uniquement la **cohérence locale d’une MarketQuote** (immutabilité, horodatage, version). La **cohérence globale du snapshot (complétude, cardinalité, statut)** ne peut être évaluée qu’en Slow-Lane. Cette responsabilité doit être explicitement déplacée dans le périmètre du DIL / persistance.
+
+---
+
+### MEMO 5 — Confusion entre auditabilité et exhaustivité
+
+La documentation laisse entendre que les données persistées représentent une image complète et cohérente du marché. Or, avec une politique Drop Oldest et une dégradation contrôlée, la persistance peut être **partielle par design**. La doc doit être alignée sur le fait que l’audit porte sur **ce qui a été effectivement observé et produit**, pas sur une garantie d’exhaustivité. Le snapshot peut être valide tout en étant incomplet.
+
+---
+
+### MEMO 6 — Absence de statut de snapshot en persistance
+
+Le modèle présenté ne prévoit aucun mécanisme explicite pour qualifier un snapshot persisté (complet, partiel, dégradé). Sans cela, l’audit post-trade est ambigu. La doc 09b doit introduire explicitement que la Slow-Lane est responsable de qualifier chaque snapshot via des métadonnées (statut, compte attendu vs reçu), même si l’implémentation est différée.
+
+---
+
+### MEMO 7 — Temporalité mal définie (fenêtrage implicite)
+
+Le déclenchement du Bulk Insert est décrit comme dépendant d’une taille critique ou d’un intervalle de temps, sans préciser à quel niveau temporel cela s’applique (tick, snapshot, cycle). Cette ambiguïté est problématique. La Slow-Lane doit être clairement définie comme **fenêtrée sur des cycles de snapshot**, pas sur des événements arbitraires. La doc doit refléter cette temporalité logique.
+
+---
+
+### MEMO 8 — Couplage conceptuel excessif LDH ↔ DIL
+
+Le texte décrit un LDH qui soumet directement des blocs structurés au DIL, ce qui implique une connaissance forte du format de persistance. Cela va à l’encontre du découplage souhaité. Le LDH ne doit connaître ni le format final, ni la structure transactionnelle. Il doit publier des événements (MarketQuote) ; la Slow-Lane décide comment les transformer en objets persistables.
+
+---
+
+### MEMO 9 — 09b encore trop proche d’une “seconde Fast-Lane”
+
+La logique décrite donne l’impression d’une seconde pipeline orchestrée par le LDH, alors que 09b devrait être un **consommateur asynchrone autonome**, tolérant au retard, à la perte et à la reconstitution différée. La doc doit être réalignée pour montrer que 09b vit à son propre rythme et ne fait aucune hypothèse temps réel.
+
