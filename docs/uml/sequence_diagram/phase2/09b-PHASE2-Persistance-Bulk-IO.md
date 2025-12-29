@@ -45,17 +45,17 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1 | fetchLatestQuotesFromCache() | Data Ingestion Layer | Data Cache | Requête synchrone pour extraire les dernières MarketQuotes immuables stockées en mémoire. |
-| 2 | List< MarketQuote > | Data Cache | Data Ingestion Layer | Retour de la liste des cotations consolidées disponibles pour le cycle actuel. |
-| 3 | validateAndBuildSnapshot() | Data Ingestion Layer | Data Ingestion Layer | Auto-appel pour reconstruire le SnapshotHeader global et vérifier l'intégrité des données (Nominal vs Dégradé). |
-| 4 | createPersistenceObjects(FullSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'if Valid' : Préparation des objets de données complets pour l'insertion en base. |
-| 5 | createPersistenceObjects(DegradedSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'else' : Préparation des objets avec marquage spécifique pour les snapshots partiels ou corrompus. |
-| 6 | createJob(Pool: I/O Bulk, Data: PersistenceObject) | Data Ingestion Layer | Job Manager | Création et soumission d'une tâche de persistance asynchrone avec priorité basse. |
-| 7 | delegateJob(Bulk I/O) | Job Manager | Thread Manager | Allocation de la tâche au pool de threads dédié aux opérations d'entrées/sorties massives. |
-| 8 | executeBulkInsert(DataBlock) | Thread Manager | Data Ingestion Layer | Signal d'exécution permettant au thread alloué de piloter l'écriture des données. |
-| 9 | bulkInsert(SnapshotHeader, MarketQuote) | Data Ingestion Layer | Database | Exécution physique de l'insertion massive (Bulk) dans les tables historiques de la base de données. |
-| 10 | notifyCompletion() | Database | Job Manager | Signalement de la fin de l'opération d'écriture pour clôture du Job et libération des ressources. |
-
+| 1 | fetchLatestQuotesFromCache() | Data Ingestion Layer | Data Cache | Requête synchrone pour extraire les dernières MarketQuotes immuables stockées en mémoire vive. |
+| 2 | List< MarketQuote > | Data Cache | Data Ingestion Layer | Retour de la liste des cotations consolidées disponibles pour le cycle de persistance actuel. |
+| 3 | validateAndBuildSnapshot() | Data Ingestion Layer | Data Ingestion Layer | Auto-appel pour reconstruire le SnapshotHeader global et qualifier son intégrité (Nominal vs Dégradé). |
+| 4 | createPersistenceObjects(FullSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'if Valid' : Préparation des objets de données complets pour l'insertion historique. |
+| 5 | createPersistenceObjects(DegradedSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'else' : Préparation des objets incluant les métadonnées de dégradation pour l'audit. |
+| 6 | notify(SnapshotMetadata) | Data Ingestion Layer | Metric Manager | Signal asynchrone (Push) transmettant les métriques brutes d'observabilité (Best-effort). |
+| 7 | createJob(Pool: I/O Bulk, Data: PersistenceObject) | Data Ingestion Layer | Job Manager | Création et soumission d'une tâche de persistance asynchrone via l'interface IJobSubmissionPort. |
+| 8 | delegateJob(Bulk I/O) | Job Manager | Thread Manager | Allocation de la tâche au pool de threads de basse priorité dédié aux écritures massives. |
+| 9 | executeBulkInsert(DataBlock) | Thread Manager | Data Ingestion Layer | Activation du thread alloué pour piloter l'opération physique d'écriture en base de données. |
+| 10 | bulkInsert(SnapshotHeader, MarketQuote) | Data Ingestion Layer | Database | Exécution de l'insertion SQL/NoSQL en masse via le PersistencePort pour l'archivage long terme. |
+| 11 | notifyCompletion() | Database | Job Manager | Signal de clôture de l'opération permettant la libération des ressources et le nettoyage du job. |
 ---
 
 ### 6. Ports et Interfaces
