@@ -42,20 +42,12 @@ Ce module garantit un flux de prix **déterministe, ultra-rapide et cohérent** 
 
 ---
 
-### 6. Description des Fonctions 
-
-* **`tickData(tick_id, asset_id_ref, ...)`** : L'IBKR Gateway transmet de manière asynchrone la mise à jour brute du marché (`TickData`). C'est l'événement déclencheur de chaque itération.
-
-* **`checkLatency()`** : Exécuté immédiatement après la réception du Tick. Le Live Data Hub compare le `timestamp` du `TickData` reçu avec l'heure actuelle pour détecter une latence excessive et déterminer si le flux est sain (point de décision `ALT`).
-
-* **`logCriticalError(EventDetails)`** : Si une défaillance critique est détectée par `checkLatency()`, envoi synchrone d'un message au service de journalisation pour garantir l'auditabilité de l'incident.
-
-* **`REF: SM-HandleCriticalDataLoss(FluxDataLostEvent)`** : Référence à la séquence externe de gestion d'urgence. Le System Manager est alerté pour lancer la procédure d'arrêt ou de reprise.
-
-* **`createSnapshotHeader(AccumulatedTicks)`** : Exécuté si la latence est jugée acceptable. Le Live Data Hub utilise les Ticks accumulés pour créer et consolider tous les `MarketQuote` nécessaires, puis il les encapsule dans un **`SnapshotHeader`** unique (avec `snapshot_id`, etc.) prêt à être distribué.
-
-* **`enqueue(SnapshotHeader)` (Mise à Jour de la Charge Utile)** : Le Live Data Hub (Producteur) insère l'objet **`SnapshotHeader` complet** (le bloc de données cohérent) dans la queue non bloquante. C'est l'opération de découplage critique qui libère immédiatement le thread du Producteur.
-
-* **`dequeue()`** : Un thread dédié du Pool I/O Real-Time (Consommateur) retire l'objet `SnapshotHeader` de la queue. L'opération représente la boucle continue et à haute fréquence de consommation.
-
-* **`writeToCache(SnapshotHeader)` (Mise à Jour de la Charge Utile)** : Le thread du Pool I/O Real-Time exécute l'écriture physique de tous les `MarketQuote` contenus dans le `SnapshotHeader` vers le cache. C'est l'opération de **Bulk I/O en mémoire** finale. L'opération est synchrone pour le thread consommateur, qui attend la confirmation avant de revenir au `dequeue`.
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | snapshotHeaderUpdated(snapshot_id) | Data Cache | Thread Manager | Notifie le gestionnaire de threads qu'une nouvelle version cohérente des données de marché (snapshot) est disponible dans le cache. |
+| 2 | allocateThreads(RM, PM) | Thread Manager | Thread Manager | Auto-appel permettant d'allouer les ressources de calcul nécessaires aux modules Risk Monitor (RM) et Portfolio Manager (PM) pour traiter le nouveau snapshot. |
+| ref | 10a-PHASE2-Surveillance-Urgence | Thread Manager | Risk Monitor | Bloc de référence (parallèle) déclenchant la logique de surveillance critique et de gestion des risques en temps réel. |
+| ref | 10b-PHASE2-Strategie-Standard | Thread Manager | Portfolio Manager | Bloc de référence (parallèle) déclenchant l'exécution des stratégies d'investissement basées sur les dernières données de marché. |
+| 3 | enqueueOrder(Order, Priority) | Risk Monitor | OrderInputQueue | Envoie un ordre (généralement d'urgence ou de couverture) vers la file d'attente avec un niveau de priorité spécifique. |
+| 4 | enqueueOrder(Order, Priority) | Portfolio Manager | OrderInputQueue | Envoie les ordres générés par la stratégie standard vers la file d'attente pour exécution ultérieure. |
+| 5 | dequeueOrder() | Order Manager | OrderInputQueue | Le gestionnaire d'ordres récupère les ordres en attente dans la queue (selon la priorité) pour les transmettre au marché. |
