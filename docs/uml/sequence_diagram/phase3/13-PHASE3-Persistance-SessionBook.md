@@ -43,21 +43,25 @@ Ce module garantit que l'état financier de la session est **enregistré de mani
 
 ---
 
-|ID|Fonction/Message|Émetteur|Récepteur|Description|
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-|1|requestSettledSessionBook()|System Manager|Portfolio Manager|Commande de cristallisation de l'état financier final de la session.|
-|2|createSessionBook()|Portfolio Manager|SettledSessionBook|Instanciation de l'objet métier représentant le bilan de clôture.|
-|3|sessionBookDTO|SettledSessionBook|Portfolio Manager|Retour de l'objet de transfert de données (DTO) immuable.|
-|4|submitPersistenceJob(SessionBook, Pool: I/O Audit)|Portfolio Manager|JobManager|Soumission de la tâche de sauvegarde asynchrone au gestionnaire de travaux.|
-|5|requestThread(Pool: I/O Audit)|JobManager|ThreadManager|Demande d'allocation d'une ressource d'exécution dans le pool dédié à l'audit.|
-|6|threadAllocated(AuditThread)|ThreadManager|JobManager|Confirmation et assignation d'un thread spécifique pour la tâche.|
-|7|runPersistenceJob(SettledSessionBook)|JobManager|AuditThread|Lancement effectif de la logique de persistance sur le thread alloué.|
-|8|executeAtomicWrite(SettledSessionBook)|AuditThread|Data Ingestion Layer|Appel au DIL pour l'exécution de la transaction atomique vers la base de données.|
-|9|writeResult(SUCCESS/FAILURE)|Data Ingestion Layer|AuditThread|Retour du statut de la transaction ACID (Commit ou Rollback).|
-|10|logJobCompletion(Job_ID, Result)|Data Ingestion Layer|Log Service|Journalisation immuable de l'issue de l'opération de persistance pour audit.|
-|11|jobExecutionFinished()|AuditThread|JobManager|Notification de fin de cycle de vie du thread de travail.|
-|12|jobValidationConfirmed(Job_ID)|JobManager|System Manager|Signal de déblocage asynchrone confirmant la persistance de la source de vérité.|
-|13|releaseThread()|AuditThread|ThreadManager|Libération de la ressource et retour du thread dans le pool disponible.|
+| 1 | requestSettledSessionBook() | System Manager | Portfolio Manager | Ordre de cristallisation de l'état financier final basé sur la réconciliation broker effectuée en étape 12. |
+| 2 | createSessionBook() | Portfolio Manager | SettledSessionBook | Instanciation de l'objet bilan. Les positions sont alignées sur la "Golden Source" du courtier. |
+| 3 | sessionBookDTO(UID, State) | SettledSessionBook | Portfolio Manager | Génération du DTO incluant l'ID unique (PortfolioID + Date) pour garantir l'idempotence au niveau du DIL. |
+| 4 | submitPersistenceJob(...) | Portfolio Manager | JobManager | Envoi de la tâche au pool "I/O Audit" pour isoler cette écriture critique des flux de trading. |
+| 5 | requestThread(Pool: I/O Audit) | JobManager | ThreadManager | Demande d'allocation d'un thread prioritaire pour l'audit de fin de session. |
+| 6 | threadAllocated(AuditThread) | ThreadManager | JobManager | Confirmation de l'assignation d'une ressource d'exécution dédiée. |
+| 7 | runPersistenceJob(...) | JobManager | AuditThread | Lancement de la procédure de persistance sur le thread alloué. |
+| 8 | executeAtomicWrite(...) | AuditThread | Data Ingestion Layer | Appel au DIL. Le système vérifie l'unicité de l'UID avant de déclencher la transaction ACID. |
+| 9 | writeResult(SUCCESS/FAILURE) | Data Ingestion Layer | AuditThread | Retour du statut de l'écriture (Commit réussi ou Rollback en cas d'erreur/doublon). |
+| 10 | logJobCompletion(Job_ID, FAIL, Details) | AuditThread | Log Service | [Branche Failure] Journalisation immédiate de l'échec technique avec détails pour audit. |
+| 11 | jobExecutionFinished(ERROR) | AuditThread | JobManager | [Branche Failure] Notification au manager que la tâche a échoué. |
+| 12 | notifyPersistenceError(Job_ID, Code) | JobManager | System Manager | [Branche Failure] Alerte à l'orchestrateur : la source de vérité financière n'a pas pu être sauvegardée. |
+| 13 | sendCriticalAlert(SESSION_BOOK_FAIL) | JobManager | Notification Manager | [Branche Failure] Déclenchement d'une alerte externe (SMS/Pager) pour action humaine urgente. |
+| 14 | logJobCompletion(Job_ID, SUCCESS, Hash) | AuditThread | Log Service | [Branche Success] Journalisation de la réussite avec empreinte numérique (Hash) du SessionBook. |
+| 15 | jobExecutionFinished() | AuditThread | JobManager | [Branche Success] Notification de fin de tâche nominale. |
+| 16 | jobValidationConfirmed(Job_ID) | JobManager | System Manager | [Branche Success] Signal de déblocage permettant de passer à la suite du workflow Post-Trade. |
+| 17 | releaseThread() | AuditThread | ThreadManager | Libération de la ressource et retour du thread dans le pool I/O Audit. |
 
 ---
 
