@@ -41,11 +41,12 @@ Le module garantit l'exécution des ordres dans le respect strict des priorités
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1 | extractNextOrder() | Dequeue Processor | PriorityQueue | Récupère l'ordre ayant la priorité locale la plus élevée dans la file d'attente. |
-| 2 | routeOrder(Order, SessionType) | Dequeue Processor | Global Order Router | Soumet l'ordre et son contexte de session pour arbitrage de priorité globale. |
-| 3 | getFinalPriority(Priority, SessionType) | Global Order Router | GOR Internal | Calcule la priorité finale en appliquant la règle de sur-priorité (Live > Paper). |
-| 4 | submitIOJob(Order, FinalPriority) | Global Order Router | Job Manager | Requête la création d'une tâche d'entrée/sortie pour la transmission broker. |
-| 5 | assignToPool(Job, FinalPriority) | Job Manager | Thread Manager | Alloue la tâche au pool de threads I/O approprié (CRITICAL ou STANDARD). |
-| 6 | sendOrder(Order) | Thread Manager (Pool) | IBKR Gateway | Exécution physique de l'envoi de l'ordre vers l'API du courtier. |
-| 7 | confirmTransmission(OrderID) | IBKR Gateway | Order Manager | Accusé de réception technique indiquant que l'ordre a quitté le système. |
-| 8 | updateStatus(SUBMITTED) | Order Manager | PersistencePort | Persistance de l'état de l'ordre via le Data Integrity Layer (DIL). |
+| 1 | dequeue() | OM Dequeue Processor | PriorityQueue | Extrait l'ordre ayant la priorité locale la plus élevée de la file d'attente interne. |
+| 2 | HighestPriorityOrder | PriorityQueue | OM Dequeue Processor | Retourne l'objet Order sélectionné au processeur pour traitement. |
+| 3 | formatOrder(Order, SessionType) | OM Dequeue Processor | OM Dequeue Processor | Prépare les données de l'ordre et injecte le contexte de session (Live/Paper). |
+| 4 | submitOrderForArbitration(FormattedOrder) | OM Dequeue Processor | GlobalOrderRouter | Transmet l'ordre au routeur global pour arbitrage des priorités inter-sessions. |
+| 5 | calculateFinalIOPriority(Order, SessionType) | GlobalOrderRouter | GlobalOrderRouter | Applique la règle de super-priorité : les sessions Live priment sur le Paper. |
+| 6 | submitExecutionJob(Order, FinalPoolHint) | GlobalOrderRouter | JobManager | Soumet une tâche d'exécution asynchrone avec une directive de pool spécifique. |
+| 7 | delegateExecution(Order, Pool) | JobManager | ThreadManager | Alloue le job au Pool I/O (Critical ou Standard) selon la priorité arbitrée. |
+| 8 | transmitOrder(Order) | ThreadManager | IBKR Gateway | Exécute la transmission physique de l'ordre vers l'API du courtier. |
+| 9 | orderSentConfirmation(OrderID) | IBKR Gateway | OM Dequeue Processor | Confirme que l'ordre a quitté le système, déclenchant le passage au statut SUBMITTED. |
