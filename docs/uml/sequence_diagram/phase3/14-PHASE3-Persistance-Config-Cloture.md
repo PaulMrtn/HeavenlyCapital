@@ -39,3 +39,22 @@ Le **System Manager** déclenche le **Session Manager**, qui orchestre la collec
 ### 5. Conclusion
 
 Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'un **point de vérité immuable** pour la configuration du moteur de trading. Il est la vérification finale que les paramètres de sécurité et les compteurs internes ont été correctement verrouillés, permettant un redémarrage du système dans un état d'intégrité opérationnelle absolue.
+
+---
+
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|requestFinalConfigSnapshot(session_id)|SystemManager|SessionManager|Ordre global de capture de l'état de reprise pour la session spécifiée.|
+|2|getRiskManagerConfig()|SessionManager|RiskMonitor|Requête de collecte des seuils et limites de risque actifs en clôture.|
+|3|RiskManagerConfigDTO|RiskMonitor|SessionManager|Retour des métadonnées de risque sous forme d'objet de transfert immuable.|
+|4|getOrderManagerConfig()|SessionManager|OrderManager|Requête de collecte de l'état des compteurs d'ordres et paramètres de routage.|
+|5|OrderManagerConfigDTO|OrderManager|SessionManager|Retour des métadonnées de l'Order Manager.|
+|6|getPortfolioManagerConfig()|SessionManager|PortfolioManager|Requête de collecte des paramètres de gestion de portefeuille (hors inventaire financier).|
+|7|PortfolioManagerConfigDTO|PortfolioManager|SessionManager|Retour des métadonnées du Portfolio Manager.|
+|8|submitAtomicPersist(SessionConfigDTO, PRIORITY_CRITICAL)|SessionManager|JobManager|Soumission du snapshot agrégé pour persistance asynchrone prioritaire.|
+|9|requestThread(POOL_CRITICAL, DIL_TASK)|JobManager|ThreadManager|Demande d'allocation d'une ressource d'exécution dans le pool critique I/O.|
+|10|threadAllocated(CriticalThreadRef)|ThreadManager|JobManager|Confirmation et assignation d'un thread de haute priorité.|
+|11|DIL.atomicWrite(SessionConfigDTO)|JobManager|DataIngestionLayer|Exécution de la transaction ACID via le fragment AtomicDBWriteProcess.|
+|12|jobCompleted(ValidationStatus.OK/ERROR)|DataIngestionLayer|JobManager|Notification de l'issue de l'écriture (Commit ou Rollback).|
+|13|persistenceConfirmed()|JobManager|SessionManager|Signal de confirmation de la sauvegarde de l'état de reprise.|
+|14|configPersistedOK()|SessionManager|SystemManager|Signal final de déblocage autorisant la transition vers l'arrêt sécurisé.|
