@@ -92,7 +92,6 @@ Ce module garantit que l'état financier de la session est **enregistré de mani
 * **Injecté dans / Utilisé par** : `JobManager`
 * **Responsabilité opérationnelle** : Allocation d'une ressource d'exécution spécifique (`AuditThread`) depuis le pool `I/O Audit`.
 * **Règles d’accès ou d’usage** : Utilisation obligatoire du pool d'isolation "I/O Audit" pour garantir la priorité de la source du broker sur les autres tâches I/O.
- 3. Logging, Audit & Errors
 
 **ILogger**
 * **Implémenté par** : `Log Service`
