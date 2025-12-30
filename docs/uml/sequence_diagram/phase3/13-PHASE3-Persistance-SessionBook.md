@@ -9,31 +9,38 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'assurer l'**enregistrement atomique et auditable** des résultats financiers définitifs de la journée (Position finale, PnL, ...) dans l'objet `SettledSessionBook`. Ce processus crée la **source de vérité** de la performance de la session.
+La finalité de ce module est d'assurer l'**enregistrement atomique et auditable** des résultats financiers définitifs de la session. Ce processus cristallise la **source du broker** (l'état réconcilié et certifié avec le courtier) pour servir de point de départ immuable à la session de trading suivante.
 
 ---
-
 
 ### 2. Contexte
 
-Ce module s'inscrit immédiatement après la validation de l'intégrité des données lors de l'Audit Initial (Étape 12). Il est crucial car il **prépare les données nécessaires** au calcul stratégique du prochain rebalancement (Phase IV - Pre-Market Setup). Contrairement aux enregistrements en temps réel (Fills), celui-ci est un enregistrement d'état global unique qui ne peut être exécuté qu'une seule fois à la clôture.
+Ce module s'exécute immédiatement après la validation de l'intégrité des données (Étape 12). Il transforme l'inventaire validé en une archive persistante, garantissant que le système redémarrera sur des positions 100 % alignées avec le courtier, éliminant ainsi toute dérive de calcul interne.
 
 ---
-
 
 ### 3. Logique Générale
 
-Le `SystemManager` donne l'ordre au `PortfolioManager` de **cristalliser** son état en mémoire. Le `PortfolioManager` génère alors le DTO (`SettledSessionBook`) et le soumet au `JobManager`. Ce dernier alloue une ressource d'exécution (`AuditThread`) provenant du **Pool I/O Audit** pour garantir la priorité. Le thread exécute l'écriture via le `DIL` qui, en utilisant le processus **`DIL-AtomicDBWriteProces`**, garantit une transaction ACID (tout ou rien). Une fois l'écriture réussie et confirmée, le `JobManager` émet un signal au `SystemManager` pour débloquer la suite du cycle.
+1. **Génération de l'état certifié** : Le `PortfolioManager` instancie le `SettledSessionBook` à partir des données réconciliées issues de la **source du broker**.
+2. **Idempotence** : Le DTO inclut un identifiant unique (`PortfolioID` + `Date`) permettant au **DIL** d'empêcher toute double écriture accidentelle.
+3. **Isolation** : Le job est envoyé au pool **I/O Audit** pour garantir que cette opération critique dispose de ressources dédiées sans contention avec les flux de trading.
+4. **Gestion des échecs** : En cas de rejet par la base de données, l'échec est logué par l'**AuditThread** mais l'alerte opérationnelle est gérée par le **JobManager**.
+
+**Gestion du Failure Job (Résilience) :** E
+En cas d'échec de la persistance, les mécanismes suivants sont activés :
+  * **Retry avec Exponential Backoff** : Le système ne retente pas l'opération immédiatement. Il programme 3 tentatives avec un délai croissant (ex: 1s, 5s, 30s).
+  * **Circuit Breaker** : Si les 3 tentatives échouent, le `JobManager` bascule le statut en `CRITICAL_STALL`. Au lieu de retenter, il déclenche une alerte via le `NotificationManager`.
+  * **Mode "Emergency Local Dump"** : En cas d'échec persistant en base de données, le thread d'audit tente d'écrire le `SessionBookDTO` dans un fichier plat local (JSON/CSV). Cela permet au `SystemManager` de confirmer la fermeture tout en laissant une trace physique pour une récupération manuelle le lendemain.
 
 ---
 
-
 ### 4. Règles Critiques
 
-* **Dépendance Strict :** Ce module ne se lance que si l'Audit Initial (Étape 12) a réussi sans erreur critique.
 * **Pool d'Isolation :** L'écriture doit obligatoirement utiliser le **Pool I/O Audit** pour s'assurer qu'elle n'est pas retardée par des tâches I/O moins critiques.
+* **Audit avant Persistance** : Ce module ne démarre que si la réconciliation (Étape 12) a renvoyé un statut `OK` ou `DEGRADED_OK`.
+* **Primauté de la source du broker** : Le contenu du `SettledSessionBook` doit refléter les positions du courtier en cas d'écart mineur, assurant la synchronisation pour le lendemain.
+* **Zéro Doublon** : Le DIL doit rejeter toute tentative d'écriture si l'UID (Portfolio + Date) existe déjà en base de données.
 * **Garantie ACID :** L'exécution de la persistance doit impérativement utiliser le fragment `DIL-AtomicDBWriteProces` pour s'assurer que l'enregistrement du livre de compte final est **atomique** et que la connexion est relâchée après le `COMMIT` ou le `ROLLBACK`.
-* **Validation de Flux :** Le `SystemManager` attend le signal **asynchrone** de `jobValidationConfirmed` pour considérer le module achevé, et non le simple retour de l'appel de soumission du job.
 
 ---
 
@@ -64,10 +71,3 @@ Ce module garantit que l'état financier de la session est **enregistré de mani
 | 17 | releaseThread() | AuditThread | ThreadManager | Libération de la ressource et retour du thread dans le pool I/O Audit. |
 
 ---
-
-### NOTE 
-
-* **Gestion du Failure Job :**
-  * Retry avec Exponential Backoff : Ne pas retenter immédiatement. Programmer 3 tentatives avec un délai croissant (ex: 1s, 5s, 30s).
-  * Circuit Breaker : Si les 3 tentatives échouent, le JobManager doit basculer le statut en CRITICAL_STALL. Au lieu de retenter, il déclenche une alerte via le NotificationManager.
-  * Mode "Emergency Local Dump" : En cas d'échec persistant en base de données, le thread d'audit tente d'écrire le SessionBookDTO dans un fichier plat local (JSON/CSV). Cela permet au SystemManager de confirmer la fermeture tout en laissant une trace physique pour une récupération manuelle le lendemain. 
