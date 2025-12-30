@@ -311,6 +311,14 @@ Soumission d’ordres critiques.
 
 ---
 
+**IOrderFormatter**
+* **Implémenté par** : `OrderManager` (ou un ProtocolAdapter dédié)
+* **Injecté dans / Utilisé par** : `OrderManager` (Dequeue Processor)
+* **Responsabilité opérationnelle** : Traduction de l'objet `Order` interne vers le format propriétaire du courtier (message 3 : `formatOrder`).
+* **Règles d’accès ou d’usage** : Purement transformationnel (stateless). Doit supporter différents `SessionTypes`.
+
+---
+
 ## 4. Threading, Jobs & Execution
 
 ### IThreadManagerPort
@@ -379,6 +387,14 @@ Remontée des statuts d’exécution.
   * Appel **non-bloquant** (Fire-and-forget).
   * Doit impérativement inclure la définition du pool cible (ex: `Bulk Pool`) pour l'arbitrage par le Thread Manager.
   * Toute tâche soumise doit être encapsulée dans un objet de type `Job` ou `PersistenceObject` immuable.
+
+---
+
+**IThreadDelegatePort**
+* **Implémenté par** : `ThreadManager`
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Allocation d'un thread spécifique depuis le pool désigné (CRITICAL, STANDARD, BULK) pour exécuter la transmission physique.
+* **Règles d’accès ou d’usage** : Utilisation de pools isolés pour garantir que les flux "Paper" ne saturent pas les ressources "Live".
 
 ---
 
@@ -582,6 +598,16 @@ Interface unique pour signaler une demande d’arrêt global du système.
 * **Injecté dans / Utilisé par** : `System Manager`
 * **Responsabilité opérationnelle** : Permettre le changement dynamique du mode de traitement des données de marché suite à une alerte de latence.
 * **Règles d’accès ou d’usage** : Appel synchrone via le message `setOperatingMode(Mode)`. Définit si l'agrégation doit être `NOMINAL` ou `DEGRADED`.
+
+---
+
+## 10. Order Routing & Arbitration
+
+**IGlobalOrderRouter**
+* **Implémenté par** : `GlobalOrderRouter` (GOR)
+* **Injecté dans / Utilisé par** : `OrderManager` (Dequeue Processor)
+* **Responsabilité opérationnelle** : Arbitrage inter-sessions (Live vs Paper). Reçoit l'ordre formaté et calcule la priorité finale de routage I/O.
+* **Règles d’accès ou d’usage** : Doit appliquer la règle de super-priorité (Live avant Paper). Fournit le `FinalPoolHint` nécessaire au JobManager.
 
 ---
 
