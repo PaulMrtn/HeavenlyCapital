@@ -59,3 +59,63 @@ Ce module garantit une **réactivité événementielle immédiate** du système 
 
 ---
 
+
+### 6. Ports et Interfaces
+
+### IMarketDataEventPort
+
+* **Implémenté par** : `EventBus`
+* **Injecté dans / Utilisé par** : `DataCache` (émetteur), `RiskMonitor`, `PortfolioManager` (souscripteurs)
+* **Responsabilité opérationnelle** : Diffusion asynchrone et non-bloquante du signal de disponibilité d'un nouvel agrégat de prix (`MarketQuote`).
+* **Règles d’accès ou d’usage** :
+* Diffusion de type "Fire-and-Forget".
+* Interdiction de transporter des payloads lourds ; l'événement contient uniquement le trigger de réveil.
+* Garantie de livraison aux abonnés enregistrés sans blocage du thread producteur.
+
+
+### IOrderInputPort
+
+* **Implémenté par** : `OrderInputQueue`
+* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager`
+* **Responsabilité opérationnelle** : Point d'entrée unique pour la soumission d'ordres issus de la logique décisionnelle.
+* **Règles d’accès ou d’usage** :
+* Accès strictement non-bloquant via `enqueueOrder(Order, Priority)`.
+* Priorité `CRITICAL` réservée exclusivement au `RiskMonitor`.
+* Priorité `STANDARD` allouée au `PortfolioManager`.
+* Découplage total entre l'instant de décision et l'instant d'exécution technique.
+
+
+### IOrderManagementPort
+
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Pilotage du cycle de vie de l'exécution des ordres et interface avec les files d'attente système.
+* **Règles d’accès ou d’usage** :
+* Lecture séquentielle de la file via `dequeueOrder()`.
+* Responsable de la transmission technique finale vers les bourses via `BrokerGatewayPort`.
+
+
+### IDecisionTriggerPort
+
+* **Implémenté par** : `RiskMonitor`, `PortfolioManager`
+* **Injecté dans / Utilisé par** : `ThreadManager` / `EventBus`
+* **Responsabilité opérationnelle** : Interface de réveil et d'activation des moteurs métier suite à une mise à jour de marché.
+* **Règles d’accès ou d’usage** :
+* Invoqué exclusivement de manière asynchrone.
+* Déclenche l'accès immédiat au `IMarketDataCacheReader` pour récupération des données en mode PULL.
+* Cycle de vie lié à la session de trading : actif uniquement en état `READY_FOR_TRADING`.
+
+
+### IMarketDataCacheReader
+
+* **Implémenté par** : `DataCache`
+* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager`
+* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers `MarketQuote` disponibles.
+* **Règles d’accès ou d’usage** :
+* Lecture lock-free obligatoire.
+* Aucun accès aux structures de données internes du cache.
+* Usage exclusif de `MarketQuotes` immuables.
+* Le port garantit l'accès aux seules versions validées (Atomic Versioning).
+* Ne bloque jamais la Fast-Lane.
+
+
