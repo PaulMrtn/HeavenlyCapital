@@ -61,7 +61,7 @@ Ce module est essentiel pour l'intégrité financière. Il garantit que le syst�
 
 ---
 
-### 6. Intere
+### 6. Ports et Interfaces
 
 **IProcessControlPort**
 * **Implémenté par** : `Runtime Environment` / `System Manager`
