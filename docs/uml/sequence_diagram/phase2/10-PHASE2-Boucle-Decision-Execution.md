@@ -48,15 +48,14 @@ Ce module garantit une **réactivité événementielle immédiate** du système 
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1 | **onMarketDataAggregated()** | Data Cache | Thread Manager | Signal léger notifiant qu'une nouvelle salve de cotations est disponible en mémoire. |
-| 2 | **activateHandlers()** | Thread Manager | Thread Manager | Allocation/Réveil des threads dédiés pour RM et PM. |
-| ref | 10a-PHASE2-Surveillance-Urgence | Risk Monitor | (Self) | **Lecture directe Cache.** Vérification des seuils de risque et génération d'ordres de protection. |
-| ref | 10b-PHASE2-Strategie-Standard | Portfolio Manager | (Self) | **Lecture directe Cache.** Calcul des signaux et génération d'ordres de trading. |
-| 3 | enqueueOrder(Order, Priority) | Risk Monitor | OrderInputQueue | Envoi d'ordres (Priorité Haute). |
-| 4 | enqueueOrder(Order, Priority) | Portfolio Manager | OrderInputQueue | Envoi d'ordres (Priorité Standard). |
-| 5 | dequeueOrder() | Order Manager | OrderInputQueue | Récupération asynchrone pour exécution marché. |
+|1|MarketDataUpdated()|DataCache|EventBus|Notification asynchrone signalant qu'un nouvel agrégat de cotations (MarketQuote) est disponible en RAM.|
+|ref|10a-PHASE2-Surveillance-Urgence|RiskMonitor|N/A|Fragment de référence déclenché par l'EventBus : lecture PULL du cache et calcul des risques.|
+|ref|10b-PHASE2-Strategie-Standard|PortfolioManager|N/A|Fragment de référence déclenché par l'EventBus : lecture PULL du cache et évaluation des signaux.|
+|2|enqueueOrder(Order,Priority)|RiskMonitor|OrderInputQueue|Dépôt d'un ordre de protection avec priorité haute dans la file d'attente asynchrone.|
+|3|enqueueOrder(Order,Priority)|PortfolioManager|OrderInputQueue|Dépôt d'un ordre stratégique avec priorité standard dans la file d'attente asynchrone.|
+|4|dequeueOrder()|OrderManager|OrderInputQueue|Extraction et traitement séquentiel des ordres par le gestionnaire pour exécution marché.|
 
 ---
 
