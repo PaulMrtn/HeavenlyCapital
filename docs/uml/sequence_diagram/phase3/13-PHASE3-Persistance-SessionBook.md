@@ -58,3 +58,13 @@ Ce module garantit que l'état financier de la session est **enregistré de mani
 |11|jobExecutionFinished()|AuditThread|JobManager|Notification de fin de cycle de vie du thread de travail.|
 |12|jobValidationConfirmed(Job_ID)|JobManager|System Manager|Signal de déblocage asynchrone confirmant la persistance de la source de vérité.|
 |13|releaseThread()|AuditThread|ThreadManager|Libération de la ressource et retour du thread dans le pool disponible.|
+
+
+
+
+### NOTE 
+
+* **Gestion du Failure Job :**
+  * Retry avec Exponential Backoff : Ne pas retenter immédiatement. Programmer 3 tentatives avec un délai croissant (ex: 1s, 5s, 30s).
+  * Circuit Breaker : Si les 3 tentatives échouent, le JobManager doit basculer le statut en CRITICAL_STALL. Au lieu de retenter, il déclenche une alerte via le NotificationManager.
+  * Mode "Emergency Local Dump" : En cas d'échec persistant en base de données, le thread d'audit tente d'écrire le SessionBookDTO dans un fichier plat local (JSON/CSV). Cela permet au SystemManager de confirmer la fermeture tout en laissant une trace physique pour une récupération manuelle le lendemain. 
