@@ -287,6 +287,30 @@ Soumission d’ordres critiques.
 
 ---
 
+**IEventBusPort**
+* **Implémenté par** : `EventBus` (Infrastructure)
+* **Injecté dans / Utilisé par** : `DataCache` (Émetteur), `RiskMonitor` & `PortfolioManager` (Abonnés)
+* **Responsabilité opérationnelle** : Notification asynchrone légère signalant la disponibilité d'un nouvel agrégat.
+* **Règles d’accès ou d’usage** : Diffusion non-bloquante. Doit garantir que le réveil des abonnés respecte les priorités de scheduling OS (Urgence > Stratégie).
+
+---
+
+**IOrderInputQueuePort**
+* **Implémenté par** : `OrderInputQueue`
+* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager` (Producteurs)
+* **Responsabilité opérationnelle** : Point de dépôt asynchrone des ordres générés par la logique métier.
+* **Règles d’accès ou d’usage** : Supporte l'attribution d'une priorité (`High` / `Standard`). Découple la décision de l'exécution physique.
+
+---
+
+**IOrderManagerControl**
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `OrderManager` (Boucle interne)
+* **Responsabilité opérationnelle** : Extraction (`dequeue`) et séquençage des ordres vers la passerelle Broker.
+* **Règles d’accès ou d’usage** : Consommation priorisée. Assure qu'aucun ordre n'est perdu entre la file d'attente et l'envoi technique.
+
+---
+
 ## 4. Threading, Jobs & Execution
 
 ### IThreadManagerPort
