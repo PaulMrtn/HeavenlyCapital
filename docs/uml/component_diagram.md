@@ -82,7 +82,30 @@ Ce composant est l'**écouteur central** des flux de prix marché. Il écoute le
 * **Suivi de Latence :** Enregistrement du **`receive_timestamp`** (temps de réception par le *Hub*) en plus du `timestamp` du marché. Cela permet de calculer la latence entre le courtier et le système et d'auditer la performance.
 
 
+### **Live History Buffer (LHB)**
+
+Le **Live History Buffer (LHB)** est un composant centralisé responsable de la consolidation et du stockage en mémoire des données de marché récentes. Il reçoit en flux continu les données du **Live Data Hub (LDH)** et conserve les derniers ticks et snapshots pour permettre une lecture rapide et cohérente par les composants consommateurs tels que le **Portfolio Manager** et le **Risk Monitor**.
+
+Le LHB agit comme un **cache central global** pour les prix récents et les données agrégées, offrant une **interface unique et performante** pour l'accès à ces informations critiques. Il est conçu comme une **instance globale (Singleton)** pour garantir la cohérence et la synchronisation des données en temps réel à travers le système.
+
+* **Interfaces Fournies / Requises**
+  * **ILiveDataReader** : Interface fournie pour permettre aux composants consommateurs (ex: Risk Monitor, Portfolio Manager) de lire les ticks récents et les snapshots consolidés.
+  * **ILiveDataSubscriber** : Interface requise pour s'abonner au Live Data Hub et recevoir les mises à jour de marché en temps réel.
+  * **ICacheWriter** : Interface requise pour stocker temporairement les données de marché en mémoire et maintenir l’historique récent.
+
+* **Data Classes**
+  * **TickData** : Derniers ticks du marché reçus pour chaque actif (bid/ask, dernière transaction, volumes).
+  * **SnapshotHeader** : En-tête des snapshots consolidés à fréquence donnée (ex: 1m, 5m).
+  * **MarketQuote** : Cotation consolidée par actif au sein d’un snapshot, représentant le dernier état observable.
+
+#### Notes
+* **Instance Globale** : Le LHB est un Singleton, garantissant une référence unique pour toutes les lectures de prix récents dans le système.
+* **Flux Continu** : Les données transitent du **Live Data Hub vers le LHB**, qui les maintient en mémoire pour un accès rapide et cohérent.
+* **Consommateurs Principaux** : Le **Portfolio Manager** et le **Risk Monitor** accèdent aux informations via l’interface de lecture du LHB pour leurs calculs et évaluations en temps réel.
+* **Performance et Cohérence** : Optimisé pour fournir des lectures rapides et atomiques, tout en conservant l’intégrité des séquences de ticks et snapshots.
+
 ---
+
 ## II. Real-Time Core
 
 ### **IBKR Gateway**
