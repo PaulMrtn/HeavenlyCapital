@@ -28,7 +28,7 @@ Le flux est piloté par un événement de notification léger :
   * **Exécution Parallèle :**
     * * Le **RM** effectue une lecture opportuniste du cache pour valider les limites d'exposition (Urgence).
     * Le **PM** effectue une lecture pour évaluer ses signaux d'entrée (Stratégie).
-  * **Cohérence à la Lecture :** La cohérence des données est assurée par le consommateur au moment de l'accès au cache, garantissant l'utilisation de la valeur la plus proche de l'instant T.
+  * **Cohérence à la Lecture :** La cohérence des données est assurée par le consommateur au moment de l'accès au cache, garantissant l'utilisation de la valeur la plus proche de l'instant du réveil du consommateur.
   * **Sortie :** Les ordres générés sont poussés dans une `OrderInputQueue` prioritaire, découplant la décision de l'exécution finale par l' `Order Manager`.
 
 ---
