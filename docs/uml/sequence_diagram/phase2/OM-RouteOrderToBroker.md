@@ -51,7 +51,7 @@ Le module garantit l'exécution des ordres dans le respect strict des priorités
 | 8 | transmitOrder(Order) | ThreadManager | IBKR Gateway | Exécute la transmission physique de l'ordre vers l'API du courtier. |
 | 9 | orderSentConfirmation(OrderID) | IBKR Gateway | OM Dequeue Processor | Confirme que l'ordre a quitté le système, déclenchant le passage au statut SUBMITTED. |
 
-
+---
 
 ### 6. Ports et Interfaces
 
