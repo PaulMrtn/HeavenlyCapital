@@ -53,7 +53,7 @@ Le module garantit l'exécution des ordres dans le respect strict des priorités
 
 
 
-### 1. Interfaces issues du Catalogue
+### 6. Ports et Interfaces
 
 **IOrderManagerControl**
 * **Implémenté par** : `OrderManager`
