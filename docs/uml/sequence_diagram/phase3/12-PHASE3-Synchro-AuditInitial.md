@@ -67,20 +67,20 @@ L’introduction de niveaux de gravité explicites renforce la **résilience op�
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|marketCloseEvent()|Market Clock|System Manager|Signal de clôture déclenchant la fin de la session de trading.|
-|2|LogCriticalEvent("Market Closed...")|System Manager|Log Session|Journalisation synchrone immédiate de l'événement de fermeture.|
-|3|updateSystemStatus(POST_TRADE)|System Manager|System Manager|Changement interne d'état pour verrouiller les fonctions In-Trade.|
-|4|forcePendingJobCompletion()|System Manager|Job Manager|Commande de vidage des files d'attente pour finaliser les tâches en cours.|
-|5|flushCriticalBuffers()|Job Manager|Data Integrity Layer|Ordre de persistance immédiate des buffers de données critiques.|
-|6|validationConfirmed()|Data Integrity Layer|Job Manager|Confirmation que toutes les écritures atomiques sont sécurisées en DB.|
-|7|validationConfirmed()|Job Manager|System Manager|Notification globale de la fin de la synchronisation I/O.|
-|8|startFinalReconciliation()|System Manager|Portfolio Manager|Déclenchement de la procédure de vérification des positions finales.|
-|9|fetchBrokerPosition(session_id)|Portfolio Manager|IBKR Gateway|Requête externe pour récupérer l'inventaire réel chez le courtier.|
-|10|brokerPositionData|IBKR Gateway|Portfolio Manager|Retour des données d'inventaire du courtier.|
-|11|logCriticalError(DATA_INTEGRITY...)|Portfolio Manager|Log Session|Enregistrement d'un écart entre le local et le broker (chemin Failure).|
-|12|sendCriticalAlert(RECON_FAILURE)|Portfolio Manager|Notification Manager|Alerte asynchrone pour intervention humaine immédiate.|
-|13|CRITICAL_FAILURE|Portfolio Manager|System Manager|Signal d'arrêt du workflow suite à une corruption ou un écart de données.|
-|14|reconciliationOK()|Portfolio Manager|System Manager|Confirmation de cohérence permettant la suite du cycle Post-Trade.|
+|1|marketCloseEvent()|Market Clock|System Manager|Signal de clôture horaire déclenchant la transition vers le mode Post-Trade.|
+|2|LogCriticalEvent("Market Closed...")|System Manager|Log Session|Journalisation synchrone et immuable de l'heure exacte de réception du signal de clôture.|
+|3|updateSystemStatus(POST_TRADE)|System Manager|System Manager|Auto-appel pour basculer l'état interne du système et verrouiller les fonctions d'exécution.|
+|4|forcePendingJobCompletion()|System Manager|Job Manager|Commande prioritaire ordonnant la finalisation forcée de toutes les tâches asynchrones en cours.|
+|5|flushCriticalBuffers()|Job Manager|Data Integrity Layer|Ordre de transfert immédiat des buffers mémoire (Fills, Quotes) vers la couche de persistance.|
+|6|validationConfirmed()|Data Integrity Layer|Job Manager|Confirmation atomique que l'intégralité des buffers critiques est sécurisée en base de données.|
+|7|validationConfirmed()|Job Manager|System Manager|Signal global confirmant que le système est gelé et que toutes les données sont persistées.|
+|8|startFinalReconciliation()|System Manager|Portfolio Manager|Déclenchement de la procédure d'audit de cohérence entre l'inventaire local et externe.|
+|9|fetchBrokerPosition(session_id)|Portfolio Manager|IBKR Gateway|Requête réseau vers la passerelle du courtier pour récupérer l'inventaire financier réel.|
+|10|brokerPositionData|IBKR Gateway|Portfolio Manager|Transmission des données d'inventaire consolidées provenant du courtier.|
+|11|logCriticalError(DATA_INTEGRITY...)|Portfolio Manager|Log Session|Journalisation immédiate en cas d'incohérence détectée entre les états local et distant.|
+|12|sendCriticalAlert(RECON_FAILURE)|Portfolio Manager|Notification Manager|Envoi d'une alerte urgente asynchrone aux opérateurs en cas de désynchronisation critique.|
+|13|CRITICAL_FAILURE(FailureCode)|Portfolio Manager|System Manager|Signal d'arrêt immédiat du workflow si l'écart de réconciliation dépasse les seuils tolérés.|
+|14|reconciliationResult(status, severity, details)|Portfolio Manager|System Manager|Retour du statut typé (OK ou DEGRADED) permettant la poursuite contrôlée du workflow.|
 
 ---
 
