@@ -34,3 +34,39 @@ Pour garantir l'efficacité du pool de connexions, l'action de nettoyage de sess
 | 6 | ILoggingService.logCriticalError(TransactionFailed) | Data Integrity Layer | Log Service | Enregistre les détails de l'échec pour diagnostic technique immédiat. |
 | 7 | INotificationService.sendCriticalAlert(CRITICAL_DB_FAILURE) | Data Integrity Layer | Notification Manager | Déclenche une alerte prioritaire (Email/SMS/Slack) suite à l'échec de l'écriture. |
 | 8 | closeSession() | Data Integrity Layer | Database | Ferme la session et libère la connexion physique vers le pool de connexions (indispensable). |
+
+---
+
+### Ports et Interfaces
+
+**PersistencePort**
+* **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
+* **Injecté dans / Utilisé par** : `Portfolio Manager`, `Order Manager`, `Job Manager`
+* **Responsabilité opérationnelle** : Orchestration de la persistance atomique (Start, Commit, Rollback) des données critiques.
+* **Règles d’accès ou d’usage** : Accès direct au DIL strictement interdit. L'exécution doit garantir l'isolation totale des objets métier et s'effectuer sur le pool de threads `CRITICAL`.
+
+**ITransactionalDatabase** (Interface d'Infrastructure créée)
+* **Implémenté par** : `Database Service`
+* **Injecté dans / Utilisé par** : `Data Integrity Layer (DIL)`
+* **Responsabilité opérationnelle** : Exécution physique des commandes SQL (`executeUpdateCommands`) et gestion de l'état transactionnel au niveau du moteur DB.
+* **Règles d’accès ou d’usage** : Usage exclusif par le DIL. Toute session doit impérativement être libérée via `closeSession()` en fin de cycle (succès ou échec) pour éviter l'épuisement du pool de connexions.
+
+**ILogger**
+* **Implémenté par** : `Logger Global` / `Log Service`
+* **Injecté dans / Utilisé par** : Tous les managers, `Data Integrity Layer (DIL)`
+* **Responsabilité opérationnelle** : Journalisation des traces d'audit (`logAudit`) en cas de succès et des erreurs techniques (`logCriticalError`) en cas d'échec de transaction.
+* **Règles d’accès ou d’usage** : Pour cette séquence, les appels doivent être synchrones afin de garantir la présence de la trace avant la clôture de la session ou la propagation de l'erreur.
+
+**INotificationService**
+* **Implémenté par** : `AlertingService` / `Notification Manager`
+* **Injecté dans / Utilisé par** : `Monitor`, `SystemManager`, `Data Integrity Layer (DIL)`
+* **Responsabilité opérationnelle** : Diffusion immédiate d'alertes critiques (`sendCriticalAlert`) vers les canaux externes en cas de rupture d'intégrité de la base de données.
+* **Règles d’accès ou d’usage** : Doit être implémenté de manière **non-bloquante** (Asynchrone) pour ne pas retarder l'appel vital à `closeSession()` dans le thread du DIL. Usage strictement limité aux sévérités `CRITICAL` ou `FATAL`.
+
+
+**IJobSubmissionPort**
+* **Implémenté par** : `Job Manager`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`, `Order Manager`
+* **Responsabilité opérationnelle** : Point d'entrée pour l'exécution de la séquence `AtomicDBWrite` en tant que tâche asynchrone découplée du flux producteur.
+* **Règles d’accès ou d’usage** : Doit impérativement assigner le job au pool de threads `CRITICAL` pour garantir la priorité d'exécution et le respect des contraintes de latence du système de trading.
+
