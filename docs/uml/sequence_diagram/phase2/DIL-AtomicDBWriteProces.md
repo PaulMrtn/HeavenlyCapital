@@ -22,3 +22,15 @@ Pour garantir l'efficacité du pool de connexions, l'action de nettoyage de sess
 * L'opération **`closeSession()`** est exécutée **après** le `COMMIT` ou le `ROLLBACK`.
 * Cette méthode **relâche la session** et retourne la connexion physique au pool de connexions.
 * Ceci est une étape indispensable qui empêche le système d'épuiser son pool de connexions disponibles, assurant ainsi la performance pour les jobs suivants.
+
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | START TRANSACTION | Data Integrity Layer | Database | Initialise une transaction atomique au niveau du moteur de base de données. |
+| 2 | executeUpdateCommands(DataPayload) | Data Integrity Layer | Database | Envoie les instructions SQL de mise à jour (Insert/Update/Delete) basées sur le payload. |
+| 3 | [COMMIT TRANSACTION] : commitTransaction() | Data Integrity Layer | Database | Valide et rend permanentes toutes les modifications de la transaction en cours. |
+| 4 | ILoggingService.logAudit(Transaction_Success) | Data Integrity Layer | Log Service | Enregistre une trace d'audit confirmant le succès de l'opération de persistance. |
+| 5 | [ROLLBACK TRANSACTION] : rollbackTransaction() | Data Integrity Layer | Database | Annule toutes les modifications effectuées depuis le START TRANSACTION en cas d'erreur. |
+| 6 | ILoggingService.logCriticalError(TransactionFailed) | Data Integrity Layer | Log Service | Enregistre les détails de l'échec pour diagnostic technique immédiat. |
+| 7 | INotificationService.sendCriticalAlert(CRITICAL_DB_FAILURE) | Data Integrity Layer | Notification Manager | Déclenche une alerte prioritaire (Email/SMS/Slack) suite à l'échec de l'écriture. |
+| 8 | closeSession() | Data Integrity Layer | Database | Ferme la session et libère la connexion physique vers le pool de connexions (indispensable). |
