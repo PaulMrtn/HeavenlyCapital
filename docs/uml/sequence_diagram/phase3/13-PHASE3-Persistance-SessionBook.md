@@ -59,8 +59,7 @@ Ce module garantit que l'état financier de la session est **enregistré de mani
 |12|jobValidationConfirmed(Job_ID)|JobManager|System Manager|Signal de déblocage asynchrone confirmant la persistance de la source de vérité.|
 |13|releaseThread()|AuditThread|ThreadManager|Libération de la ressource et retour du thread dans le pool disponible.|
 
-
-
+---
 
 ### NOTE 
 
