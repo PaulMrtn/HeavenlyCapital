@@ -62,60 +62,38 @@ Ce module garantit une **réactivité événementielle immédiate** du système 
 
 ### 6. Ports et Interfaces
 
-### IMarketDataEventPort
-
-* **Implémenté par** : `EventBus`
-* **Injecté dans / Utilisé par** : `DataCache` (émetteur), `RiskMonitor`, `PortfolioManager` (souscripteurs)
-* **Responsabilité opérationnelle** : Diffusion asynchrone et non-bloquante du signal de disponibilité d'un nouvel agrégat de prix (`MarketQuote`).
-* **Règles d’accès ou d’usage** :
-* Diffusion de type "Fire-and-Forget".
-* Interdiction de transporter des payloads lourds ; l'événement contient uniquement le trigger de réveil.
-* Garantie de livraison aux abonnés enregistrés sans blocage du thread producteur.
-
-
-### IOrderInputPort
-
-* **Implémenté par** : `OrderInputQueue`
-* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager`
-* **Responsabilité opérationnelle** : Point d'entrée unique pour la soumission d'ordres issus de la logique décisionnelle.
-* **Règles d’accès ou d’usage** :
-* Accès strictement non-bloquant via `enqueueOrder(Order, Priority)`.
-* Priorité `CRITICAL` réservée exclusivement au `RiskMonitor`.
-* Priorité `STANDARD` allouée au `PortfolioManager`.
-* Découplage total entre l'instant de décision et l'instant d'exécution technique.
-
-
-### IOrderManagementPort
-
-* **Implémenté par** : `OrderManager`
-* **Injecté dans / Utilisé par** : `SystemManager`
-* **Responsabilité opérationnelle** : Pilotage du cycle de vie de l'exécution des ordres et interface avec les files d'attente système.
-* **Règles d’accès ou d’usage** :
-* Lecture séquentielle de la file via `dequeueOrder()`.
-* Responsable de la transmission technique finale vers les bourses via `BrokerGatewayPort`.
-
-
-### IDecisionTriggerPort
-
-* **Implémenté par** : `RiskMonitor`, `PortfolioManager`
-* **Injecté dans / Utilisé par** : `ThreadManager` / `EventBus`
-* **Responsabilité opérationnelle** : Interface de réveil et d'activation des moteurs métier suite à une mise à jour de marché.
-* **Règles d’accès ou d’usage** :
-* Invoqué exclusivement de manière asynchrone.
-* Déclenche l'accès immédiat au `IMarketDataCacheReader` pour récupération des données en mode PULL.
-* Cycle de vie lié à la session de trading : actif uniquement en état `READY_FOR_TRADING`.
-
-
 ### IMarketDataCacheReader
-
 * **Implémenté par** : `DataCache`
 * **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager`
-* **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers `MarketQuote` disponibles.
-* **Règles d’accès ou d’usage** :
-* Lecture lock-free obligatoire.
-* Aucun accès aux structures de données internes du cache.
-* Usage exclusif de `MarketQuotes` immuables.
-* Le port garantit l'accès aux seules versions validées (Atomic Versioning).
-* Ne bloque jamais la Fast-Lane.
+* **Responsabilité opérationnelle** : Fournir un accès en lecture seule, non bloquant et ultra-rapide aux derniers `MarketQuotes` (cotations agrégées) en RAM.
+* **Règles d’accès ou d’usage** : Lecture *lock-free* utilisant l'*Atomic Versioning*. Usage exclusif d’objets immuables pour garantir qu'aucune modification n'est possible par les consommateurs. Ne doit jamais bloquer la *Fast-Lane*.
 
+### IEventBusPort 
+* **Implémenté par** : `EventBus` (Infrastructure technique)
+* **Injecté dans / Utilisé par** : `DataCache` (Émetteur), `RiskMonitor` & `PortfolioManager` (Abonnés)
+* **Responsabilité opérationnelle** : Diffuser de manière asynchrone le signal `MarketDataUpdated()` pour réveiller les modules décisionnels.
+* **Règles d’accès ou d’usage** : Diffusion non-bloquante. Supporte l'exécution parallèle des abonnés. Doit respecter les priorités de scheduling (Urgence vs Stratégie).
 
+### IOrderSubmissionPort
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `RiskMonitor`
+* **Responsabilité opérationnelle** : Permettre la soumission immédiate d'ordres de protection ou de liquidation suite à une violation de limite.
+* **Règles d’accès ou d’usage** : Exclusivité au `RiskMonitor` pour cette interface spécifique. Utilisation impérative de la priorité `CRITICAL`.
+
+### IOrderInputQueuePort
+* **Implémenté par** : `OrderInputQueue`
+* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager` (Producteurs) / `OrderManager` (Consommateur)
+* **Responsabilité opérationnelle** : Agir comme zone de transit (buffer) asynchrone pour découper la phase de décision de la phase d'exécution.
+* **Règles d’accès ou d’usage** : Méthode `enqueueOrder(Order, Priority)` non-bloquante. Doit supporter la gestion des priorités (High pour le RM, Standard pour le PM).
+
+### IPositionProvider
+* **Implémenté par** : `PortfolioManager`
+* **Injecté dans / Utilisé par** : `RiskMonitor`
+* **Responsabilité opérationnelle** : Exposer l'état actuel des positions pour permettre au `RiskMonitor` de calculer l'exposition en temps réel par rapport aux nouveaux prix.
+* **Règles d’accès ou d’usage** : Lecture seule. Aucun verrou bloquant. Utilisé durant le fragment `10a-Surveillance-Urgence`.
+
+### IOrderManagerControl (Nouveau - pour message 4)
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : Interne au cycle d'exécution
+* **Responsabilité opérationnelle** : Consommer séquentiellement les ordres présents dans la file d'attente via `dequeueOrder()`.
+* **Règles d’accès ou d’usage** : Traitement ordonné selon la priorité définie lors de l'enfilage. Assure la transition vers l'exécution marché (Broker Gateway).
