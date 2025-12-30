@@ -58,3 +58,11 @@ Ce module est essentiel pour l'intégrité financière. Il garantit que le syst�
 |12|sendCriticalAlert(RECON_FAILURE)|Portfolio Manager|Notification Manager|Alerte asynchrone pour intervention humaine immédiate.|
 |13|CRITICAL_FAILURE|Portfolio Manager|System Manager|Signal d'arrêt du workflow suite à une corruption ou un écart de données.|
 |14|reconciliationOK()|Portfolio Manager|System Manager|Confirmation de cohérence permettant la suite du cycle Post-Trade.|
+
+
+
+---
+
+### NOTE 
+
+* **Timeout :** L'appel fetchBrokerPosition doit intégrer une limite temporelle stricte ; en cas de dépassement, le système doit lever une alerte de connectivité et stopper l'audit.
