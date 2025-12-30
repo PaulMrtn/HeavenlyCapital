@@ -71,3 +71,44 @@ Ce module garantit que l'état financier de la session est **enregistré de mani
 | 17 | releaseThread() | AuditThread | ThreadManager | Libération de la ressource et retour du thread dans le pool I/O Audit. |
 
 ---
+
+
+### 6. Ports et Interfaces
+
+**PersistencePort**
+* **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
+* **Injecté dans / Utilisé par** : `AuditThread` (via `JobManager`)
+* **Responsabilité opérationnelle** : Exécuter le vidage physique et atomique du `SettledSessionBook` vers la base de données. Elle garantit que l'enregistrement du livre de compte final est atomique (ACID) et que la connexion est relâchée après le COMMIT ou le ROLLBACK.
+* **Règles d’accès ou d’usage** : Transactions atomiques obligatoires. Elle est invoquée dans cette séquence via le fragment `DIL-AtomicDBWriteProcess`.
+
+**IJobSubmissionPort**
+* **Implémenté par** : `Job Manager`
+* **Injecté dans / Utilisé par** : `Portfolio Manager`
+* **Responsabilité opérationnelle** : Permettre au `PortfolioManager` de soumettre de manière asynchrone la tâche de persistance du livre de compte. Elle découple la décision de cristallisation de l'exécution physique de l'écriture.
+* **Règles d’accès ou d’usage** : Appel non-bloquant. Doit impérativement inclure la définition du pool cible `I/O Audit` pour l'arbitrage.
+
+**IThreadDelegatePort**
+* **Implémenté par** : `ThreadManager`
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Allocation d'une ressource d'exécution spécifique (`AuditThread`) depuis le pool `I/O Audit`.
+* **Règles d’accès ou d’usage** : Utilisation obligatoire du pool d'isolation "I/O Audit" pour garantir la priorité de la source du broker sur les autres tâches I/O.
+ 3. Logging, Audit & Errors
+
+**ILogger**
+* **Implémenté par** : `Log Service`
+* **Injecté dans / Utilisé par** : `AuditThread` (Success/Failure)
+* **Responsabilité opérationnelle** : Journalisation immuable de l'issue de l'opération (Message 10 ou 14). En cas de succès, elle archive l'empreinte numérique (Hash) du DTO.
+* **Règles d’accès ou d’usage** : Mode synchrone requis pour garantir que la trace d'audit est écrite avant la confirmation de fin de job.
+
+**INotificationService**
+* **Implémenté par** : `AlertingService` (Email, SMS, PagerDuty)
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Envoi immédiat d'alertes critiques (`SESSION_BOOK_FAIL`) aux opérateurs humains en cas d'échec de la persistance après épuisement des retries.
+* **Règles d’accès ou d’usage** : Doit être non-bloquant (Asynchrone). Usage strictement limité aux erreurs de sévérité CRITICAL.
+
+**IProcessControlPort**
+* **Implémenté par** : `System Manager`
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Signaler au `System Manager` l'issue de la tâche de persistance via `jobValidationConfirmed` (Succès) ou `notifyPersistenceError` (Echec).
+* **Règles d’accès ou d’usage** : Le `System Manager` utilise ce retour pour débloquer la suite du cycle (Phase III - Rebalancement) ou geler le système en cas d'erreur de la source du broker.
+
