@@ -91,18 +91,18 @@ Chargement initial des données de risque.
 ---
 
 ### IDataIntegrityCheckPort
-Validation métier post-chargement.
-
-- Implémenté par : IntegrityCheckService
-- Utilisé par : Portfolio Manager, Risk Monitor
-- Responsabilités :
-  - Validation cohérence métier des données initiales
-- Règles :
-  - Appel synchrone
-  - Aucun accès I/O
-  - Retour structuré : OK / WARNING / FAIL
-  - Échec propagé immédiatement au System Manager
-
+* **Implémenté par** : `PortfolioManager`  
+* **Utilisé par** : `System Manager`
+* **Responsabilité** : Exécute la **réconciliation finale Post-Trade** entre l’état interne gelé (via DIL) et l’état réel du broker (IBKR) avant le démarrage de l’audit.
+**Statuts de retour** :
+  * **RECONCILED_OK** : cohérence atteinte, écarts négligeables.
+  * **DEGRADED_OK** : écart toléré (dans un seuil défini), poursuite avec alerte.
+  * **CRITICAL_FAILURE(FailureCode)** : incohérence bloquante, arrêt immédiat.
+**Règles d’usage** :
+  * Appel autorisé uniquement après `validationConfirmed`.
+  * État strictement en lecture (système gelé).
+  * Seuils de tolérance statiques, auditables.
+  * Toute sortie ≠ `RECONCILED_OK` est journalisée synchronement.
 
 ---
 
