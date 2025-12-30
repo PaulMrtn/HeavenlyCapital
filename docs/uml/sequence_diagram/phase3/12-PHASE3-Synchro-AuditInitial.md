@@ -32,7 +32,7 @@ Le processus est initié par le `SystemManager` recevant l'événement de fermet
 * **Atomicité Précédente :** La synchronisation (étape 3) est absolue. L'audit ne peut démarrer que si la validation de persistance du `DIL` est confirmée.
 * **Log de Transition :** Le `marketCloseEvent` est journalisé de manière synchrone dès sa réception pour garantir une trace d'audit du moment exact de la fermeture.
 * **Tolérance Zéro :** Si la Réconciliation révèle un **écart critique** (`data_discrepancy`), le `PortfolioManager` enregistre l'incident de manière **synchrone** (`logCriticalError`) et alerte immédiatement les opérateurs.
-* **État de Poursuite :** Le système ne procède aux étapes Post-Trade suivantes qu'à la condition stricte que le `SystemManager` ait reçu la confirmation `reconciliationOK()`.
+* **État de Poursuite :** Le système ne procède aux étapes Post-Trade suivantes (Persistance en Base de Données) qu'à la condition stricte que le `SystemManager` ait reçu la confirmation `reconciliationOK()`.
 
 ---
 
