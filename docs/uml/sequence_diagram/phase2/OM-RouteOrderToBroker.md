@@ -101,3 +101,5 @@ La séquence est volontairement limitée à l'exécution "In-Memory" sans écrit
 Le `ThreadManager` doit implémenter un mécanisme de notification vers le superviseur en cas d'échec de socket ou d'absence de réponse du message 8, évitant ainsi que l'ordre ne reste bloqué indéfiniment.
 * **Idempotence et Redémarrage**
 L'intégrité du système repose sur l'unicité du `clientOrderID` généré en amont, garantissant qu'en cas de crash du `Dequeue Processor`, aucun ordre déjà transmis ne puisse être exécuté en double par le broker.
+* **Broker-Centric Truth**
+Le broker est la seule source de vérité temps réel ; la base de données n’est qu’une projection retardée mise à jour à partir des ACK broker. Cette approche impose une réconciliation au démarrage, la détection d’ordres orphelins par timeout (état `UNKNOWN_TRANSMISSION`) et un audit basé exclusivement sur les confirmations broker, garantissant performance et résilience sans compromis.
