@@ -50,3 +50,54 @@ Le module garantit l'exécution des ordres dans le respect strict des priorités
 | 7 | delegateExecution(Order, Pool) | JobManager | ThreadManager | Alloue le job au Pool I/O (Critical ou Standard) selon la priorité arbitrée. |
 | 8 | transmitOrder(Order) | ThreadManager | IBKR Gateway | Exécute la transmission physique de l'ordre vers l'API du courtier. |
 | 9 | orderSentConfirmation(OrderID) | IBKR Gateway | OM Dequeue Processor | Confirme que l'ordre a quitté le système, déclenchant le passage au statut SUBMITTED. |
+
+
+
+### 1. Interfaces issues du Catalogue
+
+**IOrderManagerControl**
+* **Implémenté par** : `OrderManager`
+* **Injecté dans / Utilisé par** : `OrderManager` (Boucle interne / Dequeue Processor)
+* **Responsabilité opérationnelle** : Extraction (`dequeue`) et séquençage des ordres depuis la `PriorityQueue` vers la logique de routage.
+* **Règles d’accès ou d’usage** : Consommation priorisée. Assure qu'aucun ordre n'est perdu entre la file d'attente locale et l'envoi technique.
+
+**IJobSubmissionPort**
+* **Implémenté par** : `Job Manager`
+* **Injecté dans / Utilisé par** : `GlobalOrderRouter` (via le message 6 : `submitExecutionJob`)
+* **Responsabilité opérationnelle** : Point d'entrée unique pour la soumission de tâches asynchrones (Jobs d'exécution). Découple l'arbitrage du routage de l'exécution physique.
+* **Règles d’accès ou d’usage** : Appel **non-bloquant**. Doit inclure le pool cible (`FinalPoolHint`) pour l'arbitrage par le Thread Manager.
+
+**BrokerGatewayPort**
+* **Implémenté par** : Gateway externe (`IBKR Gateway`)
+* **Injecté dans / Utilisé par** : `ThreadManager` / `OrderManager`
+* **Responsabilité opérationnelle** : Transmission technique des ordres au courtier (message 8 : `transmitOrder`) et retour des confirmations (message 9).
+* **Règles d’accès ou d’usage** : Encapsulation totale. Aucun accès direct par les modules de décision (PM/RM).
+
+**IGlobalOrderRouter**
+* **Implémenté par** : `GlobalOrderRouter` (GOR)
+* **Injecté dans / Utilisé par** : `OrderManager` (Dequeue Processor)
+* **Responsabilité opérationnelle** : Arbitrage inter-sessions (Live vs Paper). Reçoit l'ordre formaté et calcule la priorité finale de routage I/O.
+* **Règles d’accès ou d’usage** : Doit appliquer la règle de super-priorité (Live avant Paper). Fournit le `FinalPoolHint` nécessaire au JobManager.
+
+**IThreadDelegatePort**
+* **Implémenté par** : `ThreadManager`
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Allocation d'un thread spécifique depuis le pool désigné (CRITICAL, STANDARD, BULK) pour exécuter la transmission physique.
+* **Règles d’accès ou d’usage** : Utilisation de pools isolés pour garantir que les flux "Paper" ne saturent pas les ressources "Live".
+
+**IOrderFormatter**
+* **Implémenté par** : `OrderManager` (ou un ProtocolAdapter dédié)
+* **Injecté dans / Utilisé par** : `OrderManager` (Dequeue Processor)
+* **Responsabilité opérationnelle** : Traduction de l'objet `Order` interne vers le format propriétaire du courtier (message 3 : `formatOrder`).
+* **Règles d’accès ou d’usage** : Purement transformationnel (stateless). Doit supporter différents `SessionTypes`.
+
+---
+
+### NOTE
+
+* **Pureté de l'Exécution (Choix Architectural)**
+La séquence est volontairement limitée à l'exécution "In-Memory" sans écriture DB pour minimiser la latence ; la persistance et le logging sont délégués aux étapes de préparation (amont) et de retour broker (aval).
+* **Gestion des Timeouts et Orphelins**
+Le `ThreadManager` doit implémenter un mécanisme de notification vers le superviseur en cas d'échec de socket ou d'absence de réponse du message 8, évitant ainsi que l'ordre ne reste bloqué indéfiniment.
+* **Idempotence et Redémarrage**
+L'intégrité du système repose sur l'unicité du `clientOrderID` généré en amont, garantissant qu'en cas de crash du `Dequeue Processor`, aucun ordre déjà transmis ne puisse être exécuté en double par le broker.
