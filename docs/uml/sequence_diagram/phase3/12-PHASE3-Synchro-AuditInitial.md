@@ -22,7 +22,7 @@ Ce module est le **point de transition critique** entre la Phase II (In-Trade) e
 
 Le processus est initié par le `SystemManager` recevant l'événement de fermeture. Il procède en deux étapes principales :
 
-1. **Synchronisation Forcée :** Le `SystemManager` ordonne au `JobManager` de **bloquer** l'exécution jusqu'à ce que tous les I/O critiques en cours (persistance des derniers Fills, vidage des buffers de Snapshots) soient **atomiquement confirmés** par le `DIL`.
+1. **Synchronisation Forcée :** Le `SystemManager` ordonne au `JobManager` de **bloquer** l'exécution jusqu'à ce que tous les I/O critiques en cours (persistance des derniers Fills, vidage des buffers de MarketQuote) soient **atomiquement confirmés** par le `DIL`.
 2. **Réconciliation :** Le `PortfolioManager` récupère l'état final auprès du courtier (`IBKR Gateway`) et le compare avec l'état interne. Cette comparaison aboutit à deux chemins : soit le statut est **OK** (poursuite vers l'étape 13), soit il y a **échec critique**.
 
 ---
