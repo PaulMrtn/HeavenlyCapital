@@ -44,7 +44,7 @@ Le flux est piloté par un événement de notification léger :
 
 ### 5. Conclusion
 
-Ce module garantit un flux de prix **déterministe, ultra-rapide et cohérent** pour le système. Il assure que des blocs complets de données de marché (`SnapshotHeader`) sont disponibles en mémoire avec la plus faible latence possible pour la surveillance du risque (Risk Monitor) et l'exécution des stratégies (Portfolio Manager), en isolant la charge de calcul de la charge d'écriture en mémoire.
+Ce module garantit une **réactivité événementielle immédiate** du système face aux mouvements du marché. En utilisant une notification légère de disponibilité, il assure que les modules décisionnels travaillent toujours sur la donnée la plus fraîche en mémoire. Cette architecture élimine les goulots d'étranglement, garantit une isolation totale entre la surveillance et la stratégie, et permet une scalabilité fluide sans compromis sur la latence.
 
 ---
 
