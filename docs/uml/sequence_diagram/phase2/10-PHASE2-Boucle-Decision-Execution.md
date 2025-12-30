@@ -23,8 +23,7 @@ Ce module constitue le point d'entrée de la **logique métier** en Phase II. Co
 Le flux est piloté par un événement de notification léger :
 
   * **Déclenchement :** Le `DataCache` émet un signal `onMarketDataAggregated` dès qu'un lot de cotations a été rafraîchi par la Fast-Lane.
-  * **Orchestration Technique :** Le `ThreadManager` reçoit ce signal et s'assure que les threads dédiés au **Risk Monitor (RM)** et au **Portfolio Manager (PM)** sont actifs et prêts. Il ne contient aucune logique métier.
-  * Non-Blocage : Le ThreadManager n'attend pas de confirmation de la part des modules RM/PM. Le signal est de type "Fire and Forget".
+  * **Orchestration Technique :** Un `EventBus` technique diffuse l’événement de mise à jour des cotations. RM et PM sont abonnés et déclenchent leur traitement de manière asynchrone.
   * **Exécution Parallèle :**
     * * Le **RM** effectue une lecture opportuniste du cache pour valider les limites d'exposition (Urgence).
     * Le **PM** effectue une lecture pour évaluer ses signaux d'entrée (Stratégie).
@@ -36,6 +35,7 @@ Le flux est piloté par un événement de notification léger :
 ### 4. Règles Critiques
 
 * **Sémantique "Latest-only" :** Le RM et le PM lisent la version la plus récente disponible dans le cache au moment de leur réveil.
+* **Non-Blocage** : l’`EventBus` diffuse l’événement de façon asynchrone. RM et PM lisent le cache au moment où ils sont réveillés par l’événement.
 * **Priorité de la Surveillance :** Bien que lancés en parallèle, la logique de surveillance d'urgence (`10a`) est conçue pour avoir une priorité de scheduling supérieure au niveau de l'OS/Runtime par rapport à la stratégie standard (`10b`).
 * **Indépendance de l'Audit :** La décision n'attend jamais la création d'un `SnapshotHeader` ou une écriture disque. Si un retard survient dans la Slow-Lane (audit), la boucle décisionnelle continue sans impact.
 * **Découplage de l'Exécution :** L'envoi vers l' `OrderInputQueue` est non-bloquant.
