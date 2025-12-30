@@ -103,6 +103,16 @@ Validation métier post-chargement.
   - Retour structuré : OK / WARNING / FAIL
   - Échec propagé immédiatement au System Manager
 
+
+---
+
+### IDataIntegrityAuditPort
+
+* **Implémenté par** : `PortfolioManager`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Point d'entrée de la logique de réconciliation finale (`startFinalReconciliation`, Message 8). Compare l'état interne (gelé via le DIL) et l'état externe (IBKR).
+* **Règles d’accès ou d’usage** : Ne peut être invoqué qu'après réception de `validationConfirmed` en provenance du JobManager. Doit retourner un statut binaire : `reconciliationOK` ou `CRITICAL_FAILURE`.
+
 ---
 
 ## 2. Configuration & Static Data
