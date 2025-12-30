@@ -23,6 +23,7 @@ Pour garantir l'efficacité du pool de connexions, l'action de nettoyage de sess
 * Cette méthode **relâche la session** et retourne la connexion physique au pool de connexions.
 * Ceci est une étape indispensable qui empêche le système d'épuiser son pool de connexions disponibles, assurant ainsi la performance pour les jobs suivants.
 
+---
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
