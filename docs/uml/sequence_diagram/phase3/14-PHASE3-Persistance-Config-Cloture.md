@@ -44,17 +44,21 @@ Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'u
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|requestFinalConfigSnapshot(session_id)|SystemManager|SessionManager|Ordre global de capture de l'état de reprise pour la session spécifiée.|
-|2|getRiskManagerConfig()|SessionManager|RiskMonitor|Requête de collecte des seuils et limites de risque actifs en clôture.|
-|3|RiskManagerConfigDTO|RiskMonitor|SessionManager|Retour des métadonnées de risque sous forme d'objet de transfert immuable.|
-|4|getOrderManagerConfig()|SessionManager|OrderManager|Requête de collecte de l'état des compteurs d'ordres et paramètres de routage.|
-|5|OrderManagerConfigDTO|OrderManager|SessionManager|Retour des métadonnées de l'Order Manager.|
-|6|getPortfolioManagerConfig()|SessionManager|PortfolioManager|Requête de collecte des paramètres de gestion de portefeuille (hors inventaire financier).|
-|7|PortfolioManagerConfigDTO|PortfolioManager|SessionManager|Retour des métadonnées du Portfolio Manager.|
-|8|submitAtomicPersist(SessionConfigDTO, PRIORITY_CRITICAL)|SessionManager|JobManager|Soumission du snapshot agrégé pour persistance asynchrone prioritaire.|
-|9|requestThread(POOL_CRITICAL, DIL_TASK)|JobManager|ThreadManager|Demande d'allocation d'une ressource d'exécution dans le pool critique I/O.|
-|10|threadAllocated(CriticalThreadRef)|ThreadManager|JobManager|Confirmation et assignation d'un thread de haute priorité.|
-|11|DIL.atomicWrite(SessionConfigDTO)|JobManager|DataIngestionLayer|Exécution de la transaction ACID via le fragment AtomicDBWriteProcess.|
-|12|jobCompleted(ValidationStatus.OK/ERROR)|DataIngestionLayer|JobManager|Notification de l'issue de l'écriture (Commit ou Rollback).|
-|13|persistenceConfirmed()|JobManager|SessionManager|Signal de confirmation de la sauvegarde de l'état de reprise.|
-|14|configPersistedOK()|SessionManager|SystemManager|Signal final de déblocage autorisant la transition vers l'arrêt sécurisé.|
+|1|requestFinalConfigSnapshot(session_id)|SystemManager|SessionManager|Initialise le processus de clôture pour une session spécifique.|
+|2|getRiskManagerConfig()|SessionManager|RiskMonitor|Collecte les paramètres de risque actifs (seuils, limites).|
+|3|getOrderManagerConfig()|SessionManager|OrderManager|Récupère l'état des compteurs et des séquences d'ordres.|
+|4|getPortfolioManagerConfig()|SessionManager|PortfolioManager|Récupère les pondérations et allocations du portefeuille.|
+|5|mapToEntity(RiskDTO,OrderDTO,PortDTO)|SessionManager|SessionManager|Mapping interne et consolidation des DTO en une Entité technique unique.|
+|6|logClosureWarning(Report)|SessionManager|LogService|Enregistre un bilan de santé si des données de config sont manquantes.|
+|7|sendCriticalAlert(REPORT_INCOMPLETE)|SessionManager|NotificationManager|Alerte les opérateurs d'une clôture avec des données partielles.|
+|8|submitAtomicPersist(SessionConfigEntity,PRIORITY_CRITICAL)|SessionManager|JobManager|Soumission asynchrone de l'entité pour persistance prioritaire.|
+|9|requestThread(POOL_CRITICAL,DIL_TASK)|JobManager|ThreadManager|Demande d'allocation d'un thread dédié au pool d'Audit/IO.|
+|10|threadAllocated(CriticalThreadRef)|ThreadManager|JobManager|Confirmation de l'allocation d'une ressource de calcul pour l'IO.|
+|11|DIL.atomicWrite(SessionConfigEntity)|JobManager|DataIngestionLayer|Tentative d'écriture transactionnelle en base de données.|
+|12|jobCompleted(ValidationStatus.OK/ERROR)|DataIngestionLayer|JobManager|Retour de l'état d'exécution (déclenche le fallback interne si ERROR).|
+|13|persistenceConfirmed(Status)|JobManager|SessionManager|Confirmation finale du stockage (Nominal ou Dégradé/Local Dump).|
+|14|configPersistedOK()|SessionManager|SystemManager|Signal final autorisant l'arrêt physique sécurisé du moteur.|
+
+---
+
+
