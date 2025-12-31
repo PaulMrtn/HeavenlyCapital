@@ -109,3 +109,6 @@ Ce module garantit une extinction déterministe en libérant les ressources rés
 
 ---
 
+### NOTE
+
+**awaitAllPostTradeJobs :** En cas de dépassement du TIMEOUT_SHUTDOWN_IO, et puisque toutes les données critiques sont déjà persistées, le système doit logger un CRITICAL, lever le flag FORCED_SHUTDOWN puis forcer l’extinction immédiate du processus, sans tenter de cleanup supplémentaire, afin d’éviter tout état indéfini.
