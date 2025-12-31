@@ -1,7 +1,7 @@
-## `17-PHASE4-Calcul-Strategie`
+## `18-PHASE4-Calcul-Strategie`
 
 <p align="center">
-  <img src="../img/17-PHASE4-Calcul-Strategie.jpg" width="900">
+  <img src="../img/18-PHASE4-Calcul-Strategie.jpg" width="900">
 </p>
 
 ---
