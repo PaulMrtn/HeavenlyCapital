@@ -74,7 +74,7 @@ Le module **17-PHASE4-Ingestion-EODHD-Init** constitue la **chambre forte analyt
 * **Injecté dans / Utilisé par** : `System Manager` / `Data Ingestion Layer (DIL)`
 * **Responsabilité opérationnelle** : Fournir l'accès technique au fournisseur EODHD.
 * **Nouveau Message associé** : `fetchEODHDData()` (remplace l'ancien fragment de résilience).
-* **Règles d’accès ou d’usage** : Appel synchrone. Intègre désormais une politique de **Timeout (30s)** et de **Retry (3 tentatives)**.
+* **Règles d’accès ou d’usage** : Appel synchrone. Intègre désormais une politique de **Timeout** et de **Retry**.
 
 **PersistencePort**
 * **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
@@ -89,18 +89,18 @@ Le module **17-PHASE4-Ingestion-EODHD-Init** constitue la **chambre forte analyt
 * **Règles d’accès ou d’usage** : Mode synchrone pour les logs de session en Phase IV.
 
 **INotificationService**
-* **Implémenté par** : `AlertingService` (Email, SMS)
+* **Implémenté par** : `Notification Manager` (Email, SMS)
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
 * **Responsabilité opérationnelle** : Envoi immédiat d'alertes asynchrones (`sendAlert`) en cas d'échec de l'API ou de corruption des données.
 * **Règles d’accès ou d’usage** : Doit être non-bloquant (Asynchrone) pour ne pas retarder le System Manager.
 
-**ISystemModeControl** (Nouvelle interface pour la gestion du mode dégradé)
+**ISystemModeControl** 
 * **Implémenté par** : `System Manager`
 * **Injecté dans / Utilisé par** : `System Manager` (Self), `Data Ingestion Layer`
 * **Responsabilité opérationnelle** : Gérer la transition d'état opérationnel du système (Message `setSystemMode`).
 * **Règles d’accès ou d’usage** : Permet de basculer de `NOMINAL` à `DEGRADED`. Ce changement d'état est persistant pour les séquences suivantes (Phase 18+).
 
-**IMarketDataTransformationPort** (Nouveau Port interne au DIL)
+**IMarketDataTransformationPort**
 * **Implémenté par** : `Data Ingestion Layer (DIL)`
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (Self-Messages)
 * **Responsabilité opérationnelle** :
