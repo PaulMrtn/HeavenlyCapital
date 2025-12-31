@@ -264,10 +264,18 @@ Soumission d’ordres critiques.
 
 ---
 
-### IEODHDConnectivityPort
+**IEODHDConnectivityPort** (phase 1)
+
+* **Implémenté par** : `EODHD Service` (External API Gateway)
+* **Injecté dans / Utilisé par** : `System Manager` / `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** : Fournir l'accès technique aux données multidimensionnelles du fournisseur EODHD.
+* **Règles d’accès ou d’usage** : Utilisation de la méthode `fetchEODHDData()`. Doit implémenter une logique de **résilience** (Timeout, Retry).
+
+
+### IEODHDConnectivityPort (phase 17)
 
   * **Implémenté par** : `EODHD Service` (External API Gateway)
-  * **Injecté dans / Utilisé par** : `System Manager` / `SM-RESILIENT-CHECK-CONNECTION`
+  * **Injecté dans / Utilisé par** : `System Manager`
   * **Responsabilité opérationnelle** : Vérifier la validité de l'authentification et l'accessibilité de l'API externe EODHD (données de marché historiques/référence).
   * **Règles d’accès ou d’usage** : Appel synchrone. Timeout à configuré.
   * **Contraintes** : Usage strictement limité au bootstrapping.
@@ -326,6 +334,16 @@ Soumission d’ordres critiques.
 * **Injecté dans / Utilisé par** : `OrderManager` (Dequeue Processor)
 * **Responsabilité opérationnelle** : Traduction de l'objet `Order` interne vers le format propriétaire du courtier (message 3 : `formatOrder`).
 * **Règles d’accès ou d’usage** : Purement transformationnel (stateless). Doit supporter différents `SessionTypes`.
+
+---
+
+**IMarketDataTransformationPort** 
+
+* **Implémenté par** : `Data Ingestion Layer (DIL)`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (Auto-appel)
+* **Responsabilité opérationnelle** :
+* `checkDataIntegrity` : Validation métier des DTO bruts.
+* `processMarketData` : Calcul des ajustements techniques (splits, dividendes) pour générer le `Processed_MarketData_DTO`.
 
 ---
 
@@ -603,11 +621,20 @@ Interface unique pour signaler une demande d’arrêt global du système.
 ---
 
 **ILiveDataControlPort**
-
 * **Implémenté par** : `Live Data Hub`
 * **Injecté dans / Utilisé par** : `System Manager`
 * **Responsabilité opérationnelle** : Permettre le changement dynamique du mode de traitement des données de marché suite à une alerte de latence.
 * **Règles d’accès ou d’usage** : Appel synchrone via le message `setOperatingMode(Mode)`. Définit si l'agrégation doit être `NOMINAL` ou `DEGRADED`.
+
+---
+
+**ISystemModeControl** (Nouvelle ou extension de IProcessControlPort)
+* **Implémenté par** : `System Manager`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`, `Strategy Engine`
+* **Responsabilité opérationnelle** : Gérer et exposer l'état de santé opérationnel du système via la méthode `setSystemMode()`.
+* **Valeurs de retour/États** : `NOMINAL`, `DEGRADED`.
+* **Règles d’accès ou d’usage** : En mode `DEGRADED`, les composants consommateurs (comme le Strategy Engine) doivent appliquer des règles de gestion de risque spécifiques (ex: réduction de levier ou utilisation de prix historiques).
+
 
 ---
 
@@ -658,3 +685,4 @@ Interface de pilotage du cycle de vie du buffer mémoire.
   3. Être référencée ensuite dans les séquences UML
 - Une interface = une responsabilité claire
 - Aucun doublon fonctionnel toléré
+
