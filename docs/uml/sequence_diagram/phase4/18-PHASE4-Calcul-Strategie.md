@@ -41,3 +41,23 @@ Le **System Manager (SM)** pilote une boucle itérative structurée comme suit :
 ### 5. Conclusion
 
 Le module **17-PHASE4-Calcul-Strategie** garantit une gestion rigoureuse et autonome des cycles de trading. En combinant l'auto-vérification du calendrier et la délégation du calcul complexe, il assure une production de cibles optimisée, résiliente et directement exploitable par les phases d'exécution.
+
+
+---
+
+
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|getSystemMode()|System Manager|System Manager|Vérification de l'état opérationnel (NOMINAL/DEGRADED) hérité de la phase d'ingestion.|
+|2|applyDegradedPolicy()|System Manager|System Manager|Action interne d'ajustement des paramètres de risque si le mode dégradé est actif.|
+|3|logEvent(STRATEGY_CALC_START)|System Manager|SystemLogger|Journalisation du début officiel de la phase de calcul stratégique.|
+|4|loadActiveStrategyConfigs()|System Manager|DataAccessLayer|Requête synchrone pour charger les fichiers de configuration JSON des stratégies actives.|
+|5|return List< ConfigJSON >|DataAccessLayer|System Manager|Transmission de la liste des configurations à traiter pour le cycle en cours.|
+|6|isRebalanceDay(Config.ID)|System Manager|System Manager|Vérification logique du calendrier pour déterminer si la stratégie doit s'exécuter ce jour.|
+|7|logEvent(SESSION_START, Config.ID)|System Manager|SystemLogger|Marquage du début du traitement pour une session de stratégie spécifique.|
+|8|executeStrategy(Config)|System Manager|StrategyEngine|Appel du moteur de calcul. Isolé pour permettre une future délégation via Job Manager.|
+|9|return TargetPortfolioDTO|StrategyEngine|System Manager|Retour de l'objet de transfert de données contenant le portefeuille cible calculé.|
+|10|persistSingleTarget(TargetPortfolioDTO)|System Manager|DataIngestionLayer|Commande de persistance unitaire du résultat via le port de persistance du DIL.|
+|11|logEvent(SESSION_COMPLETE, Config.ID)|System Manager|SystemLogger|Journalisation de la réussite du traitement complet d'une session.|
+|12|logEvent(SESSION_ERROR, Config.ID)|System Manager|SystemLogger|Journalisation d'une erreur survenue durant le calcul ou la persistance d'une session.|
+|13|logEvent(STRATEGY_PHASE_COMPLETE)|System Manager|SystemLogger|Confirmation finale de la clôture de la Phase IV avant passage à l'exécution.|
