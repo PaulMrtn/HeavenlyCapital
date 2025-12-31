@@ -36,3 +36,20 @@ Le **System Manager (SM)** initie la séquence en ordonnant au **Session Manager
 ### 5. Conclusion
 
 Le module **15-PHASE3-Arrêt-Sécurisé** est le garant de la **propreté de l'extinction**. Il s'assure qu'au moment où l'application est éteinte, toutes les données de reprise nécessaires sont sécurisées et que les ressources externes (flux de marché, connexions API) ont été libérées selon les protocoles établis.
+
+---
+
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|initiateSystemShutdown()|SystemManager|SessionManager|Déclenche la procédure d'arrêt ordonné du cycle de vie session.|
+|2|awaitAllPostTradeJobs()|SessionManager|JobManager|Demande de barrière pour attendre la fin des écritures I/O Post-Trade.|
+|3|allJobsCompleted(Status.OK)|JobManager|SessionManager|Confirmation que tous les threads I/O (DIL/Audit) sont libérés.|
+|4|readyForDisconnect()|SessionManager|SystemManager|Signal indiquant que la couche métier est gelée et persistée.|
+|5|stopLiveDataFeed()|SystemManager|LiveDataHub|Ordre d'arrêt des services de données de marché en temps réel.|
+|6|unsubscribeAllMarketData()|LiveDataHub|IBKR Gateway|Envoi des requêtes de résiliation d'abonnements via l'API broker.|
+|7|ACK(UnsubscribedOK)|IBKR Gateway|LiveDataHub|Confirmation logique du désabonnement des flux de prix.|
+|8|disconnectFromGateway()|LiveDataHub|IBKR Gateway|Fermeture physique de la socket TCP/API avec le courtier.|
+|9|connectionClosed()|IBKR Gateway|LiveDataHub|Confirmation de la rupture de la liaison externe.|
+|10|feedShutdownOK()|LiveDataHub|SystemManager|Signal de libération totale des ressources réseau.|
+|11|logSystemState(STATE_OFF_CYCLE)|SystemManager|Log Service|Enregistrement final du statut immuable de l'application.|
+|12|System.exit(0)|SystemManager|SystemManager|Appel réflexif au runtime OS pour tuer le processus logiciel.|
