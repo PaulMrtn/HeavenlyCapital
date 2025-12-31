@@ -1,5 +1,5 @@
 
-## `01-PHASE4-Connectivite-Critique`
+## `16-PHASE4-Connectivite-Critique`
 
 <p align="center">
   <img src="../img/01-PHASE4-Connectivite-Critique.jpg" width="900">
@@ -39,4 +39,4 @@ Le processus est géré par le **`System Manager`** et se déroule de manière s
 
 ### 5. Conclusion
 
-Le module **`01-PHASE4-Connectivite-Critique`** garantit que le réveil et l'initialisation du système sont toujours **conditionnels** à la santé de ses dépendances I/O. Il assure l'**intégrité du démarrage** par une procédure d'arrêt strict en cas de défaillance fondamentale, avant de passer aux étapes coûteuses d'initialisation des données et du contexte métier.
+Le module **`16-PHASE4-Connectivite-Critique`** garantit que le réveil et l'initialisation du système sont toujours **conditionnels** à la santé de ses dépendances I/O. Il assure l'**intégrité du démarrage** par une procédure d'arrêt strict en cas de défaillance fondamentale, avant de passer aux étapes coûteuses d'initialisation des données et du contexte métier.
