@@ -41,15 +41,23 @@ Le module **15-PHASE3-Arrêt-Sécurisé** est le garant de la **propreté de l'e
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|initiateSystemShutdown()|SystemManager|SessionManager|Déclenche la procédure d'arrêt ordonné du cycle de vie session.|
-|2|awaitAllPostTradeJobs()|SessionManager|JobManager|Demande de barrière pour attendre la fin des écritures I/O Post-Trade.|
-|3|allJobsCompleted(Status.OK)|JobManager|SessionManager|Confirmation que tous les threads I/O (DIL/Audit) sont libérés.|
-|4|readyForDisconnect()|SessionManager|SystemManager|Signal indiquant que la couche métier est gelée et persistée.|
-|5|stopLiveDataFeed()|SystemManager|LiveDataHub|Ordre d'arrêt des services de données de marché en temps réel.|
-|6|unsubscribeAllMarketData()|LiveDataHub|IBKR Gateway|Envoi des requêtes de résiliation d'abonnements via l'API broker.|
-|7|ACK(UnsubscribedOK)|IBKR Gateway|LiveDataHub|Confirmation logique du désabonnement des flux de prix.|
-|8|disconnectFromGateway()|LiveDataHub|IBKR Gateway|Fermeture physique de la socket TCP/API avec le courtier.|
-|9|connectionClosed()|IBKR Gateway|LiveDataHub|Confirmation de la rupture de la liaison externe.|
-|10|feedShutdownOK()|LiveDataHub|SystemManager|Signal de libération totale des ressources réseau.|
-|11|logSystemState(STATE_OFF_CYCLE)|SystemManager|Log Service|Enregistrement final du statut immuable de l'application.|
-|12|System.exit(0)|SystemManager|SystemManager|Appel réflexif au runtime OS pour tuer le processus logiciel.|
+|1|initiateSystemShutdown()|SystemManager|SessionManager|Déclenche la procédure d'extinction ordonnée après la clôture des marchés.|
+|2|awaitAllPostTradeJobs()|SessionManager|JobManager|Vérifie la complétion de tous les threads I/O et persistances atomiques en cours.|
+|3|allJobsCompleted(Status.OK)|JobManager|SessionManager|Confirmation que la file d'attente des jobs critiques est vide et sécurisée.|
+|4|readyForDisconnect()|SessionManager|SystemManager|Signal autorisant le début de la déconnexion des ressources externes.|
+|5|stopLiveDataFeed()|SystemManager|LiveDataHub|Ordre de fermeture des flux de données de marché en temps réel.|
+|6|disconnectFromGateway()|LiveDataHub|IBKR Gateway|Désabonnement et fermeture de socket asynchrone sans attente de retour (Fire-and-forget).|
+|7|feedShutdownOK()|LiveDataHub|SystemManager|Confirmation interne que les ressources réseau du hub ont été libérées.|
+|8|disconnectFromHistoricalBuffer()|SystemManager|LiveHistoryBuffer|Libération explicite de la mémoire vive du singleton contenant l'historique intraday.|
+|9|notifyShutdownComplete()|SystemManager|NotificationManager|Envoi d'une alerte finale asynchrone signalant la clôture propre de la session.|
+|10|logSystemState(STATE_OFF_CYCLE)|SystemManager|Log Service|Journalisation synchrone (Flush) de l'état final immuable du système.|
+|11|System.exit(0)|SystemManager|SystemManager|Appel réflexif au runtime pour détruire le processus logiciel («destroy»).|
+
+
+---
+
+### 6. Ports et Interfaces
+
+
+
+---
