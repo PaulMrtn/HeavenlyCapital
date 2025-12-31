@@ -42,3 +42,27 @@ Le processus est orchestré par le `DIL` de manière séquentielle et conditionn
 
 Le module `17-PHASE4-Ingestion-EOD-Init` est la **chambre forte** des données du cycle. Il garantit non seulement la récupération fiable de la source externe, mais aussi l'**auditabilité** et la **préparation analytique** des données. En assurant la qualité et la persistance atomique des informations de marché traitées, il établit la base indispensable de confiance pour le démarrage des calculs stratégiques.
 
+
+---
+
+|ID|Fonction / Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|startEODIngestion()|System Manager|Data Ingestion Layer|Commande initiale lançant le processus de récupération des données de fin de journée.|
+|2|logEvent(EOD_INGESTION_START)|Data Ingestion Layer|Log Session|Enregistrement de l'horodatage de début de l'ingestion pour l'audit de session.|
+|3|REF-API-RESILIENT-CALL(EODHD API)|Data Ingestion Layer|EODHD API|Fragment de référence gérant l'appel réseau externe avec politique de timeout et retry.|
+|4|response(EOD_Data_DTO)|EODHD API|Data Ingestion Layer|Retour du flux de données brutes structurées sous forme d'objet de transfert de données.|
+|5|sendAlert(EOD_API_DOWN)|Data Ingestion Layer|Notification Manager|Envoi d'une alerte asynchrone aux opérateurs en cas d'échec de l'appel API après retries.|
+|6|logError(EOD_FETCH_FAIL)|Data Ingestion Layer|Log Session|Journalisation d'une erreur critique de récupération pour analyse post-mortem.|
+|7|eodIngestionComplete(Failure)|Data Ingestion Layer|System Manager|Notification d'échec de récupération au superviseur du système.|
+|8|setSystemMode(DEGRADED)|System Manager|System Manager|Auto-changement d'état interne pour continuer le cycle sur des données historiques ou dégradées.|
+|9|checkDataIntegrity(EOD_Data_DTO)|Data Ingestion Layer|Data Ingestion Layer|Auto-validation métier du contenu (vérification des valeurs aberrantes ou manquantes).|
+|10|processMarketData(EOD_Data_DTO)|Data Ingestion Layer|Data Ingestion Layer|Transformation analytique des données (ajustements, dividendes) vers le format traité.|
+|ref|DIL-AtomicDBWriteProces|Data Ingestion Layer|Persistence Port|Fragment garantissant l'écriture transactionnelle de l'objet Processed_MarketData_DTO.|
+|11|logEvent(EOD_INGESTION_COMPLETE)|Data Ingestion Layer|Log Session|Journalisation de la réussite totale de l'ingestion et du traitement des données.|
+|12|eodIngestionComplete(Success)|Data Ingestion Layer|System Manager|Notification de succès permettant au système de rester en mode NOMINAL.|
+|13|sendAlert(EOD_INTEGRITY_FAILED)|Data Ingestion Layer|Notification Manager|Alerte asynchrone signalant que les données reçues sont corrompues ou invalides.|
+|14|logCriticalError(EOD_INGESTION_FAIL)|Data Ingestion Layer|Log Session|Journalisation d'une erreur d'intégrité bloquant l'usage des données du jour.|
+|15|eodIngestionComplete(Failure)|Data Ingestion Layer|System Manager|Notification d'échec suite à une corruption de données détectée après réception.|
+|16|setSystemMode(DEGRADED)|System Manager|System Manager|Bascule de sécurité pour éviter l'usage de données corrompues par le Strategy Engine.|
+
+---
