@@ -8,37 +8,37 @@
 
 ### 1. Objectif
 
-Ce module a pour finalité d'enregistrer l'**État de Reprise (Configuration de Clôture)** du système. Il garantit la persistance atomique des métadonnées de la session pour assurer un redémarrage sécurisé et intègre lors du prochain *bootstrapping* (Phase I).
+Ce module assure la sauvegarde de l'**État de Reprise (Configuration de Clôture)** du système. Il garantit la persistance atomique des métadonnées de la session pour assurer un redémarrage sécurisé et intègre lors du prochain *bootstrapping* (Phase I).
 
 ---
-
 
 ### 2. Contexte
 
-Ce processus s'inscrit dans la **Phase III (Post-Trade)**, se concentrant sur la sauvegarde des **règles**. Il est essentiel pour distinguer les données d'audit financier de la configuration opérationnelle. Son exécution est un prérequis critique pour la transition vers l'arrêt sécurisé (Étape 15).
+S'inscrivant dans la **Phase III (Post-Trade)**, ce processus verrouille les **règles opérationnelles**. Il est structurellement distinct de la persistance financière et constitue le dernier rempart de sécurité avant l'arrêt physique du moteur (Étape 15).
 
 ---
-
 
 ### 3. Logique Générale
 
-Le **System Manager** déclenche le **Session Manager**, qui orchestre la collecte des configurations de reprise auprès des trois managers métiers : **Risk Monitor (RM)**, **Portfolio Manager (PM)** et **Order Manager (OM)**. Ces configurations (`RiskManagerConfigDTO`, `PortfolioManagerConfigDTO`, `OrderManagerConfigDTO`) sont agrégées dans un unique objet **`SessionConfigDTO`**. Ce DTO est ensuite soumis au **Job Manager** pour une exécution atomique via le **Data Integrity Layer (DIL)**, en utilisant obligatoirement un thread du **Pool I/O Critique**.
+Le **System Manager** déclenche le **Session Manager**, qui orchestre la collecte séquentielle auprès des managers métiers (**RM, OM, PM**).
+
+* **Consolidation & Santé :** La fonction `mapToEntity()` transforme les DTO en une entité technique immuable et génère un bilan de santé unique.
+* **Persistance Résiliente :** L'entité est soumise au **Job Manager** qui gère de manière autonome les tentatives d'écriture DB et le repli sur fichier local en cas d'échec critique.
 
 ---
 
-
 ### 4. Règles Critiques
 
-* **Cohérence de Reprise :** L'écriture doit inclure les métadonnées des trois managers (RM, PM, OM) pour garantir une vision complète des règles actives au moment de l'arrêt.
-* **Priorité I/O et Atomicité :** La persistance doit être exécutée avec la plus haute priorité et de manière atomique (tout ou rien) grâce au processus DIL, assurant que l'état de la configuration est intégralement enregistré ou annulé.
-* **Dépendance Fatale :** Le **System Manager** ne peut jamais progresser vers l'arrêt sécurisé (Étape 15) tant que la validation réussie de cette écriture critique n'a pas été confirmée par le Session Manager. En cas d'échec du `COMMIT`, une alerte fatale est levée.
-* **Isolation :** Cette étape vise à enregistrer uniquement les *configs* (règles de démarrage/protection), et non l'état financier (géré en Étape 13).
+* **Bilan de Santé Global (Optimisation) :** Si une configuration est incomplète ou manquante lors de la collecte, le système ne génère qu'**un seul log et une seule notification** consolidée. Le processus n'est pas bloqué ; le système privilégie la continuité en s'appuyant sur la logique de récupération de la Phase I.
+* **Résilience de Persistance (Internalisée) :** Le Job Manager exécute une boucle de **3 tentatives (Retry)** via le DIL. En cas d'échec persistant, il déclenche un **Emergency Local Dump** (format JSON/Fichier plat) via l'AuditThread pour garantir qu'aucune donnée de reprise n'est perdue.
+* **Extensibilité :** L'architecture est dite `«extensible»`. Le Session Manager peut agréger des configurations de composants d'instance (multi-instances) dynamiquement sans modifier la structure du Job Manager ou du DIL.
+* **Validation de Clôture :** Le System Manager ne peut valider l'arrêt que sur réception d'un statut `SUCCESS` ou `DEGRADED` (Local Dump actif).
 
 ---
 
 ### 5. Conclusion
 
-Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'un **point de vérité immuable** pour la configuration du moteur de trading. Il est la vérification finale que les paramètres de sécurité et les compteurs internes ont été correctement verrouillés, permettant un redémarrage du système dans un état d'intégrité opérationnelle absolue.
+Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'un **point de vérité immuable** pour la configuration du moteur de trading. Il est la vérification finale que les paramètres de sécurité et les compteurs internes ont été correctement verrouillés, permettant un redémarrage du système dans un état d'intégrité opérationnelle absolue. Il transforme une potentielle défaillance critique d'infrastructure en un mode de fonctionnement dégradé maîtrisé, assurant l'intégrité opérationnelle absolue pour la prochaine ouverture de session.
 
 ---
 
@@ -61,4 +61,6 @@ Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'u
 
 ---
 
+### 6. Ports et Interfaces
 
+---
