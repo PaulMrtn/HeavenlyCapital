@@ -621,6 +621,35 @@ Interface unique pour signaler une demande d’arrêt global du système.
 
 ---
 
+## 11. In-Memory Data Management
+
+### ILiveDataSubscriber
+Interface de réception pour l'accumulation des données en temps réel.
+* **Implémenté par** : `LiveHistoryBuffer` (Singleton)
+* **Injecté dans / Utilisé par** : `LiveDataHub`
+* **Responsabilité opérationnelle** :
+  * Réceptionner les ticks et snapshots consolidés du LDH via `ICacheWriter`.
+  * Stocker les données dans une structure immuable pour exposition ultérieure.
+* **Règles d’accès ou d’usage** :
+  * Port passif durant la phase de trading.
+  * Cesse toute ingestion dès la réception du signal `stopLiveDataFeed()` en Phase III.
+  
+---
+
+### ILiveHistoryControlPort
+Interface de pilotage du cycle de vie du buffer mémoire.
+* **Implémenté par** : `LiveHistoryBuffer`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** :
+  * Fournir la commande de nettoyage final des structures de données (`disconnectFromHistoricalBuffer`).
+  * Garantir la libération des ressources RAM avant l'extinction du processus.
+* **Règles d’accès ou d’usage** :
+  * Appel synchrone obligatoire en fin de Phase III.
+  * Doit assurer la rupture des liens avec les éventuels `Observers` (UI, Metrics) pour éviter les crashs à l'extinction.
+  
+
+---
+
 ## Règle de Gouvernance
 
 - Toute nouvelle interface doit :
