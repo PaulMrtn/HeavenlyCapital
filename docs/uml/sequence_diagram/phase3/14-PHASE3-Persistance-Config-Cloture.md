@@ -51,7 +51,7 @@ Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'u
 |5|mapToEntity(RiskDTO,OrderDTO,PortDTO)|SessionManager|SessionManager|Mapping interne et consolidation des DTO en une Entité technique unique.|
 |6|logClosureWarning(Report)|SessionManager|LogService|Enregistre un bilan de santé si des données de config sont manquantes.|
 |7|sendCriticalAlert(REPORT_INCOMPLETE)|SessionManager|NotificationManager|Alerte les opérateurs d'une clôture avec des données partielles.|
-|8|submitAtomicPersist(SessionConfigEntity,PRIORITY_CRITICAL)|SessionManager|JobManager|Soumission asynchrone de l'entité pour persistance prioritaire.|
+|8|submitAtomicPersist(SessionConfigEntity, PRIORITY_CRITICAL)|SessionManager|JobManager|Soumission asynchrone de l'entité pour persistance prioritaire.|
 |9|requestThread(POOL_CRITICAL,DIL_TASK)|JobManager|ThreadManager|Demande d'allocation d'un thread dédié au pool d'Audit/IO.|
 |10|threadAllocated(CriticalThreadRef)|ThreadManager|JobManager|Confirmation de l'allocation d'une ressource de calcul pour l'IO.|
 |11|DIL.atomicWrite(SessionConfigEntity)|JobManager|DataIngestionLayer|Tentative d'écriture transactionnelle en base de données.|
