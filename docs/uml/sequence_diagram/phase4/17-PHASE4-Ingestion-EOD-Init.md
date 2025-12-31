@@ -104,7 +104,7 @@ Le module **17-PHASE4-Ingestion-EODHD-Init** constitue la **chambre forte analyt
 * **Implémenté par** : `Data Ingestion Layer (DIL)`
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (Self-Messages)
 * **Responsabilité opérationnelle** :
-1. `checkDataIntegrity` : Validation de la cohérence des données reçues.
-2. `processMarketData` : Transformation analytique (calcul des ajustements).
+  1. `checkDataIntegrity` : Validation de la cohérence des données reçues.
+  2. `processMarketData` : Transformation analytique (calcul des ajustements).
 
 
