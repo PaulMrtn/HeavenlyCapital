@@ -1,14 +1,14 @@
 ## `16-PHASE4-Ingestion-EOD-Init`
 
 <p align="center">
-  <img src="../img/16-PHASE4-Ingestion-EOD-Init.jpg" width="900">
+  <img src="../img/17-PHASE4-Ingestion-EOD-Init.jpg" width="900">
 </p>
 
 ---
 
 ### 1. Objectif
 
-Ce module vise à garantir l'**ingestion, le traitement et la persistance atomique** des données de marché de fin de journée (EOD) les plus récentes. Il est la **seule source de vérité** pour les données de marché qui seront utilisées par le *Strategy Engine* (`17-PHASE4`).
+Ce module vise à garantir l'**ingestion, le traitement et la persistance atomique** des données de marché de fin de journée (EOD) les plus récentes. Il est la **seule source de vérité** pour les données de marché qui seront utilisées par le *Strategy Engine* (`18-PHASE4`).
 
 ---
 
@@ -40,5 +40,5 @@ Le processus est orchestré par le `DIL` de manière séquentielle et conditionn
 
 ### 5. Conclusion
 
-Le module `16-PHASE4-Ingestion-EOD-Init` est la **chambre forte** des données du cycle. Il garantit non seulement la récupération fiable de la source externe, mais aussi l'**auditabilité** et la **préparation analytique** des données. En assurant la qualité et la persistance atomique des informations de marché traitées, il établit la base indispensable de confiance pour le démarrage des calculs stratégiques.
+Le module `17-PHASE4-Ingestion-EOD-Init` est la **chambre forte** des données du cycle. Il garantit non seulement la récupération fiable de la source externe, mais aussi l'**auditabilité** et la **préparation analytique** des données. En assurant la qualité et la persistance atomique des informations de marché traitées, il établit la base indispensable de confiance pour le démarrage des calculs stratégiques.
 
