@@ -69,3 +69,42 @@ Le module **17-PHASE4-Ingestion-EODHD-Init** constitue la **chambre forte analyt
 
 ### 6. Ports et Interfaces
 
+**IEODHDConnectivityPort**
+* **Implémenté par** : `EODHD Service` (External API Gateway)
+* **Injecté dans / Utilisé par** : `System Manager` / `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** : Fournir l'accès technique au fournisseur EODHD.
+* **Nouveau Message associé** : `fetchEODHDData()` (remplace l'ancien fragment de résilience).
+* **Règles d’accès ou d’usage** : Appel synchrone. Intègre désormais une politique de **Timeout (30s)** et de **Retry (3 tentatives)**.
+
+**PersistencePort**
+* **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (via fragment `ref`)
+* **Responsabilité opérationnelle** : Point d’accès unique pour la persistance critique. Garantit l'écriture transactionnelle du `Processed_MarketData_DTO`.
+* **Règles d’accès ou d’usage** : Transactions atomiques obligatoires. Isolation totale des objets métier.
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`, `System Manager`
+* **Responsabilité opérationnelle** : Journalisation des événements (`EOD_START`, `EOD_COMPLETE`) et des erreurs (`EOD_FETCH_FAIL`).
+* **Règles d’accès ou d’usage** : Mode synchrone pour les logs de session en Phase IV.
+
+**INotificationService**
+* **Implémenté par** : `AlertingService` (Email, SMS)
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** : Envoi immédiat d'alertes asynchrones (`sendAlert`) en cas d'échec de l'API ou de corruption des données.
+* **Règles d’accès ou d’usage** : Doit être non-bloquant (Asynchrone) pour ne pas retarder le System Manager.
+
+**ISystemModeControl** (Nouvelle interface pour la gestion du mode dégradé)
+* **Implémenté par** : `System Manager`
+* **Injecté dans / Utilisé par** : `System Manager` (Self), `Data Ingestion Layer`
+* **Responsabilité opérationnelle** : Gérer la transition d'état opérationnel du système (Message `setSystemMode`).
+* **Règles d’accès ou d’usage** : Permet de basculer de `NOMINAL` à `DEGRADED`. Ce changement d'état est persistant pour les séquences suivantes (Phase 18+).
+
+**IMarketDataTransformationPort** (Nouveau Port interne au DIL)
+* **Implémenté par** : `Data Ingestion Layer (DIL)`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (Self-Messages)
+* **Responsabilité opérationnelle** :
+1. `checkDataIntegrity` : Validation de la cohérence des données reçues.
+2. `processMarketData` : Transformation analytique (calcul des ajustements).
+
+
