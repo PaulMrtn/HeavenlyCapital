@@ -63,4 +63,52 @@ Le module **14-PHASE3-Persistance-Config-Cloture** garantit l'établissement d'u
 
 ### 6. Ports et Interfaces
 
+**ISessionConfigProvider**
+* **Implémenté par** : `SessionManager` (via agrégation des DTO)
+* **Injecté dans / Utilisé par** : `SystemManager`
+* **Responsabilité opérationnelle** : Fournir l'état final immuable des règles (Risque, Portefeuille, Ordres) avant l'arrêt.
+* **Règles d’accès ou d’usage** : Lecture seule. Snapshot immuable généré par `mapToEntity`.
+
+**IBootstrapReadinessCheck**
+* **Implémenté par** : `RiskMonitor`, `OrderManager`, `PortfolioManager`
+* **Injecté dans / Utilisé par** : `SessionManager`
+* **Responsabilité opérationnelle** : Fournir les configurations de reprise via les appels `get...Config()`.
+* **Règles d’accès ou d’usage** : Appel synchrone obligatoire en Phase Post-Trade.
+
+**PersistencePort**
+* **Implémenté par** : `Data Ingestion Layer (DIL)`
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Point d’accès unique pour la persistance atomique de la `SessionConfigEntity`.
+* **Règles d’accès ou d’usage** : Passage obligatoire par le fragment `AtomicDBWrite`. Isolation totale des objets métier.
+
+**IJobSubmissionPort**
+* **Implémenté par** : `JobManager`
+* **Injecté dans / Utilisé par** : `SessionManager`
+* **Responsabilité opérationnelle** : Soumission asynchrone de la tâche de persistance critique (`submitAtomicPersist`).
+* **Règles d’accès ou d’usage** : Appel non-bloquant. Priorité `PRIORITY_CRITICAL` requise pour l'arbitrage.
+
+**IThreadDelegatePort**
+* **Implémenté par** : `ThreadManager`
+* **Injecté dans / Utilisé par** : `JobManager`
+* **Responsabilité opérationnelle** : Allocation d'un thread spécifique depuis le pool `POOL_CRITICAL` pour l'exécution physique.
+* **Règles d’accès ou d’usage** : Utilisation exclusive du pool réservé à l'audit et à l'IO critique.
+
+**ILogger**
+* **Implémenté par** : `LogService`
+* **Injecté dans / Utilisé par** : `SessionManager`
+* **Responsabilité opérationnelle** : Enregistrement du rapport de santé (`logClosureWarning`) si les données sont incomplètes.
+* **Règles d’accès ou d’usage** : Un seul log consolidé par session pour éviter le bruit.
+
+**INotificationService**
+* **Implémenté par** : `NotificationManager`
+* **Injecté dans / Utilisé par** : `SessionManager`, `JobManager`
+* **Responsabilité opérationnelle** : Envoi d'alertes en cas de données incomplètes ou d'activation de l'Emergency Local Dump.
+* **Règles d’accès ou d’usage** : Doit être non-bloquant. Utilisé uniquement pour les messages `sendCriticalAlert`.
+
+**IProcessControlPort**
+* **Implémenté par** : `SystemManager`
+* **Injecté dans / Utilisé par** : `SessionManager`
+* **Responsabilité opérationnelle** : Autoriser la transition vers l'arrêt physique via `configPersistedOK()`.
+* **Règles d’accès ou d’usage** : Bloqué tant que le statut `SUCCESS` ou `DEGRADED` (Local Dump) n'est pas confirmé par le `JobManager`.
+
 ---
