@@ -8,40 +8,40 @@
 
 ### 1. Objectif
 
-Ce module vise à garantir l'**ingestion, le traitement et la persistance atomique** des données de marché de fin de journée (EOD) les plus récentes. Il est la **seule source de vérité** pour les données de marché qui seront utilisées par le *Strategy Engine* (`18-PHASE4`).
+Ce module a pour finalité de garantir l'**ingestion résiliente, le traitement et la persistance atomique** des données multidimensionnelles (marché, fondamentaux, dérivés, ...) provenant du fournisseur **EODHD**. Il constitue la **source de vérité unique** pour les données de référence qui seront exploitées par le *Strategy Engine* (`18-PHASE4`) lors du calcul du Target Portfolio.
 
 ---
 
 ### 2. Contexte
 
-La séquence s'exécute dans la **Phase IV (Préparation du Target Portfolio)**, après la validation du Jour Ouvré et de la connectivité. Le processus, orchestré par le `Data Ingestion Layer` (DIL), est indispensable car il assure la **préparation analytique** des données (calculs intermédiaires) avant de les rendre disponibles pour la prise de décision stratégique.
+La séquence s'exécute au sein de la **Phase IV (Préparation du Target Portfolio)**, immédiatement après la validation du Jour Ouvré et de la connectivité réseau. Le processus, orchestré par le **Data Ingestion Layer (DIL)**, est indispensable car il assure la **préparation analytique** (ajustements techniques et calculs intermédiaires) avant de rendre ces données disponibles pour la prise de décision stratégique.
 
 ---
 
 ### 3. Logique Générale
 
-Le processus est orchestré par le `DIL` de manière séquentielle et conditionnelle :
+Le processus est orchestré par le **DIL** de manière séquentielle avec une gestion de basculement d'état :
 
-* **Récupération Résiliente :** Le `DIL` obtient les données de l'`EODHD API` via un appel résilient (`REF-API-RESILIENT-CALL`) qui gère de manière autonome les pannes réseau transitoires. **Cette référence reste à être formalisée sous forme de schéma.**
-* **Vérification d'Intégrité :** Les données brutes récupérées sont soumises à la validation métier (`checkDataIntegrity`) pour exclure les jeux de données corrompus (ex: données manquantes ou valeurs illogiques).
-* **Calcul Intermédiaire :** Les données intègres subissent ensuite le traitement nécessaire (`processMarketData`), tel que l'ajustement des prix (splits/dividendes) ou le calcul de facteurs fondamentaux, pour générer le `Processed_Data_DTO` prêt pour l'audit et la stratégie.
-* **Persistance Atomique :** Les données calculées sont persistées en base de données via le fragment **`REF-DIL-AtomicDBWriteProces`**, qui garantit une écriture **tout ou rien** via une transaction.
-* **Résultat :** Le statut final (Succès ou Échec) est remonté au `System Manager` pour la prise de décision sur la poursuite du cycle.
+* **Récupération Résiliente :** Le DIL interroge l'API via la fonction métier `fetchEODHDData()`. Cet appel intègre un **Timeout** et une politique de **Retry** pour absorber les pannes réseau transitoires.
+* **Bascule en Mode Dégradé :** En cas d'échec persistant de récupération, le système émet une alerte via le `Notification Manager`, logue l'erreur, et le `System Manager` bascule en **`MODE_DEGRADED`** pour permettre au cycle de continuer sans bloquer le démarrage.
+* **Vérification d'Intégrité :** Les données brutes récupérées (`EOD_Data_DTO`) subissent une validation métier (`checkDataIntegrity`) pour exclure les jeux de données corrompus ou les valeurs illogiques.
+* **Calcul Intermédiaire :** Les données validées sont transformées (`processMarketData`) pour intégrer les ajustements (splits, dividendes) et générer le **`Processed_MarketData_DTO`**.
+* **Persistance Atomique :** Les données calculées sont persistées via le fragment **`DIL-AtomicDBWriteProcess`**, garantissant une écriture transactionnelle "tout ou rien".
+
 ---
 
 ### 4. Règles Critiques
 
-* **Uniformité de la Résilience :** L'appel à l'`EODHD API` utilise le même patron de résilience que les vérifications de connectivité, assurant une gestion des erreurs I/O homogène.
-* **Intégrité en Cascade :** Le traitement (`processMarketData`) n'est exécuté que si la vérification d'intégrité réussit. La persistance atomique n'est initiée que si le traitement réussit. L'échec de l'une de ces étapes doit entraîner une fin de processus sécurisée.
-* **Atomicité Absolue :** Le `REF-DIL-AtomicDBWriteProces` est le seul garant de l'intégrité des données stratégiques. Toute défaillance durant l'écriture doit déclencher un `rollback` immédiat et complet.
-* **Arrêt sur Défaillance (Fail-Fast) :** Tout échec critique (récupération persistante, intégrité compromise, erreur atomique) doit générer un statut d'échec nécessitant une intervention du `System Manager` et, potentiellement, l'arrêt du processus.
+* **Résilience Non-Bloquante :** Contrairement aux phases précédentes, l'échec d'ingestion EODHD ne déclenche pas d'arrêt système mais une transition vers le **`MODE_DEGRADED`**, assurant la continuité opérationnelle.
+* **Intégrité en Cascade :** Le traitement (`processMarketData`) n'est exécuté que si la vérification d'intégrité réussit. La persistance n'est initiée que si le traitement génère un DTO valide.
+* **Atomicité Absolue :** Le `DIL-AtomicDBWriteProcess` est le seul garant de l'intégrité des données stratégiques sur disque. Toute défaillance lors de l'écriture entraîne un `rollback` immédiat.
+* **Isolation des Flux :** Le système sépare strictement la donnée brute fournisseur (`EOD_Data_DTO`) de la donnée enrichie et auditée (`Processed_MarketData_DTO`) utilisée par la stratégie.
 
 ---
 
 ### 5. Conclusion
 
-Le module `17-PHASE4-Ingestion-EOD-Init` est la **chambre forte** des données du cycle. Il garantit non seulement la récupération fiable de la source externe, mais aussi l'**auditabilité** et la **préparation analytique** des données. En assurant la qualité et la persistance atomique des informations de marché traitées, il établit la base indispensable de confiance pour le démarrage des calculs stratégiques.
-
+Le module **17-PHASE4-Ingestion-EODHD-Init** constitue la **chambre forte analytique** indispensable au cycle de trading. En sécurisant l'extraction des données fondamentales et de marché depuis **EODHD** et en assurant leur transformation atomique, il établit un socle de confiance pour le *Strategy Engine*. Sa capacité de basculement en mode dégradé garantit que l'infrastructure de trading reste résiliente face aux instabilités des fournisseurs tiers.
 
 ---
 
@@ -66,3 +66,6 @@ Le module `17-PHASE4-Ingestion-EOD-Init` est la **chambre forte** des données d
 |16|setSystemMode(DEGRADED)|System Manager|System Manager|Bascule de sécurité pour protéger le Strategy Engine.|
 
 ---
+
+### 6. Ports et Interfaces
+
