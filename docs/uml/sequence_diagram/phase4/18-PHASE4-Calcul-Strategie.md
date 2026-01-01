@@ -46,7 +46,7 @@ Le **System Manager (SM)** pilote un flux structuré intégrant résilience et d
 
 ### 5. Conclusion
 
-Le module **17-PHASE4-Calcul-Strategie** garantit une gestion rigoureuse et autonome des cycles de trading. En combinant l'auto-vérification du calendrier et la délégation du calcul complexe, il assure une production de cibles optimisée, résiliente et directement exploitable par les phases d'exécution, tout en étamt robuste face aux pannes et préparer pour une montée en charge multi-cœurs.
+Ce module garantit une gestion rigoureuse et autonome des cycles de trading. En combinant l'auto-vérification du calendrier et la délégation du calcul complexe, il assure une production de cibles optimisée, résiliente et directement exploitable par les phases d'exécution, tout en étamt robuste face aux pannes et préparer pour une montée en charge multi-cœurs.
 
 ---
 
