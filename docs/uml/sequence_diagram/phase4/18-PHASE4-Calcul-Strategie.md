@@ -8,40 +8,45 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'orchestrer le calcul et la persistance des portefeuilles cibles. Il filtre les stratégies éligibles au rebalancement et transforme les configurations actives en décisions d'investissement sécurisées en base de données.
+La finalité de ce module est d'orchestrer le calcul et la persistance des portefeuilles cibles. Il filtre les stratégies éligibles au rebalancement et transforme les configurations actives en décisions d'investissement sécurisées en base de données, tout en adaptant le comportement du système à l'état de santé opérationnel.
 
 ---
 
 ### 2. Contexte
 
-Ce module est le moteur d'exécution de la **Phase IV**. Il intervient une fois les configurations chargées depuis le **DAL**. Son rôle est de centraliser l'intelligence de planification du cycle en décidant, pour chaque session, si le déclenchement du moteur de calcul est requis pour la journée en cours.
+Ce module est le moteur décisionnel de la **Phase IV**. Il intervient après l'ingestion des données EODHD et s'appuie sur le mode système (`NOMINAL` ou `DEGRADED`) pour sécuriser l'exécution. Son rôle est de centraliser l'intelligence de planification du cycle en décidant, pour chaque session, si le déclenchement du moteur de calcul est requis.
 
 ---
 
 ### 3. Logique Générale
 
-Le **System Manager (SM)** pilote une boucle itérative structurée comme suit :
+Le **System Manager (SM)** pilote un flux structuré intégrant résilience et délégation :
 
-* **Auto-Vérification (SM vers SM) :** Pour chaque configuration, le SM appelle sa propre méthode interne `isRebalanceDay(Config.ID)`. Il analyse les règles temporelles du JSON pour confirmer si la stratégie doit agir ce jour.
-* **Exécution Déléguée :** Si le test interne est positif, le SM sollicite le **Strategy Engine**. Ce dernier devient alors responsable de récupérer ses données via le **DAL** et de produire le `TargetPortfolioDTO`.
-* **Persistance Unitaire :** Tout résultat produit est immédiatement envoyé au **Data Ingestion Layer (DIL)** pour une écriture en base de données.
-* **Gestion du saut :** Si l'auto-vérification est négative, le SM passe immédiatement à la session suivante sans solliciter les ressources de calcul.
+* **Vérification de Santé :** Avant tout calcul, le SM interroge son état interne via `getSystemMode()`. Si le mode est `DEGRADED` (ex: suite à un échec d'ingestion EODHD), il applique une politique restrictive via `applyDegradedPolicy()` pour protéger le capital.
+* **Auto-Vérification Temporelle :** Pour chaque configuration chargée, le SM valide le calendrier via `isRebalanceDay(Config.ID)`.
+* **Exécution Isolée :** Si le test est positif, le SM sollicite le **Strategy Engine** via `executeStrategy(Config)`. Cet appel est conçu comme un socle de délégation, permettant de déporter le calcul vers un autre cœur via le **Job Manager** sans impacter la logique métier.
+* **Persistance Unitaire :** Le `TargetPortfolioDTO` produit est immédiatement envoyé au **Data Ingestion Layer (DIL)** via `persistSingleTarget()` pour une écriture transactionnelle.
+* **Gestion des Échecs et Alertes :** En cas d'erreur de calcul ou de persistance, le SM déclenche une notification asynchrone via le **Notification Manager** (`notifyStrategyOrderFailure`) pour alerter les opérateurs sans bloquer la boucle de traitement des autres sessions.
 
 ---
 
 ### 4. Règles Critiques
 
+* **Priorité à la Résilience :** L'état `DEGRADED` prime sur le calcul nominal. Le SM doit impérativement brider les paramètres de stratégie si les données de marché fraîches sont absentes.
 * **Centralisation du Calendrier :** Le SM détient la responsabilité du "Go/No-Go" temporel via `isRebalanceDay`, assurant que le **Strategy Engine** n'est activé que pour des opérations productives.
 * **Indépendance des Flux :** La persistance est réalisée au fil de l'eau. L'échec d'une écriture ou d'un calcul pour une session spécifique n'entrave pas le traitement des autres stratégies de la boucle.
 * **Optimisation des Ressources :** En internalisant la vérification du rebalancement, le SM évite des instanciations inutiles du moteur de calcul et des requêtes de données superflues vers le DAL.
-* **Traçabilité des Décisions :** Le système doit loguer explicitement les sessions ignorées (`SESSION_SKIPPED`) afin de distinguer un oubli technique d'une décision volontaire basée sur le calendrier.
+* **Socle de Délégation :** L'appel au moteur de calcul doit rester fonctionnellement pur (Config in / DTO out) pour faciliter le futur passage à une exécution multi-threadée sur un pool `BULK`.
+* **Indépendance des Sessions :** L'échec d'une stratégie spécifique ne doit jamais interrompre le cycle global. Chaque erreur génère une alerte isolée et le SM passe à la session suivante.
+* * **Traçabilité des Décisions :** Le système doit loguer explicitement les sessions ignorées (`SESSION_SKIPPED`) afin de distinguer un oubli technique d'une décision volontaire basée sur le calendrier.
+* **Atomicité de Persistance :** Chaque cible validée doit être écrite via le port de persistance du DIL pour garantir l'intégrité de la source de vérité avant la phase d'exécution d'ordres.
+
 
 ---
 
 ### 5. Conclusion
 
-Le module **17-PHASE4-Calcul-Strategie** garantit une gestion rigoureuse et autonome des cycles de trading. En combinant l'auto-vérification du calendrier et la délégation du calcul complexe, il assure une production de cibles optimisée, résiliente et directement exploitable par les phases d'exécution.
-
+Le module **17-PHASE4-Calcul-Strategie** garantit une gestion rigoureuse et autonome des cycles de trading. En combinant l'auto-vérification du calendrier et la délégation du calcul complexe, il assure une production de cibles optimisée, résiliente et directement exploitable par les phases d'exécution, tout en étamt robuste face aux pannes et préparer pour une montée en charge multi-cœurs.
 
 ---
 
@@ -61,3 +66,13 @@ Le module **17-PHASE4-Calcul-Strategie** garantit une gestion rigoureuse et auto
 |12|logEvent(SESSION_ERROR, Config.ID)|System Manager|SystemLogger|Journalisation d'une défaillance technique ou métier durant le traitement de la session.|
 |13|notifyStrategyOrderFailure(Config.ID, ErrorCode)|System Manager|Notification Manager|Envoi d'une alerte asynchrone détaillant l'échec de la session pour intervention.|
 |14|logEvent(STRATEGY_PHASE_COMPLETE)|System Manager|SystemLogger|Confirmation finale de la clôture de la Phase IV avant passage à l'exécution.|
+
+---
+
+### 6. Ports et Interfaces
+
+
+
+---
+
+
