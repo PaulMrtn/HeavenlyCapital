@@ -7,13 +7,13 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'allouer la couche d'exécution métier du système en instanciant **toutes les sessions de trading actives**. Cela comprend la création, l'injection de dépendances et la liaison des triplets de managers locaux (**Portfolio Manager**, **Risk Monitor**, **Order Manager**) pour chaque stratégie. L'objectif est de garantir qu'avant tout chargement de données, la structure logique de décision et de sécurité est opérationnelle, isolée et supervisée.
+La finalité de ce module est d'allouer la couche d'exécution métier du système en instanciant **toutes les sessions de trading actives**. Cela comprend la création, l'injection de dépendances et la liaison des triplets de managers locaux (**Portfolio Manager**, **Risk Monitor**, **Order Manager**) pour chaque stratégie. L'objectif est de garantir qu'avant tout chargement de données, incluant les oracles ML, la structure logique de décision et de sécurité est opérationnelle, isolée et supervisée. Cette étape assure également que chaque session dispose de ses propres modèles d'inférence immuables pour valider les signaux d'exécution en temps réel.
 
 ---
 
 ### 2. Contexte
 
-Cette étape s'inscrit immédiatement après l'initialisation des services d'infrastructure persistants (Singletons globaux, Pools de Threads, `HealthService`, `ErrorService`). Elle constitue le pont entre l'infrastructure globale et l'exécution spécifique à une stratégie. Elle lie la logique de décision (**PM**) aux ressources d'exécution (**IG**, **LDH**) et au mécanisme de protection d'urgence (**RM**).
+Cette étape s'inscrit immédiatement après l'initialisation des services d'infrastructure persistants (Singletons globaux, Pools de Threads, `HealthService`, `ErrorService`). Elle constitue le pont entre l'infrastructure globale et l'exécution spécifique à une stratégie. Elle lie la logique de décision (**PM**) aux ressources d'exécution (**IG**, **LDH**) et au mécanisme de protection d'urgence (**RM**) tout en intégrant les modèles ML chargés depuis le système de fichiers. L'intégrité de ces modèles est vérifiée avant leur injection définitive dans les managers métier.
 
 ---
 
@@ -24,18 +24,19 @@ Le **System Manager** orchestre une boucle itérative pour chaque identifiant de
 1. **Récupération des Paramètres :** Extraction des seuils de risque et paramètres via `getConfigs(SessionID)`.
 2. **Création Identitaire :** Instanciation de `TradingSession` (ID, MarketDayStatus) pour porter l'état local.
 3. **Allocation des Managers (Injection par Constructeur) :**
-* **PM :** Créé avec son identifiant et les ports `ISessionPersistence` (DIL) et `IErrorHandler`.
-* **OM :** Créé avec la référence `IBKR Gateway` et les ports `IOrderRepository` (DIL) et `IErrorHandler`.
-* **RM :** Créé en dernier car il nécessite les références du PM (via `IPositionProvider`) et de l'OM (via `IOrderSubmissionPort`).
-
-
+  * **PM :** Créé avec son identifiant et les ports `ISessionPersistence` (DIL) et `IErrorHandler`.
+  * **OM :** Créé avec la référence `IBKR Gateway` et les ports `IOrderRepository` (DIL) et `IErrorHandler`.
+  * **RM :** Créé en dernier car il nécessite les références du PM (via `IPositionProvider`) et de l'OM (via `IOrderSubmissionPort`).
 4. **Liaison des Canaux (Linking) :**
-* Le **System Manager** injecte l'OM dans le PM via `setOrderManager(OM)` pour établir le canal de **Performance**.
-* Le **System Manager** injecte le PM dans le RM via `setPortfolioReference(PM)` pour permettre la surveillance.
+  * Le **System Manager** injecte l'OM dans le PM via `setOrderManager(OM)` pour établir le canal de **Performance**.
+  * Le **System Manager** injecte le PM dans le RM via `setPortfolioReference(PM)` pour permettre la surveillance.
+5. * **Allocation des Oracles ML (Injection par Constructeur) :**
+  * Le **System Manager** résout les chemins des artefacts ML via la configuration statique (ModelID + Version).
+  * Il instancie les modèles de décision locaux et les injecte dans les managers respectifs.
+  * Chaque instance est locale à la session, garantissant une isolation stricte et l'absence de contention.
+6. **Instanciation du Port de Santé :** Création d'un `IHealthCheckPort` dédié au triplet pour l'audit programmatique local.
+7. **Vérification de Readiness :** Appel à `HCheckSessionReady(ID)` pour valider que tous les fils sont branchés et les threads alloués.
 
-
-5. **Instanciation du Port de Santé :** Création d'un `IHealthCheckPort` dédié au triplet pour l'audit programmatique local.
-6. **Vérification de Readiness :** Appel à `HCheckSessionReady(ID)` pour valider que tous les fils sont branchés et les threads alloués.
 ---
 
 ### 4. Règles Critiques
@@ -46,12 +47,12 @@ Le **System Manager** orchestre une boucle itérative pour chaque identifiant de
 * **RM :** S'exécute sur le `RM_CRITICAL_POOL` (priorité absolue).
 * **PM :** S'exécute sur le `STRATEGY_POOL` (calculs métier).
 * **OM :** S'exécute sur le `IO_POOL` (gestion réseau et persistance).
-
-
+* **Immutabilité des Oracles :** Une fois injectés, les modèles `IExecutionDecisionModel` et `IStopPredictionModel` sont strictement en lecture seule. Ils ne possèdent aucun état mutable et n'effectuent aucun apprentissage en ligne.
+* **Pureté Fonctionnelle :** Les modèles ML agissent comme des fonctions pures (Market Data In  Boolean Out). Ils n'ont aucun accès aux ports de persistance ou de connectivité broker.
+* **Isolation ML/Manager :** Le **Portfolio Manager** et le **Risk Monitor** possèdent leurs propres instances de modèles. Un manager ne peut jamais invoquer le modèle d'un autre composant.
 * **Abstraction du Port de Persistance :** Les managers n'ont aucun couplage avec le **Data Integrity Layer (DIL)**. Ils utilisent des interfaces métier. Les appels vers ces ports sont obligatoirement routés vers le `BULK_POOL` ou le `AUDIT_POOL` via des méthodes transactionnelles (`startTransaction`, `commit`).
 * **Centralisation Fail-Fast :** Le port **`IErrorHandler`** injecté dans chaque manager est le seul canal autorisé pour les remontées critiques. En cas d'erreur fatale, il déclenche l'arrêt immédiat de la session sans tentative de "retry" interne.
 * **Couplage Minimal :** Le RM n'écrit jamais dans le PM. L'OM n'accède jamais au PM. Tout échange se fait via des ports standardisés.
-
 
 ---
 
@@ -66,8 +67,8 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 | 1 | getSessionsToLoad() | System Manager | Config | Récupération de la liste des sessions actives. |
 | 2 | new TradingSession(ID, Status) | System Manager | TradingSession | Création de l'entité identitaire de la session. |
 | 3 | getConfigs(SessionID) | System Manager | Config | Extraction des seuils et paramètres spécifiques. |
-| 4 | new PM(S, C, LDH, IPersistencePort) | System Manager | Portfolio Manager | **Correction** : Injection de l'interface de persistance pour les SessionBooks. |
-| 5 | new RM(S, C, LDH) | System Manager | Risk Monitor | Création du moniteur de risque (lecture seule LDH/PM). |
+| 4 | new PM(ID, Config, LDH, IPersist, IExecModel) | System Manager | Portfolio Manager | Injection du modèle de décision d'exécution (Achat/Vente). |
+| 5 | new RM(ID, Config, LDH, IStopModel) | System Manager | Risk Monitor | Injection du modèle de prédiction Stop-Loss anticipé. |
 | 6 | new OM(S, IG, IPersistencePort) | System Manager | Order Manager | **Correction** : Injection du port de persistance pour les logs d'ordres et Fills. |
 | 7-9 | Setters (OM, PM) | System Manager | PM / RM | Établissement des canaux de communication inter-composants. |
 | 10 | HCheckSessionReady(ID) | System Manager | System Manager | Validation d'intégrité de l'instanciation. |
@@ -150,3 +151,15 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Injecté dans :** PM, RM, OM.
   * **Responsabilité :** Centralisation des erreurs critiques, classification de sévérité et déclenchement des protocoles **Fail-Fast**.
   * **Règles d’usage :** **Écriture uniquement.** Appels synchrones pour les erreurs fatales uniquement. Interdiction de "Retry" interne au port. Instance unique, partagée et Thread-Safe.
+
+**IExecutionDecisionModel**
+* **Implémenté par :** Modèles ML chargés (XGBoost, Régression, etc.).
+* **Injecté dans :** Portfolio Manager.
+* **Responsabilité :** Oracle de décision. Détermine si le prix actuel permet l'exécution d'un ordre planifié via `shouldExecute(last_price)`.
+* **Règles :** Déterministe, sans effet de bord, aucun accès I/O.
+
+**IStopPredictionModel**
+* **Implémenté par :** Modèles ML de risque chargés.
+* **Injecté dans :** Risk Monitor.
+* **Responsabilité :** Anticipation de sortie. Détermine si une liquidation préventive est requise avant l'atteinte mécanique du stop-loss via `shouldLiquidate(last_price)`.
+* **Règles :** Indépendant de la logique du Portfolio Manager.
