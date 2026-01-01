@@ -694,6 +694,22 @@ Interface pivot entre l'orchestrateur système et l'intelligence de calcul.
 
 ---
 
+**IExecutionDecisionModel**
+* **Implémenté par :** Modèles ML chargés (XGBoost, Régression, etc.).
+* **Injecté dans :** Portfolio Manager.
+* **Responsabilité :** Oracle de décision. Détermine si le prix actuel permet l'exécution d'un ordre planifié.
+* **Règles :** Déterministe, sans effet de bord, aucun accès I/O.
+
+---
+
+**IStopPredictionModel**
+* **Implémenté par :** Modèles ML de risque chargés.
+* **Injecté dans :** Risk Monitor.
+* **Responsabilité :** Anticipation de sortie. Détermine si une liquidation préventive est requise avant l'atteinte mécanique du stop-loss.
+* **Règles :** Indépendant de la logique du Portfolio Manager.
+
+---
+
 ## Règle de Gouvernance
 
 - Toute nouvelle interface doit :
