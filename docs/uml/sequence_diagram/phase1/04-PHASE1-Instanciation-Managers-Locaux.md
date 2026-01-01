@@ -44,9 +44,9 @@ Le **System Manager** orchestre une boucle itérative pour chaque identifiant de
 * **Renforcement de l’Injection :** Pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`, `IErrorHandler`), l'injection par **constructeur** est obligatoire. Les setters sont réservés aux liaisons de second rang pour éviter les dépendances cycliques.
 * **Isolation RM/PM (Non-Blocking) :** Pour garantir la réactivité absolue de la surveillance d'urgence, le **Risk Monitor** ne possède jamais de référence directe vers la logique interne du PM. Il accède à l'état des positions via le port **`IPositionProvider`** qui fournit des **Snapshots immuables**. Cela empêche tout blocage du RM par un verrou (lock) ou une contention mémoire issus du PM.
 * **Segmentation des Pools d'Exécution :**
-* **RM :** S'exécute sur le `RM_CRITICAL_POOL` (priorité absolue).
-* **PM :** S'exécute sur le `STRATEGY_POOL` (calculs métier).
-* **OM :** S'exécute sur le `IO_POOL` (gestion réseau et persistance).
+  * **RM :** S'exécute sur le `RM_CRITICAL_POOL` (priorité absolue).
+  * **PM :** S'exécute sur le `STRATEGY_POOL` (calculs métier).
+  * **OM :** S'exécute sur le `IO_POOL` (gestion réseau et persistance).
 * **Immutabilité des Oracles :** Une fois injectés, les modèles `IExecutionDecisionModel` et `IStopPredictionModel` sont strictement en lecture seule. Ils ne possèdent aucun état mutable et n'effectuent aucun apprentissage en ligne.
 * **Pureté Fonctionnelle :** Les modèles ML agissent comme des fonctions pures (Market Data In  Boolean Out). Ils n'ont aucun accès aux ports de persistance ou de connectivité broker.
 * **Isolation ML/Manager :** Le **Portfolio Manager** et le **Risk Monitor** possèdent leurs propres instances de modèles. Un manager ne peut jamais invoquer le modèle d'un autre composant.
