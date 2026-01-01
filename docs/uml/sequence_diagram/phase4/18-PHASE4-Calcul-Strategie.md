@@ -71,7 +71,47 @@ Ce module garantit une gestion rigoureuse et autonome des cycles de trading. En 
 
 ### 6. Ports et Interfaces
 
+**PersistencePort**
+* **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Persistance unitaire du `TargetPortfolioDTO` généré par chaque session de stratégie.
+* **Règles d’accès ou d’usage** : Passage par le fragment `AtomicDBWrite` pour garantir l'intégrité. Transactions atomiques obligatoires.
 
+**TradingUniversePort**
+* **Implémenté par** : `Data Access Layer (DAL)`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Fournir les configurations JSON (`List<ConfigJSON>`) des stratégies actives à traiter.
+* **Règles d’accès ou d’usage** : Lecture seule. Snapshot immuable pendant la Phase 4.
+
+**IStrategyEnginePort**
+* **Implémenté par** : `Strategy Engine`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Transformer une configuration de session en un portefeuille cible (`TargetPortfolioDTO`) via la méthode `executeStrategy(Config)`.
+* **Règles d’accès ou d’usage** : Doit être conçu pour une exécution isolée (Config In / DTO Out) afin de permettre une future délégation au `Job Manager`.
+
+**ILogger**
+* **Implémenté par** : `Logger Global` / `SystemLogger`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Journalisation des événements de cycle de vie (`STRATEGY_CALC_START`, `SESSION_START`, etc.) et des erreurs de session.
+* **Règles d’accès ou d’usage** : Mode non-bloquant en runtime pour ne pas ralentir la boucle de calcul.
+
+**INotificationService**
+* **Implémenté par** : `AlertingService`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Envoi immédiat d'alertes asynchrones (`notifyStrategyOrderFailure`) en cas d'échec critique d'une session.
+* **Règles d’accès ou d’usage** : Doit être non-bloquant (Asynchrone).
+
+**ISystemModeControl**
+* **Implémenté par** : `System Manager`
+* **Injecté dans / Utilisé par** : `System Manager` (Auto-appel)
+* **Responsabilité opérationnelle** : Fournir l'état courant (`getSystemMode`) pour décider de l'application de la politique dégradée.
+* **Règles d’accès ou d’usage** : En mode `DEGRADED`, le SM doit invoquer `applyDegradedPolicy()` avant de lancer les calculs.
+
+**ICalendarServicePort**
+* **Implémenté par** : `Internal Calendar Service`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Déterminer via `isRebalanceDay(Config.ID)` si la date actuelle est éligible au rebalancement pour la stratégie donnée.
+* **Règles d’accès ou d’usage** : Réponse booléenne immédiate via calcul in-memory.
 
 ---
 
