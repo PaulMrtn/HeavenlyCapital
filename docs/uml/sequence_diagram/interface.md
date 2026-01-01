@@ -677,6 +677,23 @@ Interface de pilotage du cycle de vie du buffer mémoire.
 
 ---
 
+## 12. Strategy & Calculation
+
+### IStrategyEnginePort
+Interface pivot entre l'orchestrateur système et l'intelligence de calcul.
+* **Implémenté par** : `Strategy Engine`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** :
+* Transformer une configuration métier (`ConfigJSON`) en décisions d'investissement concrètes.
+* Produire un `TargetPortfolioDTO` (positions cibles, poids, cash résiduel).
+* Assurer l'isolation du calcul pour permettre l'exécution sur des cœurs CPU distincts.
+* **Règles d’accès ou d’usage** :
+  * **Stateless** : L'interface doit être sans état. Chaque appel reçoit tout le contexte nécessaire.
+  * **Délégation Ready** : La signature doit permettre l'encapsulation dans un `Job` (via `IJobSubmissionPort`).
+  * **Immuabilité** : Le DTO produit en sortie est immuable et prêt pour la persistance via le `DIL`.
+
+---
+
 ## Règle de Gouvernance
 
 - Toute nouvelle interface doit :
