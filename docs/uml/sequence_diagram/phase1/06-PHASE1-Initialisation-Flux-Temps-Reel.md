@@ -45,19 +45,21 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction / Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1 | `getRequiredMarketDataContracts()` | System Manager | Config | Récupère la liste exhaustive des tickers nécessaires aux sessions actives. |
-| 2 | `requestMarketDataFeed(Contracts)` | System Manager | IBKR Gateway | Ordonne l'initialisation du flux de données pour les contrats spécifiés. |
-| 3 | `connectToFeedAPI()` | IBKR Gateway | IBKR Gateway | Auto-appel pour établir la connexion TCP/API avec le fournisseur Interactive Brokers. |
-| 4 | `subscribe(Contracts)` | IBKR Gateway | Live Data Hub | Transmet les demandes d'abonnement pour acheminer les ticks vers le LDH. |
-| 5 | `startStreaming(LDH)` | IBKR Gateway | IBKR Gateway | Déclenche l'envoi asynchrone des flux de prix vers le cache du LDH. |
-| 6 | `HCheckGlobal(timeout)` | System Manager | Live Data Hub | Lance le contrôle de santé asynchrone (Couverture + Fraîcheur). |
-| 7 | `validateFlow()` | Live Data Hub | Live Data Hub | Vérifie en interne : Seuil ≥ 80% ET Delta Temps Tick/Système valide. |
-| 8 | `logCriticalEvent(Error, Meta)` | System Manager | Logger | Journalise l'échec final (IDs manquants, latence) avant l'arrêt. |
-| 9 | `systemStop(CRITICAL_ERROR)` | System Manager | System Manager | Arrêt inconditionnel du système en cas d'échec du bootstrapping (Zéro Tolérance). |
-| 10 | `call_07-PHASE1...` | System Manager | Next Module | Transition vers la validation croisée si le HCheck est SUCCESS. |
-
+|1|getRequiredMarketDataContracts()|System Manager|Config|Récupération de la liste exhaustive des tickers nécessaires aux sessions de trading actives.|
+|2|requestMarketDataFeed(Contracts)|System Manager|IBKR Gateway|Ordre d'initialisation technique pour la souscription aux flux de données de marché spécifiés.|
+|3|connectToFeedAPI()|IBKR Gateway|IBKR Gateway|Établissement de la connexion TCP/API vers les serveurs de données du broker (Interactive Brokers).|
+|4|subscribe(Contracts)|IBKR Gateway|Live Data Hub|Enregistrement des abonnements pour router les flux entrants vers le point d'entrée du hub.|
+|5|startStreaming(LDH)|IBKR Gateway|IBKR Gateway|Déclenchement du flux asynchrone des données de marché vers le système local.|
+|6|pushInitialSnapshot(MarketQuote)|IBKR Gateway|Historic Live Hub|Transmission du premier agrégat de prix pour valider l'interface d'écriture ICacheWriter du buffer.|
+|7|HCheckGlobal(Timeout)|System Manager|Live Data Hub|Contrôle de santé global orchestré pour vérifier la preuve de vie et la couverture du flux.|
+|8|validateFlow()|Live Data Hub|Live Data Hub|Vérification interne de la fraîcheur des données (Delta Temps) et de la complétude de l'univers reçu.|
+|9|verifyBufferSwap()|Historic Live Hub|Historic Live Hub|Validation du mécanisme de Double Buffering et du swap atomique lock-free.|
+|10|Return SUCCESS (Tick Received)|Live Data Hub|System Manager|Confirmation positive de l'établissement du canal de données complet (Broker -> LDH -> LHB).|
+|11|Return FAILURE (Timeout)|Live Data Hub|System Manager|Signalement d'une anomalie critique (Absence de données ou latence excessive).|
+|12|logCriticalEvent(ErrorCode, Metadata)|System Manager|Log Service|Journalisation détaillée des causes de l'échec pour l'audit post-mortem.|
+|13|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Déclenchement immédiat du protocole Fail-Fast et arrêt sécurisé du bootstrapping.|
 
 ---
 
