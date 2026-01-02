@@ -338,12 +338,19 @@ Soumission d’ordres critiques.
 ---
 
 **IMarketDataTransformationPort** 
-
 * **Implémenté par** : `Data Ingestion Layer (DIL)`
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (Auto-appel)
 * **Responsabilité opérationnelle** :
 * `checkDataIntegrity` : Validation métier des DTO bruts.
 * `processMarketData` : Calcul des ajustements techniques (splits, dividendes) pour générer le `Processed_MarketData_DTO`.
+
+---
+
+**ILiveDataReader**
+* **Implémenté par** : `LiveHistoryBuffer` (LHB)
+* **Injecté dans / Utilisé par** : `Portfolio Manager`, `Risk Monitor`
+* **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant (), aux séries temporelles de la session.
+* **Règles d’accès ou d’usage** : Utilisation de pointeurs vers la matrice de N slots. Interdiction stricte d'écriture.
 
 ---
 
