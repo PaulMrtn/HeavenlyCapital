@@ -48,16 +48,23 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1 | `readAllStaticConfigs()` | System Manager | DAL | Requête synchrone pour l'intégralité du référentiel (IP, Ports, API Keys, Buffers). |
-| 2 | `write(AllConfigs)` | DAL | Config | Hydratation de l'objet de stockage mémoire immuable. |
-| 3 | `ConfigData (Reply)` | DAL | System Manager | Retour de l'objet structuré contenant les paramètres globaux. |
-| 4 | **Instanciation Infra** | System Manager | Services | Création séquentielle de `SystemHealthService` et `CriticalErrorHandlingService`. |
-| 5 | `new IBKRGateway(Config)` | System Manager | IBKR Gateway | Instanciation avec injection de la configuration spécifique. |
-| 6 | `HCheckUnitary(IG)` | System Manager | System Manager | Validation locale et bloquante. Échec = Arrêt système. |
-| 7 | `new LiveDataHub(Config, Port)` | System Manager | Live Data Hub | Instanciation avec injection de la config et du **PersistencePort**. |
-| 8 | `HCheckUnitary(LDH)` | System Manager | System Manager | Validation finale de l'intégrité du Hub de données. |
-| 9 | `call_03-PHASE1...` | System Manager | System Manager | Passage à la phase d'initialisation des threads. |
-
+| 1 | readAllStaticConfigs() | System Manager | DAL | Requête synchrone pour récupérer l'intégralité du référentiel de configuration (IP, Ports, API Keys, Buffers). |
+| 2 | create() | DAL | Config | Instanciation de l'objet de stockage mémoire pour les configurations. |
+| 3 | write(AllConfigs) | DAL | Config | Hydratation de l'objet Config avec les données lues en base. |
+| 4 | ConfigData | DAL | System Manager | Retour de l'objet structuré contenant tous les paramètres immuables. |
+| 5 | new SystemHealthService(Health_Config) | System Manager | Health Service | Création du service de supervision de l'état de santé des threads. |
+| 6 | new CriticalErrorHandlingService(Error_Config) | System Manager | Error Service | Création du service central de gestion des erreurs critiques et actions Fail-Fast. |
+| 7 | getStaticConfig(IBKR_Config) | System Manager | System Manager | Récupération locale des paramètres spécifiques à la passerelle IBKR. |
+| 8 | new IBKRGateway(IBKR_Config, PersistencePort) | System Manager | IBKR Gateway | Instanciation de la passerelle broker avec injection de sa configuration et du port de persistance. |
+| 9 | HCheckUnitary(IBKRGateway) | System Manager | System Manager | Vérification interne de l'intégrité de la passerelle. |
+| 10 | systemStop(CRITICAL_ERROR) | System Manager | Error Service | Arrêt immédiat du bootstrapping en cas d'échec du H-Check de la passerelle. |
+| 11 | getConfig(LDH_Config) | System Manager | System Manager | Récupération locale des paramètres de configuration pour le Hub de données. |
+| 12 | new LiveDataHub(LDH_Config, PersistencePort) | System Manager | Live Data Hub | Instanciation du Hub gérant les flux temps réel Latest-Only. |
+| 13 | new LiveHistoryBuffer(Config) | System Manager | Historic Live Hub | Création du singleton LHB et pré-allocation de la matrice linéaire de 1000 slots. |
+| 14 | subscribe(LHB) | System Manager | Live Data Hub | Enregistrement du LHB auprès du LDH pour recevoir les Market Quotes via un flux Push. |
+| 15 | HCheckUnitary(LDH, LHB) | System Manager | System Manager | Validation combinée de l'intégrité du Hub (flux) et du Buffer (allocation mémoire). |
+| 16 | systemStop(CRITICAL_ERROR) | System Manager | Error Service | Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie. |
+| 17 | call_03-PHASE1-Initialisation-Threads() | System Manager | System Manager | Transition vers la phase suivante d'allocation des ressources d'exécution. |
 ---
 
 ### 6. Ports et Interfaces
