@@ -54,7 +54,7 @@ Ce module garantit que le système dispose d'un **canal de données de marché a
 |3|connectToFeedAPI()|IBKR Gateway|IBKR Gateway|Établissement de la connexion TCP/API vers les serveurs de données du broker (Interactive Brokers).|
 |4|subscribe(Contracts)|IBKR Gateway|Live Data Hub|Enregistrement des abonnements pour router les flux entrants vers le point d'entrée du hub.|
 |5|startStreaming(LDH)|IBKR Gateway|IBKR Gateway|Déclenchement du flux asynchrone des données de marché vers le système local.|
-|6|pushInitialSnapshot(MarketQuote)|IBKR Gateway|Historic Live Hub|Transmission du premier agrégat de prix pour valider l'interface d'écriture ILiveDataSubscriber du buffer.|
+|6|pushInitialSnapshot(MarketQuote)|Live Data Hub|Historic Live Hub|Transmission du premier agrégat de prix pour valider l'interface d'écriture ILiveDataSubscriber du buffer.|
 |7|HCheckGlobal(Timeout)|System Manager|Live Data Hub|Contrôle de santé global orchestré pour vérifier la preuve de vie et la couverture du flux.|
 |8|validateFlow()|Live Data Hub|Live Data Hub|Vérification interne de la fraîcheur des données (Delta Temps) et de la complétude de l'univers reçu.|
 |9|verifyBufferSwap()|Historic Live Hub|Historic Live Hub|Validation du mécanisme de Double Buffering et du swap atomique lock-free.|
