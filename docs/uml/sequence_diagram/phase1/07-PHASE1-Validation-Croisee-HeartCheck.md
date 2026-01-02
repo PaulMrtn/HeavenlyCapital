@@ -22,7 +22,7 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 
 Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
-* **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads.
+* **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads. Chaque Manager effectue une inférence "à blanc" (dummy inference) sur ses modèles ML injectés (`IExecutionDecisionModel` / `IStopPredictionModel`). Cela garantit que la pipeline de calcul est chargée en mémoire et opérationnelle sans crash système.
 * **Validations Croisées (`ICrossValidator`) :** Validation de la cohérence métier inter-domaines, comme la compatibilité entre les limites de risque et l'état du portefeuille.
 * **Vérification de l'Infrastructure (`IExternalConnectivity`) :** Test de la liaison physique et logique avec le courtier avec un **timeout strict de 5000ms**.
 * **Centralisation des Statuts :** Pour garantir le découplage, les managers retournent leurs résultats au `System Manager`, qui se charge seul de mettre à jour la `SessionStatusList` via `ISessionStatusWriter`.
@@ -44,7 +44,7 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IBootstrapReadinessCheck). |
+| 1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IBootstrapReadinessCheck). |
 | 2  | updateStatus(PM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du PM (ISessionStatusWriter). |
 | 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IBootstrapReadinessCheck). |
 | 4  | updateStatus(RM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du RM (ISessionStatusWriter). |
@@ -71,6 +71,7 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 * **Injecté dans / Utilisé par** : `SystemManager`
 * **Responsabilité opérationnelle** : Validation de l'intégrité technique (instanciation des structures, état des threads, readiness local).
 * **Règles d’accès ou d’usage** : Appel synchrone obligatoire en Phase 1. Interdiction de mutation d'état (Read-Only technique).
+* **Règle ML** : L'implémentation dans le PM et le RM doit inclure un appel d'inférence de test sur l'interface de l'oracle ML. Si le modèle lève une exception ou ne répond pas dans le temps imparti, le Manager doit retourner un statut FAILED.
 
 **ICrossValidator**
 * **Implémenté par** : `PortfolioManager`, `RiskMonitor`
@@ -120,4 +121,21 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 * **Responsabilité opérationnelle** : Audit trail de la séquence de validation et traçabilité des succès/échecs.
 * **Règles d’accès ou d’usage** : Mode synchrone exigé durant cette phase de bootstrap pour garantir l'écriture des logs avant un crash potentiel.
 
----
+**IExecutionDecisionModel**
+Interface de validation d'exécution pour le Portfolio Manager.
+* **Rôle :** Décision binaire (Go/No-Go) sur les ordres planifiés via calcul de features en temps réel (`last_price`).
+* **Implémentation :** Artefacts ML immuables (XGBoost, Regressions, etc.).
+* **Contraintes :**
+  * **Stateless :** Aucune mémoire entre deux inférences.
+  * **Isolation :** Zéro I/O (disque/réseau) lors du calcul.
+  * **Ready-Check :** Support d'inférence "à blanc" au bootstrap (Phase 07).
+
+**IStopPredictionModel**
+Interface de protection préventive pour le Risk Monitor.
+* **Rôle :** Anticipation de sortie de position (Smart Stop-Loss) avant les seuils mécaniques.
+* **Implémentation :** Modèles de classification de risque.
+* **Contraintes :**
+  * **Lecture Seule :** Renvoie un booléen sans modifier l'état du Manager.
+  * **Performance :** Temps de calcul déterministe (Priorité Critique).
+  * **Isolation :** Ressources mémoire indépendantes de l'oracle du PM.
+
