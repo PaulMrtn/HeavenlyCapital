@@ -14,7 +14,7 @@ La finalité de ce module est de centraliser la récupération de **toutes les c
 
 ### 2. Contexte et Dépendances
 
-Ce module s'inscrit directement après la validation de la connectivité et du jour ouvré (Phase 01). Il représente la première étape d'allocation des ressources en mémoire vive. Les Singletons créés ici (`IBKR Gateway`, `Live Data Hub`, `SystemHealthService`, `ErrorService`) sont des dépendances fondamentales pour tous les managers métier instanciés ultérieurement.
+Ce module s'inscrit directement après la validation de la connectivité et du jour ouvré (Phase 01). Il représente la première étape d'allocation des ressources en mémoire vive. Les Singletons créés ici (`IBKR Gateway`, `Live Data Hub`, `Historic Live Hub`, `SystemHealthService`, `ErrorService`) sont des dépendances fondamentales pour tous les managers métier instanciés ultérieurement.
 
 ---
 
@@ -30,13 +30,15 @@ Ce module s'inscrit directement après la validation de la connectivité et du j
 
 * **Socle d'Infrastructure :** Avant l'allocation des managers métier, le système doit instancier le **SystemHealthService** (contrôle des threads) et le **CriticalErrorHandlingService** (gestion des actions Fail-Fast).
 * **Intégrité par H-Check :** Un **H-Check unitaire** est effectué immédiatement après chaque création pour valider l'intégrité de l'objet en mémoire.
-    * **Spécificité LDH :** Le H-Check du Live Data Hub vérifie la validité des seuils, l'injection du port de persistance et l'absence de connexion réseau active à ce stade.
+* **Spécificité LDH :** Le H-Check du Live Data Hub vérifie la validité des seuils, l'injection du port de persistance et l'absence de connexion réseau active à ce stade.
+* **Spécificité LHB :** Le H-Check du Live History Buffer valide que les **Buffers A/B** sont correctement alloués, que l'**index initial est à 0**, qu'**aucun writer n'est actif** et que l'**EventBusPort** est injecté mais silencieux. Le lien de souscription est actif (vérification du pointeur). En cas d'échec de l'un de ces points, le systemStop est déclenché immédiatement.
 * **Politique d'Arrêt (Fail-Fast) :** En cas d'échec d'un H-Check (corruption mémoire ou erreur fatale), le système doit interrompre immédiatement le bootstrapping via un appel à `systemStop(CRITICAL_ERROR)` avec log prioritaire.
 * **Architecture des Ports :**
-    * **PersistencePort (DIL) :** Unique point d’accès pour toute écriture en base. Il est injecté dans le `Live Data Hub` et les managers métier. L’accès direct au DIL est strictement interdit.
-    * **StaticConfigPort :** Utilisé uniquement par le `System Manager` pour la lecture unique des données immuables.
-    * **MarketDataPort :** Fournit un accès en lecture seule aux données de marché via le `Live Data Hub`.
-    * **BrokerGatewayPort :** Abstraction totale de la communication broker via `IBKR Gateway`.
+  * **PersistencePort (DIL) :** Unique point d’accès pour toute écriture en base. Il est injecté dans le `Live Data Hub` et les managers métier.
+  * **StaticConfigPort :** Utilisé uniquement par le `System Manager` pour la lecture unique des données immuables.
+  * **MarketDataPort :** Fournit un accès en lecture seule aux données de marché via le `Live Data Hub`.
+  * **BrokerGatewayPort :** Abstraction totale de la communication broker via `IBKR Gateway`.
+
 
 ---
 
@@ -110,6 +112,15 @@ Ce module garantit que le système de trading repose sur un socle de services gl
   * Le Risk Monitor soumet les ordres urgents via **IOrderSubmissionPort**, qui délègue ensuite vers le **BrokerGatewayPort** dans OM
 * **Objectif :** Isoler le courtier des modules métier tout en permettant le passage sécurisé des ordres critiques et standards
 
+**ILiveDataReader**
+* **Implémenté par :** Live History Buffer (LHB)
+* **Injecté dans :** Risk Monitor (RM), Portfolio Manager (PM)
+* **Responsabilité :** Fournir un accès atomique et lock-free aux séries temporelles intraday (Matrix de 1000 slots).
+* **Objectif :** Permettre le calcul d'indicateurs et le "Time-Travel" analytique sans impacter la réception des flux temps réel.
 
-
+**IEventBusPort**
+* **Implémenté par :** EventBus
+* **Injecté dans :** Live History Buffer (LHB)
+* **Responsabilité :** Publication des notifications de disponibilité des nouvelles données (Signal-then-Pull).
+* **État initial :** Injecté lors de la Phase 1 mais maintenu silencieux jusqu'au démarrage effectif des flux.
 
