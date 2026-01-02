@@ -62,18 +62,18 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1 | getSessionsToLoad() | System Manager | Config | Récupération de la liste des sessions actives. |
-| 2 | new TradingSession(ID, Status) | System Manager | TradingSession | Création de l'entité identitaire de la session. |
-| 3 | getConfigs(SessionID) | System Manager | Config | Extraction des seuils et paramètres spécifiques. |
+|1|getSessionsToLoad()|System Manager|Config|Récupération de la liste des IDs de sessions actives pour la journée.|
+|2|new TradingSession(ID, Status)|System Manager|TradingSession|Instanciation de l'objet racine de la session.|
+|3|getConfigs(SessionID)|System Manager|Config|Récupération des seuils de risque et chemins des modèles ML.|
 |4|new PM(ID, Config, LDH, LHB, PersistencePort, IExecModel)|System Manager|Portfolio Manager|Instanciation avec injection du LHB pour l'accès aux séries temporelles.|
 |5|new RM(ID, Config, LDH, LHB, IStopModel)|System Manager|Risk Monitor|Instanciation avec injection du LHB et du modèle de risque prédictif.|
-| 6 | new OM(S, IG, IPersistencePort) | System Manager | Order Manager | **Correction** : Injection du port de persistance pour les logs d'ordres et Fills. |
-| 7-9 | Setters (OM, PM) | System Manager | PM / RM | Établissement des canaux de communication inter-composants. |
-| 10 | HCheckSessionReady(ID) | System Manager | System Manager | Validation d'intégrité de l'instanciation. |
-| alt | [HCheck == FAILED] | System Manager | System Manager | Branche de sortie critique vers systemStop(ERROR). |
-| 11 | call_05-PHASE1... | System Manager | System Manager | Poursuite du bootstrapping. |
+|6|new OM(ID, IG, PersistencePort)|System Manager|Order Manager|Instanciation de l'exécuteur avec liaison à la passerelle IBKR.|
+|7|subscribe(PM, RM)|System Manager|EventBus|Inscription des managers aux notifications de disponibilité des données du LHB.|
+|8|setOrderManager(OM)|System Manager|PM|Établissement du canal de transmission des ordres de performance.|
+|9|setPortfolioReference(PM)|System Manager|RM|Liaison du RM au PM via le port IPositionProvider (Snapshots immuables).|
+|10|HCheckSessionReady(ID)|System Manager|System Manager|Vérification de l'intégrité du triplet (PM/RM/OM) et des liaisons LHB/LDH.|
 
 ---
 
