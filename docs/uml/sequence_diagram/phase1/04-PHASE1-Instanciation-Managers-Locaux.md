@@ -29,7 +29,6 @@ Le **System Manager** orchestre une boucle itérative pour chaque identifiant de
 #### Étape 2 : Allocation des Managers (Injection par Constructeur)
 
 L'injection par constructeur est privilégiée pour garantir l'immuabilité des ports fondamentaux. Les deux sources de données (**LDH** pour le signal, **LHB** pour l'historique) sont injectées simultanément :
-
 1. **Portfolio Manager (PM) :** Créé avec son ID, les ports `PersistencePort` (DIL), `IErrorHandler`, le `MarketDataPort` (LDH) et le port **`ILiveDataReader`** (LHB).
 2. **Order Manager (OM) :** Créé avec la référence `BrokerGatewayPort` (IBKR), le port `PersistencePort` (DIL) et `IErrorHandler`.
 3. **Risk Monitor (RM) :** Créé en dernier. Il reçoit le port **`ILiveDataReader`** (LHB), l'accès au `MarketDataPort` (LDH) et le port `IErrorHandler`.
@@ -38,9 +37,8 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 
 * **Résolution des Artefacts :** Le System Manager localise les fichiers de modèles (ModelID + Version) définis en configuration.
 * **Instanciation des Modèles :**
-* Injection de l'oracle `IExecutionDecisionModel` dans le **PM**.
-* Injection de l'oracle `IStopPredictionModel` dans le **RM**.
-
+  * Injection de l'oracle `IExecutionDecisionModel` dans le **PM**.
+  * Injection de l'oracle `IStopPredictionModel` dans le **RM**.
 * **Isolation :** Chaque session possède sa propre instance en mémoire, évitant toute contention lors de l'inférence asynchrone.
 
 #### Étape 4 : Liaison des Canaux et Abonnements (Linking)
