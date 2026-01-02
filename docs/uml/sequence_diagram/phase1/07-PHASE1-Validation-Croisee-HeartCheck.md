@@ -73,6 +73,10 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 * **Implémenté par** : `PortfolioManager`, `RiskMonitor`, `OrderManager`, `LiveDataHub`
 * **Injecté dans / Utilisé par** : `SystemManager`
 * **Responsabilité opérationnelle** : Validation de l'intégrité technique (instanciation des structures, état des threads, readiness local).
+  * Vérifier que l'état interne est LHB_READY. :
+    * Valider que le Buffer Actif reçoit les écritures et que le Buffer Passif est accessible en lecture.
+    * Contrôler que le dernier snapshot indexé respecte le seuil de fraîcheur par rapport au temps système.
+    * S'assurer de l'absence de backlog bloquant dans la file d'attente de persistance vers la Slow-Lane.
 * **Règles d’accès ou d’usage** : Appel synchrone obligatoire en Phase 1. Interdiction de mutation d'état (Read-Only technique).
 * **Règle ML** : L'implémentation dans le PM et le RM doit inclure un appel d'inférence de test sur l'interface de l'oracle ML. Si le modèle lève une exception ou ne répond pas dans le temps imparti, le Manager doit retourner un statut FAILED.
 
