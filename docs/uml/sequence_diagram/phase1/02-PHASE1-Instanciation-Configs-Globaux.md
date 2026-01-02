@@ -64,7 +64,6 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 | 14 | subscribe(LHB) | System Manager | Live Data Hub | Enregistrement du LHB auprès du LDH pour recevoir les Market Quotes via un flux Push. |
 | 15 | HCheckUnitary(LDH, LHB) | System Manager | System Manager | Validation combinée de l'intégrité du Hub (flux) et du Buffer (allocation mémoire). |
 | 16 | systemStop(CRITICAL_ERROR) | System Manager | Error Service | Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie. |
-| 17 | call_03-PHASE1-Initialisation-Threads() | System Manager | System Manager | Transition vers la phase suivante d'allocation des ressources d'exécution. |
 ---
 
 ### 6. Ports et Interfaces
