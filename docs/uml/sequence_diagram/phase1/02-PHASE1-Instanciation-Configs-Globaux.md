@@ -68,59 +68,51 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 
 ### 6. Ports et Interfaces
 
+**StaticConfigPort**
+* **Implémenté par** : `Data Access Layer (DAL)`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Lecture unique des configurations statiques immuables (paramètres système, seuils globaux) nécessaires au démarrage.
+* **Règles d’accès ou d’usage** : Bootstrapping uniquement. Lecture seule, snapshot immuable.
+
 **PersistencePort**
-* **Implémenté par :** Data Integrity Layer (DIL) / AtomicDBWriteProcess
-* **Injecté dans :** Portfolio Manager (PM), Order Manager (OM), Live Data Hub (LDH) si nécessaire
-* **Responsabilité :** Point unique d’accès pour toute persistance critique du système :
-  * Snapshots de positions et portefeuilles
-  * Journaux de sessions et SessionBooks
-  * Ordres et exécutions (Fills)
-  * États courants du système métier
-* **Règles d’accès :**
-  * Accès direct au DIL interdit en dehors de ce port
-  * Persistance **atomique** obligatoire : startTransaction / commit / rollback
-  * Isolation stricte : aucun module externe ne peut modifier ou lire directement les objets métier sans passer par ce port
-  * Supporte les écritures synchronisées et sécurisées pour les opérations critiques
-* **Phase d’utilisation :**
-  * Bootstrapping et runtime métier, selon contexte
-  * Tous accès critiques doivent transiter par ce port
-* **Objectif :** Assurer la cohérence, atomicité et auditabilité des données critiques à travers tout le système
-
-
-**StaticConfigPort**  
-- Implémenté par : Data Access Layer (DAL)  
-- Utilisé par : System Manager (bootstrapping uniquement)  
-- Responsabilité : Lecture unique des configurations statiques, données immuables  
-- Règles : Jamais injecté dans les managers métier  
-
-**Port : MarketDataPort**
-  * **Implémenté par :** LDH Global (ou Live Data Hub, il faut choisir une terminologie unique dans toute la doc)
-  * **Injecté dans :** Portfolio Manager, Risk Monitor, éventuellement Order Manager si lecture nécessaire
-  * **Responsabilité :** Diffusion des flux de marché en lecture seule (prix, volume, snapshots)
-  * **Règles d’usage :** Accès immuable, interdiction de modification. Timeout et retry gérés au niveau du port. Aucune persistance ni accès direct au DIL.
-
+* **Implémenté par** : `Data Integrity Layer (DIL)`
+* **Injecté dans / Utilisé par** : `IBKR Gateway`, `Live Data Hub` (LDH)
+* **Responsabilité opérationnelle** : Point d’accès unique pour toute persistance critique. Injecté dans le LDH pour garantir la traçabilité des flux dès l'initialisation.
+* **Règles d’accès ou d’usage** : Transactions atomiques obligatoires. Accès direct au DIL interdit.
 
 **BrokerGatewayPort**
-* **Implémenté par :** Gateway externe IBKR
-* **Injecté dans :** Order Manager (OM)
-* **Responsabilité :**
-  * Abstraction complète de la communication avec le broker
-  * Transmission technique des ordres et réception des callbacks
-  * Gestion de la priorité des ordres (`CRITICAL` vs `STANDARD`)
-* **Règles d’usage :**
-  * Aucun accès direct autorisé par PM ou RM (tout passe par OM)
-  * Le Risk Monitor soumet les ordres urgents via **IOrderSubmissionPort**, qui délègue ensuite vers le **BrokerGatewayPort** dans OM
-* **Objectif :** Isoler le courtier des modules métier tout en permettant le passage sécurisé des ordres critiques et standards
+* **Implémenté par** : `Gateway externe (IBKR)`
+* **Injecté dans / Utilisé par** : `System Manager` (via l'instanciation de l'IBKR Gateway)
+* **Responsabilité opérationnelle** : Abstraction complète du courtier. Transmission technique et réception des callbacks.
+* **Règles d’accès ou d’usage** : Encapsulation totale.
 
-**ILiveDataReader**
-* **Implémenté par :** Live History Buffer (LHB)
-* **Injecté dans :** Risk Monitor (RM), Portfolio Manager (PM)
-* **Responsabilité :** Fournir un accès atomique et lock-free aux séries temporelles intraday (Matrix de 1000 slots).
-* **Objectif :** Permettre le calcul d'indicateurs et le "Time-Travel" analytique sans impacter la réception des flux temps réel.
+**IErrorHandler**
+* **Implémenté par** : `ErrorService`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Gestion centralisée des erreurs critiques et propagation des erreurs fatales.
+* **Règles d’accès ou d’usage** : Appels synchrones pour erreurs critiques (Fail-Fast).
+
+**IHealthCheckPort**
+* **Implémenté par** : `HealthService`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Vérification de l'état de santé des composants et des structures mémoire (H-Checks).
+* **Règles d’accès ou d’usage** : Appel hors chemin critique, aucun I/O bloquant.
+
+**ILiveDataSubscriber**
+* **Implémenté par** : `LiveHistoryBuffer` (LHB)
+* **Injecté dans / Utilisé par** : `LiveDataHub` (LDH)
+* **Responsabilité opérationnelle** : Réceptionner les snapshots consolidés du LDH pour stockage en série temporelle.
+* **Règles d’accès ou d’usage** : Port passif durant la phase d'initialisation.
+
+**ILiveHistoryControlPort**
+* **Implémenté par** : `LiveHistoryBuffer` (LHB)
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Piloter le cycle de vie du buffer (allocation des 1000 slots, swap, purge).
+* **Règles d’accès ou d’usage** : Appel synchrone obligatoire en Phase 1 pour la pré-allocation mémoire.
 
 **IEventBusPort**
-* **Implémenté par :** EventBus
-* **Injecté dans :** Live History Buffer (LHB)
-* **Responsabilité :** Publication des notifications de disponibilité des nouvelles données (Signal-then-Pull).
-* **État initial :** Injecté lors de la Phase 1 mais maintenu silencieux jusqu'au démarrage effectif des flux.
+* **Implémenté par** : `EventBus`
+* **Injecté dans / Utilisé par** : `LiveHistoryBuffer` (LHB)
+* **Responsabilité opérationnelle** : Notification asynchrone signalant la disponibilité d'une nouvelle donnée dans le buffer.
+* **Règles d’accès ou d’usage** : Injecté en Phase 1 mais maintenu silencieux jusqu'au début de la session.
 
