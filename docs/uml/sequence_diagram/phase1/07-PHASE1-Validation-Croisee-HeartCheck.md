@@ -63,25 +63,26 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IBootstrapReadinessCheck) et valide la pipeline d'inférence de l'IExecutionDecisionModel. |
-| 2  | updateStatus(PM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du PM (ISessionStatusWriter). |
-| 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IBootstrapReadinessCheck)et valide la pipeline d'inférence de l'IStopPredictionModel. |
-| 4  | updateStatus(RM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du RM (ISessionStatusWriter). |
-| 5  | ValidateRiskLimits(RM)            | System Manager | Portfolio Manager  | Demande au PM de valider sa compatibilité technique avec le RM (ICrossValidator). |
-| 6  | updateStatus(PM_CrossVal_Status)  | System Manager | SessionStatusList  | Enregistre le résultat de la validation de cohérence métier du PM. |
-| 7  | ValidatePortfolioState(PM)        | System Manager | Risk Monitor       | Demande au RM de vérifier la cohérence limites/positions (ICrossValidator). |
-| 8  | updateStatus(RM_CrossVal_Status)  | System Manager | SessionStatusList  | Enregistre le résultat de la validation de cohérence métier du RM. |
-| 9  | HCheckExternalConnection()        | System Manager | Order Manager      | Teste la liaison courtier via IExternalConnectivity (Timeout 5s). |
-| 10 | updateStatus(OM_Check_Status)     | System Manager | SessionStatusList  | Enregistre l'état de la connexion sortante (ordres). |
-| 11 | HCheckMarketDataAvailable()       | System Manager | Live Data Hub      | Vérifie la réception effective du flux de prix via MarketDataPort. |
-| 12 | updateStatus(LDH_Check_Status)    | System Manager | SessionStatusList  | Enregistre l'état de la connexion entrante (flux). |
-| 13 | getFinalStatusList()              | System Manager | SessionStatusList  | Récupère l'agrégat de tous les statuts pour évaluation. |
-| 14 | evaluateBootstrapStatus(List)     | System Manager | System Manager     | Arbitrage final basé sur la logique LIVE vs PAPER (IBootstrapCoordinator). |
-| 15 | UpdateSystemStatus(READY)         | System Manager | System Manager     | Transition interne vers l'état opérationnel READY_FOR_TRADING. |
-| 16 | systemStop(CRITICAL_ERROR)        | System Manager | Error Service      | Arrêt fatal immédiat via IErrorHandler si erreur détectée en mode LIVE. |
-| 17 | Wait for MarketOpenEvent()        | System Manager | System Manager     | Mise en veille asynchrone en attente du signal d'ouverture du marché. |
+|1|HCheckMarketDataAvailable()|SystemManager|LiveDataHub|Vérifie la réception effective du flux de prix temps réel (Preuve de vie LDH).|
+|2|HCheckHistoricBufferReady()|SystemManager|HistoricLiveHub|Vérifie l'état LHB_READY, le mécanisme de double buffering et la fraîcheur des données indexées.|
+|3|updateStatus(DATA_INFRA_Status)|SystemManager|SessionStatusList|Enregistrement centralisé du statut d'intégrité de la chaîne de données complète (LDH+LHB).|
+|4|HCheckPortfolioReady()|SystemManager|PortfolioManager|Validation de l'intégrité technique (threads) et test d'inférence ML via lecture ILiveDataReader.|
+|5|updateStatus(PM_Status)|SystemManager|SessionStatusList|Persistance du statut de préparation technique du Portfolio Manager.|
+|6|HCheckRiskMonitorReady()|SystemManager|RiskMonitor|Validation de l'activation des limites et test d'inférence de protection via ILiveDataReader.|
+|7|updateStatus(RM_Status)|SystemManager|SessionStatusList|Persistance du statut de préparation technique du Risk Monitor.|
+|8|ValidateRiskLimits(RM)|SystemManager|PortfolioManager|Validation croisée demandant au PM de confirmer sa compatibilité avec les limites de risque actives.|
+|9|updateStatus(RM_Validation_Status)|SystemManager|SessionStatusList|Enregistrement du résultat de la validation de cohérence métier côté Risque.|
+|10|ValidatePortfolioState(PM)|SystemManager|RiskMonitor|Validation croisée demandant au RM de vérifier la cohérence entre positions et limites.|
+|11|updateStatus(PM_Validation_Status)|SystemManager|SessionStatusList|Enregistrement du résultat de la validation de cohérence métier côté Portefeuille.|
+|12|HCheckExternalConnection()|SystemManager|OrderManager|Test de la liaison physique et logique avec le courtier (Gateway/FIX) avec timeout de 5s.|
+|13|updateStatus(OM_Check_Status)|SystemManager|SessionStatusList|Enregistrement de l'état de la connexion sortante pour l'exécution des ordres.|
+|14|getFinalStatusList()|SystemManager|SessionStatusList|Récupération de l'agrégat de tous les statuts techniques et métiers pour arbitrage final.|
+|15|evaluateBootstrapStatus(StatusList)|SystemManager|SystemManager|Analyse de la liste selon la logique de tolérance asymétrique (LIVE vs PAPER).|
+|16|UpdateSystemStatus(READY_FOR_TRADING)|SystemManager|SystemManager|Transition vers l'état opérationnel final si l'évaluation est un succès total.|
+|17|systemStop(CRITICAL_ERROR)|SystemManager|ErrorService|Déclenchement de l'arrêt fatal immédiat si une erreur critique est détectée en mode LIVE.|
+|18|Wait for MarketOpenEvent()|SystemManager|SystemManager|Mise en attente asynchrone du signal d'ouverture du marché pour débuter le trading.|
 
 ---
 
