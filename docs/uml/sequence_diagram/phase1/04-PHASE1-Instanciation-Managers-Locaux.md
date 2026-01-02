@@ -67,8 +67,8 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 | 1 | getSessionsToLoad() | System Manager | Config | Récupération de la liste des sessions actives. |
 | 2 | new TradingSession(ID, Status) | System Manager | TradingSession | Création de l'entité identitaire de la session. |
 | 3 | getConfigs(SessionID) | System Manager | Config | Extraction des seuils et paramètres spécifiques. |
-| 4 | new PM(ID, Config, LDH, IPersist, IExecModel) | System Manager | Portfolio Manager | Injection du modèle de décision d'exécution (Achat/Vente). |
-| 5 | new RM(ID, Config, LDH, IStopModel) | System Manager | Risk Monitor | Injection du modèle de prédiction Stop-Loss anticipé. |
+|4|new PM(ID, Config, LDH, LHB, PersistencePort, IExecModel)|System Manager|Portfolio Manager|Instanciation avec injection du LHB pour l'accès aux séries temporelles.|
+|5|new RM(ID, Config, LDH, LHB, IStopModel)|System Manager|Risk Monitor|Instanciation avec injection du LHB et du modèle de risque prédictif.|
 | 6 | new OM(S, IG, IPersistencePort) | System Manager | Order Manager | **Correction** : Injection du port de persistance pour les logs d'ordres et Fills. |
 | 7-9 | Setters (OM, PM) | System Manager | PM / RM | Établissement des canaux de communication inter-composants. |
 | 10 | HCheckSessionReady(ID) | System Manager | System Manager | Validation d'intégrité de l'instanciation. |
