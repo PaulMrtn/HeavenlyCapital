@@ -195,7 +195,7 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 * **Injecté dans / Utilisé par** : `Portfolio Manager`, `Risk Monitor`
 * **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant (), aux séries temporelles de la session.
 * **Règles d’accès ou d’usage** : Utilisation de pointeurs vers la matrice de N slots. Interdiction stricte d'écriture.
-* 
+  
 **IEventBusPort**
 * **Implémenté par :** `EventBus`
 * **Injecté dans / Utilisé par :** `Portfolio Manager`, `Risk Monitor` (Abonnés)
