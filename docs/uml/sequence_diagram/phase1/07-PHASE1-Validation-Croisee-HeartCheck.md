@@ -22,21 +22,39 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 
 Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
-* **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads.
-* **Vérifications ML** : Chaque Manager effectue une inférence "à blanc" (dummy inference) sur ses modèles ML injectés (`IExecutionDecisionModel` / `IStopPredictionModel`). Cela garantit que la pipeline de calcul est chargée en mémoire et opérationnelle sans crash système.
-* **Contrainte de Latence ML** : Chaque oracle ML doit respecter un budget maximal d’inférence strictement borné.
-* **Validations Croisées (`ICrossValidator`) :** Validation de la cohérence métier inter-domaines, comme la compatibilité entre les limites de risque et l'état du portefeuille.
-* **Vérification de l'Infrastructure (`IExternalConnectivity`) :** Test de la liaison physique et logique avec le courtier avec un **timeout strict de 5000ms**.
-* **Centralisation des Statuts :** Pour garantir le découplage, les managers retournent leurs résultats au `System Manager`, qui se charge seul de mettre à jour la `SessionStatusList` via `ISessionStatusWriter`.
+1. **Validation de l'Infrastructure de Données (Fast-Lane) :**
+  * **Réception (LDH) :** Confirmation que les paquets TCP/API arrivent de l'IBKR Gateway.
+  * **Indexation (LHB) :** Confirmation de la transformation des ticks en `MarketQuote` et du stockage dans le buffer actif.
+  * **Preuve de Consommabilité :** Simulation d'une lecture via **`ILiveDataReader`** pour garantir que le buffer est sain et prêt pour l'analyse.
+
+2. **Vérifications Unitaires & ML (`IBootstrapReadinessCheck`) :**
+  * **Intégrité Technique :** Validation de l'instanciation des structures et de l'état des threads.
+  * **Preuve de Double Lecture :** Le HeartCheck confirme que le manager (PM/RM) réussit une lecture combinée sur le **LDH** (dernier prix) ET sur le **LHB** (vecteur de prix).
+  * **Inférence "à blanc" :** Exécution de test sur les modèles ML injectés (`IExecutionDecisionModel` / `IStopPredictionModel`) pour garantir l'opérationnalité de la pipeline sans crash.
+  * **Contrainte de Latence :** Chaque oracle ML doit répondre dans un budget temporel strictement borné.
+  
+3. **Validations Croisées (`ICrossValidator`) :**
+  * Validation de la cohérence métier inter-domaines (ex: compatibilité entre limites de risque et état actuel du portefeuille).
+
+4. **Vérification de l'Infrastructure Sortante :**
+  * Test de la liaison physique et logique avec le courtier via **`IExternalConnectivity`** avec un timeout strict de **5000ms**.
+
+5. **Centralisation et Persistance des Statuts :**
+  * **Découplage :** Les managers retournent leurs résultats au `System Manager` qui centralise les mises à jour.
+  * **Persistance Isolée :** Le `System Manager` écrit le **`DATA_INFRA_Status`** (regroupant LDH et LHB) et les statuts managers via **`ISessionStatusWriter`**.
+  * **Audit Trail :** Cette traçabilité permet de diagnostiquer précisément si une erreur provient de la réception, de l'indexation historique ou d'une défaillance métier.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Tolérance aux Erreurs Asymétrique :** Toute défaillance concernant une session **`LIVE`** entraîne un arrêt immédiat via `systemStop(CRITICAL_ERROR)`. Les échecs en session **`PAPER`** sont isolés et la session est invalidée sans interrompre le bootstrap global.
-* **Défaillance ML** :Toute défaillance des oracles ML (exception, non-réponse ou dépassement du budget de latence) entraîne un FAIL immédiat uniquement pour les sessions en mode LIVE, sans bloquer les sessions PAPER.
-* **Évaluation Centralisée :** La décision finale est gérée uniquement par `evaluateBootstrapStatus()` après la collecte complète des statuts.
-* **Persistance au fil de l'eau :** Chaque statut est écrit immédiatement par le `System Manager` pour garantir la traçabilité en cas de crash durant la phase de HeartCheck.
+* **Intégrité Totale du Flux (End-to-End) :** Le succès du contrôle de santé marché est strictement subordonné à la réussite de la chaîne complète **IBKR → LDH → LHB**. Si le LDH confirme la réception mais que le LHB signale une erreur d'indexation, un échec de swap de buffer ou un timeout, le statut global est marqué **FAILED**.
+* **Tolérance aux Erreurs Asymétrique (Fail-Fast) :** Toute défaillance (technique, flux, ou LHB) concernant une session **`LIVE`** entraîne un arrêt immédiat du système via **`systemStop(CRITICAL_ERROR)`**. Les échecs en session **`PAPER`** sont isolés : la session spécifique est invalidée dans la `SessionStatusList`, mais le bootstrap se poursuit pour les autres sessions actives.
+* **Gravité du Statut LHB :** Le statut **`LHB_Check_Status`** est considéré comme bloquant pour l'ensemble du système. Une défaillance du buffer historique interdit toute transition vers l'état `READY_FOR_TRADING`, car elle compromettrait l'intégrité des vecteurs de données utilisés par les modèles ML.
+* **Défaillance et Latence ML :** Toute anomalie des oracles ML (exception logicielle, non-réponse ou dépassement du budget de latence d'inférence) entraîne un **FAIL** immédiat pour les sessions **`LIVE`**. Le système garantit ainsi qu'aucune décision de trading ne sera prise par un modèle instable ou trop lent.
+* **Évaluation Centralisée :** L'arbitrage final et la transition vers l'état opérationnel sont gérés exclusivement par la fonction **`evaluateBootstrapStatus()`** après la collecte exhaustive de tous les statuts.
+* **Persistance au fil de l'eau :** Chaque statut (LDH, LHB, PM, RM, OM) est écrit immédiatement par le `System Manager` via l'interface `ISessionStatusWriter`. Cette écriture séquentielle garantit une traçabilité totale et un audit post-mortem précis en cas de crash durant le HeartCheck.
+
 ---
 
 ### 5. Conclusion
@@ -152,3 +170,11 @@ Interface de protection préventive pour le Risk Monitor.
 * **Responsabilité opérationnelle** : Fourniture de tranches de données (Slices/Vecteurs) pour les calculs ML en temps constant .
 * **Règle HeartCheck** : Doit être testée en Phase 07 via une requête de lecture sur l'index courant pour valider la chaîne de décision.
 **Impact architectural :** Sans cette mise à jour, votre `HeartCheck` valide que le moteur ML tourne "à vide", mais ne garantit pas qu'il puisse accéder aux données du LHB. L'intégration de ces étapes sécurise le cycle complet de décision.
+
+
+
+
+
+
+
+
