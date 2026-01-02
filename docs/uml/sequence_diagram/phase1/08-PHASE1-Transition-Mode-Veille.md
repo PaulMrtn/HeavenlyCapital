@@ -98,11 +98,16 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 - **Responsabilité opérationnelle** : Classification et propagation des erreurs fatales.
 - **Règles d’accès ou d’usage** : Écriture seule. Appels synchrones pour erreurs critiques. Instance unique thread-safe
 
+**IResiliencePolicyPort**
+* **Responsabilité** : Fournit le seuil `HEARTBEAT_TOLERANCE_MS` pour arbitrer entre un simple Warning et un Reset complet.
+* * **Règle** : Lecture seule, paramètre statique chargé en Phase 1.
+
+**ISystemRecoveryPort**
+* **Responsabilité** : Orchestre la fonction `Emergency_Standby_Reset()`. Garantit que le système revient en Phase 06 avec des buffers vides et une connexion neuve.
+* **Règle** : Priorité maximale. Bloque toute tentative d'ouverture de session tant que le Reset n'est pas validé.
 
 ### TODO
 
 * **Paramétrage :** Définir `HEARTBEAT_TOLERANCE_MS` (recommandé : 15s à 30s) pour filtrer les micro-coupures de l'API IBKR.
 * **Séquence :** Finaliser la définition technique de `Emergency_Standby_Reset()` (Purge buffers LHB + Re-Bootstrap Phase 1).
 * **Validation :** Implémenter l'idempotence du `MarketOpenEvent` pour ignorer les signaux reçus hors séquence ou durant un Reset.
-
-
