@@ -8,28 +8,38 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de faire passer le système de l'état d'initialisation réussie à l'état de **veille sécurisée et active** (`WAITING`), et d'attendre l'événement temporel déclencheur de l'ouverture du marché.
+La finalité de ce module est de faire passer le système de l'état d'initialisation réussie à l'état de **veille sécurisée et active** (`WAITING`). Il assure la maintenance de l'intégrité technique jusqu'au déclenchement de l'ouverture du marché.
 
 ---
 
 ### 2. Contexte
 
-Cette séquence marque la fin de la **Phase 1 (Bootstrapping / PreTrade)**. Elle est déclenchée après la validation finale (Étape 07) qui a confirmé la cohérence opérationnelle et l'intégrité de l'infrastructure. Son rôle est de maintenir la disponibilité opérationnelle du système sans exécuter de stratégie de trading.
+Cette séquence marque la clôture de la **Phase 1 (Bootstrapping)**. Après validation de la Phase 07, le système entre en attente passive mais vigilante. Sa mission est de garantir que la "Fast-Lane" de données et le tunnel d'exécution restent opérationnels malgré les micro-coupures réseau ou les latences d'indexation courantes durant le pré-marché.
 
 ---
 
 ### 3. Logique Générale
 
-Le **`System Manager (SM)`** commence par mettre à jour l'état global du système à **`READY_FOR_TRADING`**. Le système entre ensuite dans un mode **d'attente asynchrone** (`Wait for MarketOpenEvent()`). Pendant cette attente passive, une boucle de surveillance est lancée en arrière-plan. Cette boucle exécute un **Heartbeat** périodique, où l'`Order Manager (OM)` vérifie activement la stabilité de la connexion avec l'`IBKR Gateway`. Le mode veille se termine uniquement lorsque le **`Market Clock`** envoie le signal **`MarketOpenEvent()`**. À la réception de ce signal, le SM enregistre l'événement dans les logs (audit), puis lance immédiatement la (InTrade).
+Le **`System Manager (SM)`** bascule l'état global du système vers **`READY_FOR_TRADING`**, confirmant la fin de la phase de préparation initiale. Le système initie alors une attente asynchrone (`Wait for MarketOpenEvent()`), durant laquelle une double boucle de surveillance (Heartbeat) est maintenue selon une logique de **Patience Temporelle** :
+
+* **Surveillance Analytique (LHB) :** Le SM interroge périodiquement le `Historic Live Hub` pour valider l'intégrité de l'indexation des données de pré-marché. Cette vérification garantit que le mécanisme de **Double Buffering** est fluide, que les données ne sont pas figées ("Stale Data") et que les vecteurs sont prêts pour l'inférence ML immédiate.
+* **Surveillance de l'Exécution (OM) :** L'`Order Manager` teste activement la réactivité du tunnel avec la `IBKR Gateway` pour assurer la capacité d'émission d'ordres dès l'ouverture.
+* **Gestion de la Résilience :** Le système est conçu pour tolérer les instabilités éphémères (micro-coupures réseau ou latences d'indexation). En cas d'échec d'un Heartbeat, le SM bascule en statut `WARNING`. Ce n'est qu'en cas de persistance de l'anomalie au-delà du seuil **`HEARTBEAT_TOLERANCE_MS`** que la procédure de réinitialisation complète (**`Emergency_Standby_Reset`**) est invoquée.
+
+Le mode veille se termine dès la réception du signal **`MarketOpenEvent()`** émis par le `Market Clock`. Le SM enregistre alors l'événement pour audit et bascule immédiatement vers la **Phase 2 (In-Trade)**, à condition que l'intégrité technique soit confirmée.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Point de Non-Retour :** La mise à jour du statut vers **`READY_FOR_TRADING`** confirme que tous les contrôles de sécurité (LIVE vs PAPER) ont été passés avec succès.
-* **Surveillance Obligatoire :** La boucle de **Heartbeat** doit être maintenue. Si la vérification périodique de la connexion externe par l'`OM` échoue durant cette phase, le `SM` doit déclencher un **arrêt d'urgence** (`systemStop(CRITICAL_ERROR)`) car l'exécution serait impossible à l'ouverture.
-* **Déclenchement Auditable** : La réception du signal d'ouverture doit obligatoirement être enregistrée via un log critique. Cette trace auditable est essentielle pour la réconciliation des horaires et la preuve de l'heure exacte du début d'exécution.
-* **Déclenchement Temporel :** Le seul événement qui met fin à l'attente est le signal asynchrone émis par le **`Market Clock`** à l'heure d'ouverture définie.
+* **Point de Non-Retour :** La mise à jour du statut vers **`READY_FOR_TRADING`** confirme que tous les contrôles de sécurité (LIVE vs PAPER) et d'intégrité technique ont été validés avec succès.
+* **Surveillance Obligatoire et Temporelle :** La double boucle de Heartbeat (LHB et OM) doit être maintenue en continu. Le système n'exécute plus d'arrêt brutal au premier échec, mais observe une **période de tolérance** avant de déclencher une action corrective.
+* **Priorité à l'Intégrité (LHB) :** En cas d'anomalies simultanées, la santé du `Historic Live Hub` est prioritaire sur la connectivité. Des données figées ("Stale Data") ou un buffer corrompu bloquent impérativement toute transition vers l'exécution.
+* **Sécurité Technique vs Opportunité :** Si le `MarketOpenEvent()` survient pendant qu'un Heartbeat est en échec (en période de tolérance ou durant un Reset), l'entrée en exécution est bloquée. La sécurité de l'infrastructure prime sur le timing du marché.
+* **Dilemme de l'Ouverture :** Si le marché ouvre alors que le système est en état d'alerte (Warning), le mode "patience" est abandonné au profit d'un déclenchement instantané du `Emergency_Standby_Reset()`.
+* **Protection Passive (Broker-Side) :** La sécurité financière absolue repose sur l'usage systématique de **Bracket Orders**. En cas de redémarrage complet du système à l'ouverture, les positions existantes restent protégées par les Stop-Loss stockés de manière autonome sur les serveurs du courtier.
+* **Déclenchement Auditable et Temporel :** Le seul événement mettant fin à la veille est le signal asynchrone du **`Market Clock`**. Sa réception doit être immédiatement enregistrée via un log critique pour garantir la traçabilité de la session.
+* **Règle de Rattrapage :** Si le processus de Reset se termine après l'heure officielle d'ouverture, le `System Manager` vérifie l'historique des signaux et lance l'exécution en mode sécurisé avec la mention "Late Market Entry" dans l'audit trail.
 
 ---
 
@@ -89,12 +99,10 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 - **Règles d’accès ou d’usage** : Écriture seule. Appels synchrones pour erreurs critiques. Instance unique thread-safe
 
 
-
 ### TODO
 
-* Assurer l’idempotence du MarketOpenEvent : ne déclencher l’entrée en exécution que si l’état courant est WAITING, ignorer tout événement dupliqué, retardé ou reçu hors séquence.
+* **Paramétrage :** Définir `HEARTBEAT_TOLERANCE_MS` (recommandé : 15s à 30s) pour filtrer les micro-coupures de l'API IBKR.
+* **Séquence :** Finaliser la définition technique de `Emergency_Standby_Reset()` (Purge buffers LHB + Re-Bootstrap Phase 1).
+* **Validation :** Implémenter l'idempotence du `MarketOpenEvent` pour ignorer les signaux reçus hors séquence ou durant un Reset.
 
-* En phase `WAITING`, si le Heartbeat OM échoue :
-  * **LIVE** → relancer le **bootstrapping complet** (retry progressif à définir).
-  * **PAPER** → ne rien bloquer par défaut ; autoriser des retries conditionnels **si le temps restant avant l’ouverture le permet**.
 
