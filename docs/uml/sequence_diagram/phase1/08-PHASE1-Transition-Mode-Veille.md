@@ -39,17 +39,20 @@ Ce module garantit que le système reste **sain et réactif** pendant la périod
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
-|:---|:--- |:--- |:--- |:--- |
-| 1 | UpdateSystemStatus(READY_FOR_TRADING) | System Manager | System Manager | Auto-appel pour mettre à jour l'état interne du système vers la préparation finale. |
-| 2 | Wait for MarketOpenEvent() | System Manager | System Manager | Passage en mode écoute asynchrone pour l'événement déclencheur temporel. |
-| 3 | HCheckExternalConnectionHeartbeat() | System Manager | Order Manager | Déclenchement périodique de la vérification de santé de la connexion. |
-| 4 | pingConnectionStatus() | Order Manager | IBKR Gateway | Appel technique vers l'infrastructure externe pour tester la réactivité du tunnel. |
-| 5 | Return ConnectionStatus | IBKR Gateway | Order Manager | Réponse de l'infrastructure externe sur l'état du lien (OK/KO). |
-| 6 | Return Status | Order Manager | System Manager | Transmission du résultat du heartbeat pour décision de maintien ou d'arrêt critique. |
-| 7 | MarketOpenEvent() | Market Clock | System Manager | Signal d'interruption horaire indiquant l'ouverture officielle des marchés. |
-| 8 | LogCriticalEvent("Market Open Signal Received") | System Manager | Log Service | Enregistrement immuable de l'horodatage de réception pour audit et réconciliation. |
-| 9 | call_PHASE2-Execution() | System Manager | System Manager | Transition vers la logique métier active d'exécution des ordres. |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|UpdateSystemStatus(READY_FOR_TRADING)|SystemManager|SystemManager|Auto-appel verrouillant la fin de la Phase 1 et autorisant la mise en veille.|
+|2|Wait for MarketOpenEvent()|SystemManager|SystemManager|Transition vers l'état d'écoute asynchrone des signaux horaires.|
+|3|HCheckLHBHealthHeartbeat()|SystemManager|HistoricLiveHub|Vérification synchrone de l'intégrité du buffer et de la fraîcheur des données.|
+|4|Return Status|HistoricLiveHub|SystemManager|Réponse confirmant que le Double-Buffering et l'indexation sont opérationnels.|
+|5|HCheckExternalConnectionHeartbeat()|SystemManager|OrderManager|Déclenchement de la routine de test de la liaison broker.|
+|6|pingConnectionStatus()|OrderManager|IBKRGateway|Requête technique de bas niveau pour tester la réactivité du tunnel FIX/API.|
+|7|Return ConnectionStatus|IBKRGateway|OrderManager|Réponse de l'infrastructure externe sur l'état de la session broker.|
+|8|Return Status|OrderManager|SystemManager|Transmission du statut de connectivité consolidé au gestionnaire système.|
+|9|LogWarning()|SystemManager|LogService|Journalisation d'une anomalie temporaire (sous le seuil de tolérance défini).|
+|10|Emergency_Standby_Reset()|SystemManager|SystemManager|Appel de la séquence de purge et retour forcé à la Phase 06 (Full Bootstrap).|
+|11|MarketOpenEvent()|MarketClock|SystemManager|Signal asynchrone prioritaire déclenchant la fin de la veille active.|
+|12|LogCriticalEvent("Market Open Received")|SystemManager|LogService|Enregistrement immuable du signal d'ouverture pour audit et réconciliation.|
 
 ---
 
