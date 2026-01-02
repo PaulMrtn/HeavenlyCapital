@@ -44,9 +44,9 @@ Ce module garantit la **double intégrité (données et connexion)** et la **coh
 
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
-| 1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IBootstrapReadinessCheck). |
+| 1  | HCheckPortfolioReady()            | System Manager | Portfolio Manager  | Vérifie l'instanciation des structures de données et de la stratégie (IBootstrapReadinessCheck) et valide la pipeline d'inférence de l'IExecutionDecisionModel. |
 | 2  | updateStatus(PM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du PM (ISessionStatusWriter). |
-| 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IBootstrapReadinessCheck). |
+| 3  | HCheckRiskMonitorReady()          | System Manager | Risk Monitor       | Confirme l'activation des limites et le lancement des threads (IBootstrapReadinessCheck)et valide la pipeline d'inférence de l'IStopPredictionModel. |
 | 4  | updateStatus(RM_Status)           | System Manager | SessionStatusList  | Centralise l'enregistrement du statut technique du RM (ISessionStatusWriter). |
 | 5  | ValidateRiskLimits(RM)            | System Manager | Portfolio Manager  | Demande au PM de valider sa compatibilité technique avec le RM (ICrossValidator). |
 | 6  | updateStatus(PM_CrossVal_Status)  | System Manager | SessionStatusList  | Enregistre le résultat de la validation de cohérence métier du PM. |
