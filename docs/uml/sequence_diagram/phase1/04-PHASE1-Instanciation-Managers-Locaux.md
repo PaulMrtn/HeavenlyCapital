@@ -52,7 +52,7 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 
 * **Port de Santé Dédié :** Création d'un `IHealthCheckPort` spécifique au triplet pour superviser la latence locale et l'état des files.
 * **H-Check de Session :** Appel à `HCheckSessionReady(ID)` qui valide :
-  1. La connectivité au **LHB** (lecture d'un slot test via ).
+  1. La connectivité au **LHB**.
   2. La validité des pointeurs vers les modèles ML.
   3. L'intégrité des canaux de communication PM-RM-OM.
 
