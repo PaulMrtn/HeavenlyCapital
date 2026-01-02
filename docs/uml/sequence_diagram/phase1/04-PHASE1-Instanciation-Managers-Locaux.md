@@ -4,6 +4,7 @@
   <img src="../img/04-PHASE1-Instanciation-Managers-Locaux.jpg" width="900">
 </p>
 
+---
 
 ### 1. Objectif
 
