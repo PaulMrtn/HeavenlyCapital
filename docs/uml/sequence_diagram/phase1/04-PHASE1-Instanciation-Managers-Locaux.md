@@ -19,40 +19,65 @@ Cette étape s'inscrit immédiatement après l'initialisation des services d'inf
 
 ### 3. Logique Générale
 
-Le **System Manager** orchestre une boucle itérative pour chaque identifiant de session récupéré depuis le `StaticConfigPort`. Le processus suit cet ordre strict pour garantir l'intégrité des liens :
+Le **System Manager** orchestre une boucle itérative pour chaque identifiant de session récupéré via le `StaticConfigPort`. Le processus suit cet ordre strict pour garantir l'intégrité des liens et le respect du principe **Fail-Fast** :
 
-1. **Récupération des Paramètres :** Extraction des seuils de risque et paramètres via `getConfigs(SessionID)`.
-2. **Création Identitaire :** Instanciation de `TradingSession` (ID, MarketDayStatus) pour porter l'état local.
-3. **Allocation des Managers (Injection par Constructeur) :**
-  * **PM :** Créé avec son identifiant et les ports `ISessionPersistence` (DIL) et `IErrorHandler`.
-  * **OM :** Créé avec la référence `IBKR Gateway` et les ports `IOrderRepository` (DIL) et `IErrorHandler`.
-  * **RM :** Créé en dernier car il nécessite les références du PM (via `IPositionProvider`) et de l'OM (via `IOrderSubmissionPort`).
-4. **Liaison des Canaux (Linking) :**
-  * Le **System Manager** injecte l'OM dans le PM via `setOrderManager(OM)` pour établir le canal de **Performance**.
-  * Le **System Manager** injecte le PM dans le RM via `setPortfolioReference(PM)` pour permettre la surveillance.
-5. * **Allocation des Oracles ML (Injection par Constructeur) :**
-  * Le **System Manager** résout les chemins des artefacts ML via la configuration statique (ModelID + Version).
-  * Il instancie les modèles de décision locaux et les injecte dans les managers respectifs.
-  * Chaque instance est locale à la session, garantissant une isolation stricte et l'absence de contention.
-6. **Instanciation du Port de Santé :** Création d'un `IHealthCheckPort` dédié au triplet pour l'audit programmatique local.
-7. **Vérification de Readiness :** Appel à `HCheckSessionReady(ID)` pour valider que tous les fils sont branchés et les threads alloués.
+#### Étape 1 : Récupération et Création Identitaire
+
+* **Extraction des Paramètres :** Le système récupère les seuils de risque, les identifiants de modèles ML et les configurations de marché via `getConfigs(SessionID)`.
+* **Instanciation de la Session :** Création de l'objet `TradingSession` (ID, MarketDayStatus), servant de conteneur logique pour le triplet de managers.
+
+#### Étape 2 : Allocation des Managers (Injection par Constructeur)
+
+L'injection par constructeur est privilégiée pour garantir l'immuabilité des ports fondamentaux. Les deux sources de données (**LDH** pour le signal, **LHB** pour l'historique) sont injectées simultanément :
+
+1. **Portfolio Manager (PM) :** Créé avec son ID, les ports `PersistencePort` (DIL), `IErrorHandler`, le `MarketDataPort` (LDH) et le port **`ILiveDataReader`** (LHB).
+2. **Order Manager (OM) :** Créé avec la référence `BrokerGatewayPort` (IBKR), le port `PersistencePort` (DIL) et `IErrorHandler`.
+3. **Risk Monitor (RM) :** Créé en dernier. Il reçoit le port **`ILiveDataReader`** (LHB), l'accès au `MarketDataPort` (LDH) et le port `IErrorHandler`.
+
+#### Étape 3 : Allocation des Oracles ML (Inférence Locale)
+
+* **Résolution des Artefacts :** Le System Manager localise les fichiers de modèles (ModelID + Version) définis en configuration.
+* **Instanciation des Modèles :**
+* Injection de l'oracle `IExecutionDecisionModel` dans le **PM**.
+* Injection de l'oracle `IStopPredictionModel` dans le **RM**.
+
+* **Isolation :** Chaque session possède sa propre instance en mémoire, évitant toute contention lors de l'inférence asynchrone.
+
+#### Étape 4 : Liaison des Canaux et Abonnements (Linking)
+
+* **Canal de Performance :** Le System Manager lie l'OM au PM via `setOrderManager(OM)`.
+* **Canal de Surveillance :** Le System Manager lie le PM au RM via `setPortfolioReference(PM)`, permettant au RM d'interroger le port `IPositionProvider`.
+* **Abonnement EventBus :** Les managers (PM/RM) s'enregistrent sur l'**`IEventBusPort`**.
+* *Note : Le bus reste "Silencieux" (Mute) tant que le bootstrap n'est pas finalisé.*
+
+#### Étape 5 : Finalisation et Audit de Readiness
+
+* **Port de Santé Dédié :** Création d'un `IHealthCheckPort` spécifique au triplet pour superviser la latence locale et l'état des files.
+* **H-Check de Session :** Appel à `HCheckSessionReady(ID)` qui valide :
+  1. La connectivité au **LHB** (lecture d'un slot test via ).
+  2. La validité des pointeurs vers les modèles ML.
+  3. L'intégrité des canaux de communication PM-RM-OM.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Renforcement de l’Injection :** Pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`, `IErrorHandler`), l'injection par **constructeur** est obligatoire. Les setters sont réservés aux liaisons de second rang pour éviter les dépendances cycliques.
-* **Isolation RM/PM (Non-Blocking) :** Pour garantir la réactivité absolue de la surveillance d'urgence, le **Risk Monitor** ne possède jamais de référence directe vers la logique interne du PM. Il accède à l'état des positions via le port **`IPositionProvider`** qui fournit des **Snapshots immuables**. Cela empêche tout blocage du RM par un verrou (lock) ou une contention mémoire issus du PM.
+* **Primauté du Constructeur :** L'injection par **constructeur** est obligatoire pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`, `IErrorHandler`, `ILiveDataReader`). Les setters sont strictement réservés aux liaisons de second rang (ex: `setOrderManager`) pour résoudre les dépendances circulaires sans compromettre l'immuabilité initiale.
+* **Dualité d'Accès Data (LDH vs LHB) :** * Le **LDH** (via `MarketDataPort`) fournit l'événement de réveil et le prix "Latest".
+* Le **LHB** (via `ILiveDataReader`) fournit la profondeur historique nécessaire aux calculs vectoriels. Cette séparation garantit que la lecture d'une série temporelle lourde ne bloque jamais la réception du prochain tick.
+* **Couplage Minimal et Standardisé :** Le **RM** n'écrit jamais dans le **PM**. L'**OM** n'accède jamais au **PM**. Tout échange inter-composant est médié par des ports immuables.
+* **Isolation RM/PM :** Le **Risk Monitor** ne possède aucune référence à la logique interne du PM. Il consomme l'état des positions via des snapshots immuables fournis par le port **`IPositionProvider`**. Cela garantit que le RM reste réactif (Zero-Lock) même si le PM effectue des calculs intensifs.
+* **Performance du Pull  :** L'accès aux 1000 slots du **LHB** via `ILiveDataReader` est garanti **lock-free**. Le PM et le RM peuvent "Pull" des tranches de données (Slices) sans créer de contention sur le thread d'ingestion des prix.
 * **Segmentation des Pools d'Exécution :**
-  * **RM :** S'exécute sur le `RM_CRITICAL_POOL` (priorité absolue).
-  * **PM :** S'exécute sur le `STRATEGY_POOL` (calculs métier).
-  * **OM :** S'exécute sur le `IO_POOL` (gestion réseau et persistance).
-* **Immutabilité des Oracles :** Une fois injectés, les modèles `IExecutionDecisionModel` et `IStopPredictionModel` sont strictement en lecture seule. Ils ne possèdent aucun état mutable et n'effectuent aucun apprentissage en ligne.
-* **Pureté Fonctionnelle :** Les modèles ML agissent comme des fonctions pures (Market Data In  Boolean Out). Ils n'ont aucun accès aux ports de persistance ou de connectivité broker.
-* **Isolation ML/Manager :** Le **Portfolio Manager** et le **Risk Monitor** possèdent leurs propres instances de modèles. Un manager ne peut jamais invoquer le modèle d'un autre composant.
-* **Abstraction du Port de Persistance :** Les managers n'ont aucun couplage avec le **Data Integrity Layer (DIL)**. Ils utilisent des interfaces métier. Les appels vers ces ports sont obligatoirement routés vers le `BULK_POOL` ou le `AUDIT_POOL` via des méthodes transactionnelles (`startTransaction`, `commit`).
-* **Centralisation Fail-Fast :** Le port **`IErrorHandler`** injecté dans chaque manager est le seul canal autorisé pour les remontées critiques. En cas d'erreur fatale, il déclenche l'arrêt immédiat de la session sans tentative de "retry" interne.
-* **Couplage Minimal :** Le RM n'écrit jamais dans le PM. L'OM n'accède jamais au PM. Tout échange se fait via des ports standardisés.
+  * **RM :** Isolé sur le `RM_CRITICAL_POOL` (Priorité OS maximale).
+  * **PM :** Opère sur le `STRATEGY_POOL`.
+  * **OM :** Géré par le `IO_POOL` (Réseau/Persistance).
+* **Immutabilité des Modèles :** Une fois injectés, `IExecutionDecisionModel` et `IStopPredictionModel` sont en lecture seule. Ils ne possèdent aucun état interne mutable.
+* **Pureté Fonctionnelle :** Les modèles agissent comme des fonctions pures (). Ils n'ont aucun droit d'accès aux ports de persistance ou de connectivité broker.
+* **Isolation ML/Manager :** Chaque instance de manager possède son propre exemplaire d'oracle. Un manager ne peut jamais invoquer le modèle d'un composant tiers.
+* **Abstraction du DIL :** Les managers n'ont aucun couplage direct avec le **Data Integrity Layer**. Ils utilisent des interfaces métier dont les appels sont routés vers le `BULK_POOL` ou le `AUDIT_POOL` via des transactions atomiques (`startTransaction`).
+* **Centralisation Fail-Fast :** Le port **`IErrorHandler`** est le canal unique de remontée. Toute erreur fatale déclenche un `systemStop` immédiat via l'infrastructure globale, sans tentative de récupération locale (No-Retry).
+* **Silence du Bootstrapping :** Bien qu'injecté, l'**`IEventBusPort`** est maintenu en état "mute" durant toute la Phase 1 pour éviter tout déclenchement de logique métier avant l'ouverture officielle de la session.
 
 ---
 
@@ -96,6 +121,7 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * Bootstrapping et runtime métier, selon contexte
   * Tous accès critiques doivent transiter par ce port
 * **Objectif :** Assurer la cohérence, atomicité et auditabilité des données critiques à travers tout le système
+
 **Port : IPositionProvider**
   * **Implémenté par :** Portfolio Manager.
   * **Injecté dans :** Risk Monitor (et tout module en lecture seule).
@@ -114,11 +140,11 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * Le Risk Monitor soumet les ordres urgents via **IOrderSubmissionPort**, qui délègue ensuite vers le **BrokerGatewayPort** dans OM
 * **Objectif :** Isoler le courtier des modules métier tout en permettant le passage sécurisé des ordres critiques et standards
 
-**Port : MarketDataPort**
-  * **Implémenté par :** LDH Global.
-  * **Injecté dans :** Portfolio Manager, Risk Monitor.
-  * **Responsabilité :** Diffusion des flux de marché (Prix, Volume) en lecture seule.
-  * **Règles d’usage :** Accès immuable. Interdiction de modification. Politiques de `Timeout` et `Retry` appliquées au niveau du port pour protéger l'appelant.
+**MarketDataPort**
+  * **Implémenté par :** `Live Data Hub` (LDH)
+  * **Injecté dans / Utilisé par :** `Portfolio Manager`, `Risk Monitor`
+  * **Responsabilité opérationnelle :** Diffusion du dernier prix (Last Quote) pour le réveil des unités de calcul.
+  * **Règles d’usage :** Complémentaire au `ILiveDataReader`.
 
 **IOrderSubmissionPort**
 - Implémenté par : Order Manager (OM)
@@ -163,3 +189,14 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 * **Injecté dans :** Risk Monitor.
 * **Responsabilité :** Anticipation de sortie. Détermine si une liquidation préventive est requise avant l'atteinte mécanique du stop-loss.
 * **Règles :** Indépendant de la logique du Portfolio Manager.
+
+**ILiveDataReader**
+* **Implémenté par** : `LiveHistoryBuffer` (LHB)
+* **Injecté dans / Utilisé par** : `Portfolio Manager`, `Risk Monitor`
+* **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant (), aux séries temporelles de la session.
+* **Règles d’accès ou d’usage** : Utilisation de pointeurs vers la matrice de N slots. Interdiction stricte d'écriture.
+* 
+**IEventBusPort**
+* **Implémenté par :** `EventBus`
+* **Injecté dans / Utilisé par :** `Portfolio Manager`, `Risk Monitor` (Abonnés)
+* **Responsabilité opérationnelle :** Notification de la fin d'écriture dans le LHB pour déclencher le cycle de décision (Pull).
