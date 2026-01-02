@@ -23,6 +23,7 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
 * **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads. Chaque Manager effectue une inférence "à blanc" (dummy inference) sur ses modèles ML injectés (`IExecutionDecisionModel` / `IStopPredictionModel`). Cela garantit que la pipeline de calcul est chargée en mémoire et opérationnelle sans crash système.
+* **Contrainte de Latence ML** : Chaque oracle ML doit respecter un budget maximal d’inférence strictement borné.
 * **Validations Croisées (`ICrossValidator`) :** Validation de la cohérence métier inter-domaines, comme la compatibilité entre les limites de risque et l'état du portefeuille.
 * **Vérification de l'Infrastructure (`IExternalConnectivity`) :** Test de la liaison physique et logique avec le courtier avec un **timeout strict de 5000ms**.
 * **Centralisation des Statuts :** Pour garantir le découplage, les managers retournent leurs résultats au `System Manager`, qui se charge seul de mettre à jour la `SessionStatusList` via `ISessionStatusWriter`.
