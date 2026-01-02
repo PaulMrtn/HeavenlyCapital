@@ -112,7 +112,18 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 
 **IEventBusPort**
 * **Implémenté par** : `EventBus`
-* **Injecté dans / Utilisé par** : `LiveHistoryBuffer` (LHB)
+* **Injecté dans / Utilisé par** : `LiveHistoryBuffer` (LHB), `DataCache` (LDH)
 * **Responsabilité opérationnelle** : Notification asynchrone signalant la disponibilité d'une nouvelle donnée dans le buffer.
 * **Règles d’accès ou d’usage** : Injecté en Phase 1 mais maintenu silencieux jusqu'au début de la session.
+
+**ILiveHistoryFreezePort**
+* **Implémenté par :** LiveHistoryBuffer
+* **Injecté dans** : System Manager
+* **Responsabilité :**
+  * Geler définitivement la structure mémoire du buffer historique
+  * Interdire toute reconfiguration après bootstrap
+* **Règles :**
+  * Appel synchrone
+  * Irréversible
+  * PHASE2 uniquement
 
