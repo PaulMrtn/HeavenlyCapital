@@ -142,3 +142,9 @@ Interface de protection préventive pour le Risk Monitor.
   * **Performance :** Temps de calcul déterministe (Priorité Critique).
   * **Isolation :** Ressources mémoire indépendantes de l'oracle du PM.
 
+**ILiveDataReader**
+* **Implémenté par** : `Historic Live Hub` (LHB)
+* **Utilisé par** : `Portfolio Manager`, `Risk Monitor`
+* **Responsabilité opérationnelle** : Fourniture de tranches de données (Slices/Vecteurs) pour les calculs ML en temps constant .
+* **Règle HeartCheck** : Doit être testée en Phase 07 via une requête de lecture sur l'index courant pour valider la chaîne de décision.
+**Impact architectural :** Sans cette mise à jour, votre `HeartCheck` valide que le moteur ML tourne "à vide", mais ne garantit pas qu'il puisse accéder aux données du LHB. L'intégration de ces étapes sécurise le cycle complet de décision.
