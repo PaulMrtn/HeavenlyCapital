@@ -166,6 +166,22 @@ Configuration statique par session.
   * **Règles d’accès ou d’usage** : Fournit une réponse booléenne immédiate (calcul in-memory).
   * **Contraintes** : Doit être initialisé avant l'appel à `calculateMarketDayStatus()`.
 
+
+---
+
+### IResiliencePolicyPort
+Cette interface gère les paramètres de survie du système face aux instabilités réseau ou logicielles. Elle transforme une erreur technique brute en une décision temporelle (Patience vs Action).
+* **Domaine fonctionnel :** Configuration & Health Monitoring
+* **Implémenté par :** `Config Service Global` / `Static Config Layer`
+* **Injecté dans / Utilisé par :** `System Manager`
+* **Responsabilité opérationnelle :**
+  * Exposer les seuils de tolérance temporelle (ex: `HEARTBEAT_TOLERANCE_MS`).
+  * Fournir les politiques de "Grace Period" spécifiques par composant (LHB vs OM).
+  * Définir le nombre maximal de tentatives de redémarrage (Max Retries) autorisées avant l'arrêt fatal.
+* **Règles d’accès ou d’usage :**
+  * **Lecture seule** : Les valeurs sont chargées au Bootstrapping et restent immuables durant toute la session.
+  * **In-Memory** : Doit garantir une réponse ultra-rapide sans accès disque/réseau pour ne pas ralentir la boucle de Heartbeat.
+
 ---
 
 ## 3. Market Data & Broker Connectivity
@@ -641,6 +657,26 @@ Interface unique pour signaler une demande d’arrêt global du système.
 * **Responsabilité opérationnelle** : Gérer et exposer l'état de santé opérationnel du système via la méthode `setSystemMode()`.
 * **Valeurs de retour/États** : `NOMINAL`, `DEGRADED`.
 * **Règles d’accès ou d’usage** : En mode `DEGRADED`, les composants consommateurs (comme le Strategy Engine) doivent appliquer des règles de gestion de risque spécifiques (ex: réduction de levier ou utilisation de prix historiques).
+
+
+---
+
+
+### ISystemRecoveryPort
+Cette interface est l'exécuteur des mesures de dernier recours. Elle assure qu'un redémarrage système ne laisse aucune "traîne" de données corrompues ou de connexions fantômes.
+* **Domaine fonctionnel :** System Control & Lifecycle
+* **Implémenté par :** `System Manager` (via les adaptateurs de contrôle des managers)
+* **Injecté dans / Utilisé par :** `System Manager` (Auto-appel ou via Error Handler)
+* **Responsabilité opérationnelle :**
+  * **Orchestration du Clean Stop** : Ordonner l'arrêt immédiat des flux `LDH` et la déconnexion propre de la `IBKR Gateway`.
+  * **Purge d'Intégrité** : Déclencher le vidage (Wipe) des buffers circulaires et des index du `Historic Live Hub (LHB)`.
+  * **Reset d'État** : Réinitialiser la `SessionStatusList` à l'état zéro.
+  * **Phase Jump** : Commander le saut d'exécution vers l'entrée de la `Phase 06`.
+* **Règles d’accès ou d’usage :**
+  * **Priorité CRITICAL** : Cette interface doit opérer sur le pool de threads prioritaire.
+  * **Idempotence** : Plusieurs appels successifs à `Emergency_Standby_Reset()` ne doivent pas corrompre l'état de redémarrage.
+  * **Blocage d'Exécution** : Tant que cette interface n'a pas confirmé le succès du Reset, l'accès à la `Phase 2 (In-Trade)` est physiquement verrouillé.
+
 
 
 ---
