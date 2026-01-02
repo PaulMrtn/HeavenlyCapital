@@ -62,7 +62,7 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 
 * **Primauté du Constructeur :** L'injection par **constructeur** est obligatoire pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`, `IErrorHandler`, `ILiveDataReader`). Les setters sont strictement réservés aux liaisons de second rang (ex: `setOrderManager`) pour résoudre les dépendances circulaires sans compromettre l'immuabilité initiale.
 * **Dualité d'Accès Data (LDH vs LHB)** :
-  * Le **LDH** (via `MarketDataPort`) fournit l'événement de réveil et le prix "Latest".
+  * Le **LDH** (via `MarketDataPort`) fournit l'événement de notifcation et l'arrivée d'une `Marketquote`.
   * Le **LHB** (via `ILiveDataReader`) fournit la profondeur historique nécessaire aux calculs vectoriels. Cette séparation garantit que la lecture d'une série temporelle lourde ne bloque jamais la réception du prochain tick.
 * **Couplage Minimal et Standardisé :** Le **RM** n'écrit jamais dans le **PM**. L'**OM** n'accède jamais au **PM**. Tout échange inter-composant est médié par des ports immuables.
 * **Isolation RM/PM :** Le **Risk Monitor** ne possède aucune référence à la logique interne du PM. Il consomme l'état des positions via des snapshots immuables fournis par le port **`IPositionProvider`**. Cela garantit que le RM reste réactif (Zero-Lock) même si le PM effectue des calculs intensifs.
