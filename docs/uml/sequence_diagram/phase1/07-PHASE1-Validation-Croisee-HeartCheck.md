@@ -23,7 +23,7 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
 1. **Validation de l'Infrastructure de Données (Fast-Lane) :**
-  * **Réception (LDH) :** Confirmation que les paquets TCP/API arrivent de l'IBKR Gateway.
+  * **Réception (LDH) :** Confirmation que les `TickData` arrivent de l'IBKR Gateway.
   * **Indexation (LHB) :** Confirmation de la transformation des ticks en `MarketQuote` et du stockage dans le buffer actif.
   * **Preuve de Consommabilité :** Simulation d'une lecture via **`ILiveDataReader`** pour garantir que le buffer est sain et prêt pour l'analyse.
 
