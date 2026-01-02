@@ -22,7 +22,8 @@ Cette étape est la **dernière de la Phase 1 (Pre-Trade)**. Elle est exécutée
 
 Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérifications en cascade pour recueillir le statut opérationnel de chaque manager et la cohérence inter-composants.
 
-* **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads. Chaque Manager effectue une inférence "à blanc" (dummy inference) sur ses modèles ML injectés (`IExecutionDecisionModel` / `IStopPredictionModel`). Cela garantit que la pipeline de calcul est chargée en mémoire et opérationnelle sans crash système.
+* **Vérifications Unitaires (`IBootstrapReadinessCheck`) :** Validation de l'intégrité technique, de l'instanciation des structures et de l'état des threads.
+* **Vérifications ML** : Chaque Manager effectue une inférence "à blanc" (dummy inference) sur ses modèles ML injectés (`IExecutionDecisionModel` / `IStopPredictionModel`). Cela garantit que la pipeline de calcul est chargée en mémoire et opérationnelle sans crash système.
 * **Contrainte de Latence ML** : Chaque oracle ML doit respecter un budget maximal d’inférence strictement borné.
 * **Validations Croisées (`ICrossValidator`) :** Validation de la cohérence métier inter-domaines, comme la compatibilité entre les limites de risque et l'état du portefeuille.
 * **Vérification de l'Infrastructure (`IExternalConnectivity`) :** Test de la liaison physique et logique avec le courtier avec un **timeout strict de 5000ms**.
@@ -33,6 +34,7 @@ Le **`System Manager`** (`IBootstrapCoordinator`) orchestre une série de vérif
 ### 4. Règles Critiques
 
 * **Tolérance aux Erreurs Asymétrique :** Toute défaillance concernant une session **`LIVE`** entraîne un arrêt immédiat via `systemStop(CRITICAL_ERROR)`. Les échecs en session **`PAPER`** sont isolés et la session est invalidée sans interrompre le bootstrap global.
+* **Défaillance ML** :Toute défaillance des oracles ML (exception, non-réponse ou dépassement du budget de latence) entraîne un FAIL immédiat uniquement pour les sessions en mode LIVE, sans bloquer les sessions PAPER.
 * **Évaluation Centralisée :** La décision finale est gérée uniquement par `evaluateBootstrapStatus()` après la collecte complète des statuts.
 * **Persistance au fil de l'eau :** Chaque statut est écrit immédiatement par le `System Manager` pour garantir la traçabilité en cas de crash durant la phase de HeartCheck.
 ---
