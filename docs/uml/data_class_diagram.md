@@ -303,6 +303,43 @@ Lors de l’écriture en base de données :
 - les relations FK sont reconstruites côté infrastructure,
 - l’objet runtime reste totalement **agnostique du modèle SQL**.
 
+
+Voici la documentation complète de l'entité **`MarketStateContext`**. Conformément à notre architecture optimisée pour le Machine Learning, ce composant est inséré dans la **Section 2 (Gestion des données)**, aux côtés de `MarketQuote` et `SnapshotHeader`.
+
+---
+
+#### 2.4. `MarketStateContext`
+
+**Définition**
+Le `MarketStateContext` est un **objet de synchronisation et de transport éphémère** utilisé comme contrat de données unique entre la *Fast-Lane* et les modules décisionnels (Risk Monitor, Portfolio Manager). Il garantit que tous les consommateurs "Intelligence" travaillent sur une photographie du marché strictement identique à un instant .
+Il ne s'agit pas d'une entité persistée en base de données, mais d'un **référentiel mémoire immuable** diffusé par l'**EventBus** suite à la stabilisation d'un cycle d'ingestion.
+
+**Attributs (Immuables)**
+* **`context_id`** (`UUID`): Identifiant unique de la vague de synchronisation.
+* **`cycle_timestamp`** (`int64` – epoch nanoseconds): Horodatage de référence du cycle de données (doit correspondre au `snapshot_timestamp` des quotes).
+* **`lhb_slot_index`** (`int`): L'index exact du slot stabilisé dans le **Historic Live Hub (LHB)**. Permet aux modèles ML d'extraire leurs *features* sans recherche d'index.
+* **`latest_quotes_map`** (`Map<UUID, MarketQuote>`): Un dictionnaire de références directes vers les instances immuables du `DataCache`. Permet un accès  au dernier prix "flash" pour les calculs de PnL et de limites.
+* **`integrity_level`** (`IntegrityStatus`): Niveau de confiance de la donnée pour ce cycle (NOMINAL, DEGRADED, PARTIAL).
+* **`is_ml_ready`** (`boolean`): Flag indiquant si le buffer LHB contient suffisamment d'antériorité pour permettre l'inférence des modèles ML.
+
+**Énumérations :**
+* `IntegrityStatus` : (`NOMINAL`, `DEGRADED`, `PARTIAL`, `CRITICAL_ERROR`)
+
+**Relations conceptuelles**
+* `MarketStateContext` **transporte** 1..* `MarketQuote` : Références directes vers les objets du cache.
+* `MarketStateContext` **pointe vers** 1 `LHB Slot` : Référence l'emplacement mémoire dans le buffer circulaire.
+* `MarketStateContext` **déclenche** 1..* `RiskSnapshot` : Sert de base de calcul pour l'évaluation des risques.
+
+**Règles de fonctionnement (Contrat de Performance)**
+  * **Zéro Copie** : Le contexte transporte des **références** (pointeurs) vers les objets `MarketQuote` déjà existants en RAM pour éviter toute allocation mémoire coûteuse dans la *Fast-Lane*.
+  * **Immuabilité Totale** : Une fois publié sur l'EventBus, l'objet ne peut être modifié. Si un nouveau tick arrive pendant le traitement, il fera l'objet d'un nouveau `MarketStateContext`.
+  * **Alignement Temporel** : Le `lhb_slot_index` contenu dans le contexte est le seul index autorisé pour la lecture des séries temporelles par le RM et le PM durant ce cycle.
+  * **Portée Éphémère** : Cet objet n'est jamais envoyé vers la *Slow-Lane* (DB/Audit). Seuls le `SnapshotHeader` et les `MarketQuote` sont persistés.
+
+**Usage par les modules Decision-ML**
+  1. **Risk Monitor** : Utilise `latest_quotes_map` pour le calcul immédiat de l'exposition et `lhb_slot_index` pour son modèle ML de détection d'anomalies.
+  2. **Portfolio Manager** : Utilise `lhb_slot_index` pour extraire la fenêtre de prix ( derniers slots) nécessaire à ses modèles d'Alpha ou de Timing (VWAP, etc.).
+
 ---
 
 ### 3. Entités Actif
