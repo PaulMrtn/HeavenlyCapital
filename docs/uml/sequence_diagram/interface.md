@@ -365,8 +365,16 @@ Soumission d’ordres critiques.
 **ILiveDataReader**
 * **Implémenté par** : `LiveHistoryBuffer` (LHB)
 * **Injecté dans / Utilisé par** : `Portfolio Manager`, `Risk Monitor`
-* **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant (), aux séries temporelles de la session.
-* **Règles d’accès ou d’usage** : Utilisation de pointeurs vers la matrice de N slots. Interdiction stricte d'écriture.
+* **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant (), aux séries temporelles de la session. Fournir un accès lecture seule, non-bloquant, aux séries temporelles de la session via le Historic Live Buffer.
+* **Règles d’accès ou d’usage** : Utilisation de pointeurs vers la matrice de N slots. Interdiction stricte d'écriture. Utilisation de fenêtres (slices) temporelles. Accès via Double Buffering pour isolation totale de la Fast-Lane.
+
+---
+
+**IMarketDataCacheReader**
+* **Implémenté par** : `Data Cache`
+* **Injecté dans / Utilisé par** : `Risk Monitor`, `Portfolio Manager`
+* **Responsabilité opérationnelle** : Accès lecture seule, lock-free, à la dernière `MarketQuote` consolidée ().
+* **Règles d’accès** : Interdiction de mutation. Garanti lock-free pour ne pas ralentir le LDH.
 
 ---
 
