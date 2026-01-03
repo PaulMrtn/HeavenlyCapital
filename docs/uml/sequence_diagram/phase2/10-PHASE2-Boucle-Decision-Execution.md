@@ -8,43 +8,42 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de déclencher la **réaction décisionnelle** suite à la mise à jour des données de marché. Il assure le passage de la donnée brute stockée en mémoire (`DataCache`) à l'action (ordres d'urgence ou de stratégie). L'objectif est de garantir que le **Risk Monitor** et le **Portfolio Manager** réagissent de manière asynchrone et parallèle dès qu'une nouvelle agrégation est disponible.
+La finalité de ce module est d'orchestrer la **réaction décisionnelle** du système suite à la stabilisation des données de marché. Il assure le passage de la donnée brute à l'action (ordres d'urgence ou stratégiques) en garantissant que le **Risk Monitor** et le **Portfolio Manager** travaillent sur un référentiel temporel et technique identique via un objet de contexte partagé.
 
 ---
 
 ### 2. Contexte
 
-Ce module constitue le point d'entrée de la **logique métier** en Phase II. Contrairement à la Phase 09 (I/O pure), la séquence 10 ne gère pas la donnée mais son **exploitation**. Elle est strictement "Consumer-side". Elle traite le `DataCache` comme une source *Latest-only* et ne dépend d'aucun mécanisme de persistance ou d'audit lent.
+Ce module constitue le cœur de la **logique métier** en Phase II. Il est strictement "Consumer-side" et exploite les données stabilisées par la *Fast-Lane*. Il utilise le **Historic Live Hub (LHB)** comme source principale pour l'inférence des modèles de Machine Learning et le **DataCache** pour les vérifications de prix instantanés.
 
 ---
 
 ### 3. Logique Générale
 
-Le flux est piloté par un événement de notification léger :
+Le flux est piloté par un événement de synchronisation enrichi :
 
-  * **Déclenchement :** Le `DataCache` émet un signal `onMarketDataAggregated` dès qu'un lot de cotations a été rafraîchi par la Fast-Lane.
-  * **Orchestration Technique :** Un `EventBus` technique diffuse l’événement de mise à jour des cotations. RM et PM sont abonnés et déclenchent leur traitement de manière asynchrone.
-  * **Exécution Parallèle :**
-    * * Le **RM** effectue une lecture opportuniste du cache pour valider les limites d'exposition (Urgence).
-    * Le **PM** effectue une lecture pour évaluer ses signaux d'entrée (Stratégie).
-  * **Cohérence à la Lecture :** La cohérence des données est assurée par le consommateur au moment de l'accès au cache, garantissant l'utilisation de la valeur la plus proche de l'instant du réveil du consommateur.
-  * **Sortie :** Les ordres générés sont poussés dans une `OrderInputQueue` prioritaire, découplant la décision de l'exécution finale par l' `Order Manager`.
+* **Déclenchement** : L'**EventBus** diffuse le signal `notifyDataReady(Context)` dès que le cycle d'ingestion est clôturé dans le Cache et le LHB.
+* **Orchestration par Contexte** : Le signal transporte un objet `MarketStateContext` immuable contenant l'index du slot LHB et les références aux quotes du cache.
+* **Exécution Parallèle (Fragment `par`)** :
+  * Le **Risk Monitor (10a)** effectue une lecture du contexte pour valider les limites d'exposition et exécuter son modèle ML de surveillance.
+  * Le **Portfolio Manager (10b)** utilise l'index du contexte pour extraire les *features* du LHB et évaluer ses signaux stratégiques via ML.
+* **Découplage de l'Exécution** : Les ordres sont poussés de manière asynchrone dans une `OrderInputQueue` prioritaire.
+* **Traitement Séquentiel** : L'**Order Manager** consomme la queue en continu pour router les ordres vers le broker.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Sémantique "Latest-only" :** Le RM et le PM lisent la version la plus récente disponible dans le cache au moment de leur réveil.
-* **Non-Blocage** : l’`EventBus` diffuse l’événement de façon asynchrone. RM et PM lisent le cache au moment où ils sont réveillés par l’événement.
-* **Priorité de la Surveillance :** Bien que lancés en parallèle, la logique de surveillance d'urgence (`10a`) est conçue pour avoir une priorité de scheduling supérieure au niveau de l'OS/Runtime par rapport à la stratégie standard (`10b`).
-* **Indépendance de l'Audit :** La décision n'attend jamais la création d'un `SnapshotHeader` ou une écriture disque. Si un retard survient dans la Slow-Lane (audit), la boucle décisionnelle continue sans impact.
-* **Découplage de l'Exécution :** L'envoi vers l' `OrderInputQueue` est non-bloquant.
+* **Sémantique "Context-Locked"** : Les managers RM et PM ont l'interdiction de solliciter des données hors de la portée définie par le `MarketStateContext` reçu pour garantir la cohérence des signaux.
+* **Priorité de la Queue** : La `OrderInputQueue` doit traiter les ordres `CRITICAL` (issus du RM) avec une priorité absolue sur les ordres `STANDARD` (issus du PM).
+* **Non-Blocage du Bus** : La diffusion du signal est asynchrone ; le traitement des modèles ML ne doit jamais ralentir la réception du prochain tick par l'EventBus.
+* **Isolation ML** : Le LHB garantit l'immuabilité des séries temporelles pendant que les modèles effectuent leur inférence.
 
 ---
 
 ### 5. Conclusion
 
-Ce module garantit une **réactivité événementielle immédiate** du système face aux mouvements du marché. En utilisant une notification légère de disponibilité, il assure que les modules décisionnels travaillent toujours sur la donnée la plus fraîche en mémoire. Cette architecture élimine les goulots d'étranglement, garantit une isolation totale entre la surveillance et la stratégie, et permet une scalabilité fluide sans compromis sur la latence.
+Cette architecture garantit une **cohérence temporelle absolue** entre la surveillance et la stratégie grâce au `MarketStateContext`. En synchronisant l'accès au cache atomique et aux séries temporelles du buffer LHB, le système permet une **inférence ML déterministe** sans aucune latence de recherche. Le découplage par file d'attente prioritaire assure que les décisions critiques du Risk Monitor sont exécutées instantanément, offrant une scalabilité robuste et une sécurité maximale en haute fréquence.
 
 ---
 
@@ -92,8 +91,9 @@ Ce module garantit une **réactivité événementielle immédiate** du système 
 * **Responsabilité opérationnelle** : Exposer l'état actuel des positions pour permettre au `RiskMonitor` de calculer l'exposition en temps réel par rapport aux nouveaux prix.
 * **Règles d’accès ou d’usage** : Lecture seule. Aucun verrou bloquant. Utilisé durant le fragment `10a-Surveillance-Urgence`.
 
-### IOrderManagerControl (Nouveau - pour message 4)
+### IOrderManagerControl
 * **Implémenté par** : `OrderManager`
 * **Injecté dans / Utilisé par** : Interne au cycle d'exécution
 * **Responsabilité opérationnelle** : Consommer séquentiellement les ordres présents dans la file d'attente via `dequeueOrder()`.
 * **Règles d’accès ou d’usage** : Traitement ordonné selon la priorité définie lors de l'enfilage. Assure la transition vers l'exécution marché (Broker Gateway).
+
