@@ -71,23 +71,11 @@ Ce module assure l'auditabilité et la traçabilité du système par la reconstr
 
 ### 6. Ports et Interfaces
 
-**IMarketDataCacheReader**
-* **Implémenté par** : `DataCache`
-* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (dans le cadre de la séquence 09b)
-* **Responsabilité opérationnelle** : Fournir un accès en lecture seule, non bloquant, aux derniers `MarketQuote` immuables versionnés pour permettre la reconstruction du snapshot.
-* **Règles d’accès ou d’usage** : Lecture lock-free (sans verrou). Aucun accès aux structures internes du cache. Usage exclusif d'objets immuables. Ne doit jamais bloquer la Fast-Lane.
-
 **IMarketDataObserverPort**
 * **Implémenté par** : `MetricManager`
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
 * **Responsabilité opérationnelle** : Point d'entrée pour la consommation passive (push) des signaux bruts de performance et d'état des snapshots.
 * **Règles d’accès ou d’usage** : Mode **Best-effort** uniquement. Aucun impact autorisé sur le temps de cycle du DIL. Accès strictement observatoire (pas de boucle de rétroaction sur le trading).
-
-**PersistencePort**
-* **Implémenté par** : `Data Integrity Layer (DIL)` / `AtomicDBWriteProcess`
-* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)` (via fragment 09b)
-* **Responsabilité opérationnelle** : Persistance massive (Bulk I/O) des snapshots de marché (`SnapshotHeader` et `MarketQuote`) pour l'audit et l'historique post-trade.
-* **Règles d’accès ou d’usage** : Utilisation obligatoire du pool de threads `BULK`. Transactions atomiques requises. Isolation totale des objets métiers par rapport à la base de données.
 
 **IThreadManagerPort**
 * **Implémenté par** : `Thread Manager`
@@ -106,6 +94,17 @@ Ce module assure l'auditabilité et la traçabilité du système par la reconstr
 * **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
 * **Responsabilité opérationnelle** : Permettre au DIL de soumettre un `PersistenceObject` (Snapshot) dans la file d'attente asynchrone de la Slow-Lane.
 * **Règles d’accès ou d’usage** : Appel asynchrone (Fire-and-forget du point de vue du DIL). Doit supporter l'encapsulation de métadonnées de priorité (Pool: I/O Bulk).
+
+**ISlowLaneProvider**
+* **Implémenté par** : `Historic Live Hub (LHB)`.
+* **Utilisé par** : `Data Ingestion Layer (DIL)`.
+* **Responsabilité** : Fournir un accès indexé () aux snapshots stabilisés via le mécanisme de Double Buffering.
+* **Usage** : Lecture synchrone déclenchée uniquement sur notification de l'EventBus.
+
+**IEventBusSubscriber**
+* **Implémenté par** : `Data Ingestion Layer (DIL)`.
+* **Utilisé par** : `EventBus`.
+* **Responsabilité** : Recevoir le signal `notifyDataReady(index)` pour démarrer le cycle de persistance.
 
 
 ### NOTE
