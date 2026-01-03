@@ -96,10 +96,13 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 ### 6. Ports et Interfaces
 
 **IMarketDataCacheWriter**
-* **Implémenté par** : Data Cache
-* **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
-* **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
-* **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Usage exclusif de MarketQuotes immuables. Le port garantit l'accès aux seules versions validées (Atomic Versioning).
+* **Implémenté par** : `Data Cache`
+* **Injecté dans / Utilisé par** : `Thread Manager` (via le Pool I/O Real-Time)
+* **Responsabilité opérationnelle** : Assurer la mise à jour prioritaire et atomique de la dernière `MarketQuote` en mémoire vive (Instant T).
+* **Règles d’accès ou d’usage** :
+* Appel séquentiel effectué immédiatement après le `dequeue` et avant l'indexation dans le LHB.
+* Opération de type "Overwrite" (écrasement) strictement non-bloquante pour garantir la performance de la boucle de consommation.
+* Utilisation exclusive d'objets `MarketQuote` immuables et versionnés pour prévenir toute corruption de donnée lors des lectures concurrentes (RM/PM).
 
 **ILiveDataControlPort**
 * **Implémenté par** : `Live Data Hub`
@@ -131,11 +134,27 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
   * **Responsabilités :** Allocation des pools, Démarrage des loops persistantes, Reporting de l’état d’initialisation
   * **Règles :** Invocation synchrone uniquement, BOOTSTRAP_ONLY, Aucun accès direct aux PoolWorkers
 
+**ILiveDataSubscriber**
+  * **Implémenté par** : `Historic Live Hub (LHB)`
+  * **Injecté dans / Utilisé par** : `Thread Manager` (via Pool I/O Real-Time)
+  * **Responsabilité opérationnelle** : Fournir le point d'entrée pour l'indexation séquentielle des `MarketQuotes` dans le **Historic Live Buffer**.
+  * **Règles d’accès ou d’usage** : Ingestion synchrone en mode "Append". Doit garantir un comportement **Lock-Free** via le mécanisme de Double Buffering pour ne pas bloquer la boucle de consommation de la Fast-Lane.
+
+**IEventBusPort**
+* **Implémenté par** : `Event Bus Global`
+* **Injecté dans / Utilisé par** : `Thread Manager` (via Pool I/O Real-Time)
+* **Responsabilité opérationnelle** : Diffuser le signal de synchronisation `notifyDataReady` à l'ensemble des modules abonnés (Risk, Portfolio, Audit).
+* **Règles d’accès ou d’usage** : Publication asynchrone obligatoire. Ce port est le déclencheur du modèle **Signal-then-Pull** : il ne transporte pas la donnée, mais valide sa disponibilité en RAM (Cache + Buffer).
+
+**IFastLaneQueuePort**
+* **Implémenté par** : `FastLaneQueue` (Composant technique)
+* **Utilisé par** : `Live Data Hub` (Producer) et `Thread Manager` (Consumer)
+* **Responsabilité opérationnelle** : Assurer le découplage physique entre l'agrégation et l'écriture mémoire via une structure **SPSC** (Single Producer / Single Consumer).
+* **Règles d’accès ou d’usage** : Queue bornée. Utilise des méthodes non-bloquantes (`try_enqueue` / `try_dequeue`). C'est l'unique vecteur de transit des objets `MarketQuote` immuables au sein de la Fast-Lane.
+
 ---
 
 ### NOTE 
 
 **Kill Switch** : Interface `ISystemKillSwitchPort` définie, usage strictement contrôlé : aucun composant métier ne déclenche l’arrêt directement, toute action réelle passe par `IProcessControlPort`. À vérifier que l’orchestration respecte cette règle lors de la relecture finale.
-
----
 
