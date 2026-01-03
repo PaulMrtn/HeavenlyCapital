@@ -50,13 +50,13 @@ Ce module garantit une **réactivité événementielle immédiate** du système 
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|MarketDataUpdated()|DataCache|EventBus|Notification asynchrone signalant qu'un nouvel agrégat de cotations (MarketQuote) est disponible en RAM.|
-|ref|10a-PHASE2-Surveillance-Urgence|RiskMonitor|N/A|Fragment de référence déclenché par l'EventBus : lecture PULL du cache et calcul des risques.|
-|ref|10b-PHASE2-Strategie-Standard|PortfolioManager|N/A|Fragment de référence déclenché par l'EventBus : lecture PULL du cache et évaluation des signaux.|
-|2|enqueueOrder(Order,Priority)|RiskMonitor|OrderInputQueue|Dépôt d'un ordre de protection avec priorité haute dans la file d'attente asynchrone.|
-|3|enqueueOrder(Order,Priority)|PortfolioManager|OrderInputQueue|Dépôt d'un ordre stratégique avec priorité standard dans la file d'attente asynchrone.|
-|4|dequeueOrder()|OrderManager|OrderInputQueue|Extraction et traitement séquentiel des ordres par le gestionnaire pour exécution marché.|
-
+|1|notifyDataReady(Context)|EventBus|Risk Monitor|Notification asynchrone transmettant le contexte immuable (références Cache + index LHB) pour déclencher l'inférence ML de surveillance.|
+|2|notifyDataReady(Context)|EventBus|Portfolio Manager|Notification asynchrone simultanée transmettant le même contexte pour déclencher l'inférence ML de stratégie.|
+|ref|10a-PHASE2-Surveillance-Urgence|Risk Monitor|N/A|Fragment de référence : Exécution de la logique de risque (calcul d'exposition et détection d'anomalies ML).|
+|ref|10b-PHASE2-Strategie-Standard|Portfolio Manager|N/A|Fragment de référence : Exécution de la logique tactique (signaux d'entrée/sortie et timing ML).|
+|3|enqueueOrder(Order,Priority)|Risk Monitor|OrderInputQueue|Enfilage asynchrone d'un ordre d'urgence avec priorité 'CRITICAL' suite à une violation de limite.|
+|4|enqueueOrder(Order,Priority)|Portfolio Manager|OrderInputQueue|Enfilage asynchrone d'un ordre stratégique avec priorité 'STANDARD' suite à un signal valide.|
+|5|dequeueOrder()|Order Manager|OrderInputQueue|Appel synchrone (Pull) pour extraire et traiter l'ordre le plus prioritaire de la file d'attente pour exécution broker.|
 ---
 
 
