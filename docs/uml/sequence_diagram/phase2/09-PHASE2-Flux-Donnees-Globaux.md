@@ -12,21 +12,23 @@ La finalité de ce module est d'orchestrer le traitement complet des données de
 
 ---
 
-
 ### 2. Contexte
 
 Ce module s'inscrit comme le premier grand processus de la Phase II (In-Trade), démarrant dès l'ouverture du marché. Il est la porte d'entrée de toutes les données de prix pour l'ensemble du système de trading. Il existe pour **isoler** les opérations rapides et critiques (nécessaires pour le risque et l'exécution) des opérations lourdes et lentes (nécessaires pour la conformité et l'historique), assurant ainsi que l'une ne bloque jamais l'autre. La Fast-Lane produit des MarketQuote auto-contenues, chacune horodatée et associée à un snapshot_id logique. La Slow-Lane reconstruit a posteriori les SnapshotHeader à des fins de persistance et d’audit, sans jamais imposer de synchronisation ou de complétude au runtime critique.
 
 ---
 
-
 ### 3. Logique Générale
 
 Le processus est déclenché par le `SystemManager` qui ordonne au `LiveDataHub` de commencer l'acquisition des données. Une fois l'écoute des Ticks démarrée via `IBKR Gateway`, le `LiveDataHub` initie le traitement parallèle des deux flux :
 
-* **Fast-Lane (Référence 09a) :** Le flux ultra-rapide et non bloquant qui **agrège les ticks en temps réel** et conduit les `MarketQuote` vers le `DataCache` pour une disponibilité immédiate (destination : Risk Monitor / Portfolio Manager).
-  * Le DataCache stocke exclusivement des MarketQuotes immuables. Toute mise à jour correspond à un remplacement atomique de référence et non à une mutation de l’objet existant.
-  * Les snapshots produits sont immédiatement exploitables par les consommateurs métier.
+* **Fast-Lane (Référence 09a) :** Le **Live Data Hub (LDH)** alimente simultanément deux structures en mémoire vive. Cette double sortie garantit que tout composant décisionnel (Risk ou Portfolio) dispose d'une vue cohérente du marché.  Le flux ultra-rapide et non bloquant qui **agrège les ticks en temps réel** et conduit les `MarketQuote` vers le `DataCache` et le `Historic Live Buffer`.
+  * **Vers le Data Cache (Miroir de l'Instant) :**
+    * **Mécanisme :** Écrasement (Overwrite) atomique.
+    * **Usage :** Fournit la `MarketQuote` la plus récente pour les calculs de latence zéro (ex: déclenchement d'un Stop-Loss immédiat par le RM).
+  * **Vers le Historic Live Buffer (Mémoire de Session) :**
+    * **Mécanisme :** Ajout (Append) séquentiel via l'interface `ILiveDataSubscriber`.
+    * **Usage :** Alimente la série temporelle multidimensionnelle dans le **LHB**. Permet au PM d'analyser des tendances ou au RM de calculer une volatilité sur les  dernières minutes.
 
 * **Slow-Lane (Référence 09b) :** Le flux périodique et auditable qui reçoit une **copie asynchrone des snapshots agrégés** de la Fast-Lane et les transfère vers le `DIL` pour une persistance en masse (Bulk I/O) vers la base de données (destination : Audit / Historique).
   * La persistance Bulk I/O écrit les MarketQuotes tels que reçus, sans transformation métier ni recalcul. Toute normalisation ou mapping est du ressort exclusif du DIL.
@@ -38,13 +40,14 @@ L'exécution des deux flux se poursuit en parallèle jusqu'à la fermeture du ma
 
 ---
 
-
 ### 4. Règles Critiques
 
-* **Garantie de Parallélisme :** L'utilisation du fragment Parallèle est fondamentale pour garantir que la charge de travail du `Pool I/O Bulk` (Slow-Lane) ne perturbe jamais la boucle critique du `Pool I/O Real-Time` (Fast-Lane).
-* **Source Unique :** Le `LiveDataHub` agit comme source unique de vérité et déclencheur pour les deux flux, assurant que les données Fast-Lane et Slow-Lane proviennent du même calcul d'agrégation.
-* **Périmètre de responsabilité :** La séquence 09-09a-09b est exclusivement responsable de la production, de l’agrégation et de l’écriture des données de marché (Fast-Lane / Slow-Lane). Toute logique de lecture, de consommation ou d’interprétation des données du DataCache est volontairement hors périmètre et définie dans les séquences consommatrices ultérieures.
-* **Accès au DataCache :** Le DataCache expose des ports strictement séparés pour l’écriture et la lecture. Le LiveDataHub est l’unique Writer autorisé. RiskMonitor et PortfolioManager accèdent aux données exclusivement via des interfaces Reader en lecture seule, lock-free. Tout accès direct ou toute tentative de mutation est interdit.
+* **Source Unique et Synchronisation :** Le `LiveDataHub` (LDH) est l'unique garant de la cohérence globale. Un snapshot envoyé au **Data Cache** doit être rigoureusement identique à celui indexé simultanément dans le **Historic Live Buffer**.
+* **Garantie de Parallélisme (Fast vs Slow) :** L'isolation via fragments parallèles est absolue. La charge du `Pool I/O Bulk` (Slow-Lane/Persistance) ne doit jamais impacter la boucle critique du `Pool I/O Real-Time` (Fast-Lane/Trading).
+* **Accès Partagé et Universel :** Le système ne compartimente pas l'accès aux données par module métier. Le **Risk Monitor** (RM) et le **Portfolio Manager** (PM) ont mutuellement accès aux deux sources : le Data Cache pour l'instant , et le Historic Live Buffer pour la trajectoire historique.
+* **Isolation des Lecteurs (Lock-Free) :** Bien que le RM et le PM partagent les sources, ils opèrent via des ports "Reader" strictement **lock-free**. Une analyse lourde (ex: calcul de volatilité par le PM sur le buffer) ne doit jamais ralentir la mise à jour atomique du cache par le LDH.
+* **Hiérarchie des Droits (Writer Unique) :** Le `LiveDataHub` est l'unique entité autorisée à écrire dans le Data Cache et le Historic Live Buffer. Toute tentative de mutation directe par un module consommateur est proscrite par l'architecture des ports.
+* **Périmètre de Responsabilité :** La séquence 09-09a-09b se limite exclusivement à la production, l'agrégation et l'écriture des données. Toute logique d'interprétation ou de décision métier est déléguée aux séquences consommatrices ultérieures.
 
 ---
 
@@ -91,3 +94,10 @@ Interface unique pour signaler une demande d’arrêt global du système.
 - **Utilisé par** : Aucun composant métier par défaut
 - **Responsabilité** : Exposer un point d’ancrage contractuel pour toute politique future de Kill Switch, sans déclencher directement l’arrêt.
 - **Règles** :  Ne peut être appelé par LDH ni en Phase II, Ne déclenche jamais l’arrêt seul, toute action passe par `IProcessControlPort`, Aucun scénario décisionnel n’est défini ici.
+
+**ILiveDataSubscriber**
+* **Implémenté par** : `Historic Live Hub (LHB)`
+* **Utilisé par** : `Live Data Hub (LDH)`
+* **Responsabilité** : Interface de type "Push" permettant d'écrire chaque `MarketQuote` consolidée dans le **Historic Live Buffer**.
+* **Règles d’accès** : Doit supporter le mécanisme de **Double Buffering** pour permettre une écriture Fast-Lane sans bloquer les lectures analytiques.
+
