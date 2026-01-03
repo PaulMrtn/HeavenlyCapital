@@ -61,29 +61,26 @@ Cette architecture garantit une **cohérence temporelle absolue** entre la surve
 
 ### 6. Ports et Interfaces
 
-### IMarketDataCacheReader
-* **Implémenté par** : `DataCache`
-* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager`
-* **Responsabilité opérationnelle** : Fournir un accès en lecture seule, non bloquant et ultra-rapide aux derniers `MarketQuotes` (cotations agrégées) en RAM.
-* **Règles d’accès ou d’usage** : Lecture *lock-free* utilisant l'*Atomic Versioning*. Usage exclusif d’objets immuables pour garantir qu'aucune modification n'est possible par les consommateurs. Ne doit jamais bloquer la *Fast-Lane*.
+#### **`IEventBusPort`**
+* **Domaine fonctionnel** : Infrastructure & Notification
+* **Implémenté par** : EventBus Global
+* **Injecté dans / Utilisé par** : Thread Manager (Émetteur), Risk Monitor & Portfolio Manager (Abonnés)
+* **Responsabilité opérationnelle** : Notification de type "Signal-then-Pull" déclenchant la boucle de décision.
+* **Modification majeure** : La méthode de notification transporte désormais l'objet `IMarketStateContext`.
+* **Signature** : `notifyDataReady(IMarketStateContext context)`.
+* **Règles d’accès ou d’usage** : Diffusion (Broadcast) asynchrone pour éviter tout blocage de la Fast-Lane par un manager lent.
 
-### IEventBusPort 
-* **Implémenté par** : `EventBus` (Infrastructure technique)
-* **Injecté dans / Utilisé par** : `DataCache` (Émetteur), `RiskMonitor` & `PortfolioManager` (Abonnés)
-* **Responsabilité opérationnelle** : Diffuser de manière asynchrone le signal `MarketDataUpdated()` pour réveiller les modules décisionnels.
-* **Règles d’accès ou d’usage** : Diffusion non-bloquante. Supporte l'exécution parallèle des abonnés. Doit respecter les priorités de scheduling (Urgence vs Stratégie).
 
-### IOrderSubmissionPort
-* **Implémenté par** : `OrderManager`
-* **Injecté dans / Utilisé par** : `RiskMonitor`
-* **Responsabilité opérationnelle** : Permettre la soumission immédiate d'ordres de protection ou de liquidation suite à une violation de limite.
-* **Règles d’accès ou d’usage** : Exclusivité au `RiskMonitor` pour cette interface spécifique. Utilisation impérative de la priorité `CRITICAL`.
+#### **`IOrderManagerControl`**
+* **Domaine fonctionnel** : System Control & Lifecycle
+* **Implémenté par** : Order Manager
+* **Injecté dans / Utilisé par** : Order Manager (Auto-consommation)
+* **Responsabilité opérationnelle** : Orchestrer le vidage de la file d'attente d'entrée et le routage vers le GOR (Global Order Router).
+* **Modification majeure** : Intégration de la logique de dépilage prioritaire (Priority Dequeuing).
+* **Méthodes clés** :
+* `processNextOrder()` : Extrait l'ordre le plus prioritaire et déclenche le routage.
+* **Règles d’accès ou d’usage** : Consommation séquentielle stricte pour garantir l'intégrité des ID d'ordres envoyés au broker.
 
-### IOrderInputQueuePort
-* **Implémenté par** : `OrderInputQueue`
-* **Injecté dans / Utilisé par** : `RiskMonitor`, `PortfolioManager` (Producteurs) / `OrderManager` (Consommateur)
-* **Responsabilité opérationnelle** : Agir comme zone de transit (buffer) asynchrone pour découper la phase de décision de la phase d'exécution.
-* **Règles d’accès ou d’usage** : Méthode `enqueueOrder(Order, Priority)` non-bloquante. Doit supporter la gestion des priorités (High pour le RM, Standard pour le PM).
 
 ### IPositionProvider
 * **Implémenté par** : `PortfolioManager`
@@ -96,4 +93,24 @@ Cette architecture garantit une **cohérence temporelle absolue** entre la surve
 * **Injecté dans / Utilisé par** : Interne au cycle d'exécution
 * **Responsabilité opérationnelle** : Consommer séquentiellement les ordres présents dans la file d'attente via `dequeueOrder()`.
 * **Règles d’accès ou d’usage** : Traitement ordonné selon la priorité définie lors de l'enfilage. Assure la transition vers l'exécution marché (Broker Gateway).
+
+
+### **`IMarketStateContext`** 
+* **Implémenté par** : Infrastructure / EventBus
+* **Utilisé par** : Risk Monitor, Portfolio Manager
+* **Responsabilité** : Contrat de données immuable transportant le `SnapshotIndex` du LHB et la Map des `MarketQuote` du Cache.
+* **Règle** : Objet éphémère, non persistant, garantissant l'atomicité temporelle des décisions.
+
+### **`IFeatureProvider`**
+* **Implémenté par** : Historic Live Hub (LHB)
+* **Utilisé par** : Risk Monitor, Portfolio Manager
+* **Responsabilité** : Extraction de fenêtres temporelles (vecteurs) à partir de l'index fourni par le contexte pour nourrir les modèles ML.
+* **Règle** : Lecture seule, optimisée pour le calcul de tenseurs. Remplace l'ancien `ILiveDataReader`.
+
+### **`IOrderInputQueue`** 
+* **Implémenté par** : OrderInputQueue (Buffer technique)
+* **Utilisé par** : Risk Monitor, Portfolio Manager (Producteurs)
+* **Responsabilité** : Point de dépôt non-bloquant des intentions d'ordres.
+* **Règle** : Doit supporter le marquage de priorité (`CRITICAL` vs `STANDARD`).
+
 
