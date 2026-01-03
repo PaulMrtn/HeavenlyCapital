@@ -21,10 +21,30 @@ Ce module est le **cœur opérationnel** de la Phase II (In-Trade). Il s'inscrit
 
 ### 3. Logique Générale
 
-Le découplage Producteur / Consommateur est découplé par une **Queue Non Bloquante** (`FastLaneQueue`) de type SPSC (Single Producer / Single Consumer), garantissant une latence minimale, l’absence de contention et un comportement strictement déterministe :
+Le système repose sur un découplage strict entre la réception des flux et leur distribution en mémoire via une **Queue Non Bloquante** (`FastLaneQueue`) de type **SPSC** (Single Producer / Single Consumer). Cette structure garantit une latence minimale, l’absence de contention et un comportement strictement déterministe.
 
-* **Le Producteur (`LiveDataHub`)** reçoit les `TickData` bruts, applique une politique de **Backpressure (Drop Oldest)** en cas de saturation, puis vérifie la latence. Si le flux est sain, il agrège les Ticks en un objet **`MarketQuote`** immuable. En cas de latence, il bascule en **Mode Dégradé** via le `SystemManager`. Il **dépose** ensuite ce `MarketQuote` dans la `FastLaneQueue` de manière asynchrone.
-* **Le Consommateur** (un thread dédié du `ThreadManager` / `Pool I/O Real-Time`) est en **boucle d'écoute persistante** sur la `FastLaneQueue`. Dès qu'un `MarketQuote` est disponible, il le retire et l'écrit dans le `DataCache`.
+#### 3.1 Le Producteur : Live Data Hub (LDH)
+
+* **Réception et Contrôle** : Le LDH reçoit les `TickData` bruts, applique une politique de **Backpressure (Drop Oldest)** en cas de saturation de la queue d'entrée, et vérifie systématiquement la latence du flux.
+* **Agrégation** : Si le flux est sain, il agrège les ticks en un objet **`MarketQuote`** immuable. En cas de latence critique, il alerte le `SystemManager` pour basculer en **Mode Dégradé**.
+* **Transmission** : Le `MarketQuote` consolidé est déposé de manière asynchrone et non bloquante dans la `FastLaneQueue`.
+
+#### 3.2 Le Consommateur : Thread Manager (Pool I/O Real-Time)
+
+Un thread unique dédié, en boucle d'écoute persistante sur la `FastLaneQueue`, assure le traitement séquentiel pour garantir l'intégrité totale sans overhead de verrouillage :
+
+* **Extraction** : Le thread retire le `MarketQuote` dès sa disponibilité dans la queue.
+* **Double Écriture Séquentielle** :
+1. **Data Cache** : Il met d'abord à jour le cache en mémoire vive pour le prix instantané (Instant T).
+2. **Historic Live Buffer (LHB)** : Il indexe immédiatement après la donnée dans le buffer historique de la session.
+
+
+* **Cohérence temporelle** : Cette distribution synchrone par un thread unique garantit que les lecteurs (RM/PM) voient toujours un état cohérent entre le dernier prix et la trajectoire de session.
+
+#### 3.3 Signal de Disponibilité : EventBus
+
+* **Notification** : Une fois la double écriture validée (Cache + LHB), le thread de consommation émet le signal `notifyDataReady` via l'**EventBus**.
+* **Déclenchement** : Ce message réveille les boucles de calcul du **Risk Monitor** et du **Portfolio Manager**, leur indiquant que les données sont prêtes à être lues (modèle *Signal-then-Pull*) via leurs interfaces respectives (`IMarketDataCacheReader` et `ILiveDataReader`).
 
 ---
 
