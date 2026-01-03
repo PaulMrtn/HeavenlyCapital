@@ -49,19 +49,20 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
-|:---|:---|:---|:---|:---|
-| 1 | fetchLatestQuotesFromCache() | Data Ingestion Layer | Data Cache | Requête synchrone pour extraire les dernières MarketQuotes immuables stockées en mémoire vive. |
-| 2 | List< MarketQuote > | Data Cache | Data Ingestion Layer | Retour de la liste des cotations consolidées disponibles pour le cycle de persistance actuel. |
-| 3 | validateAndBuildSnapshot() | Data Ingestion Layer | Data Ingestion Layer | Auto-appel pour reconstruire le SnapshotHeader global et qualifier son intégrité (Nominal vs Dégradé). |
-| 4 | createPersistenceObjects(FullSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'if Valid' : Préparation des objets de données complets pour l'insertion historique. |
-| 5 | createPersistenceObjects(DegradedSnapshot) | Data Ingestion Layer | Data Ingestion Layer | Branche 'else' : Préparation des objets incluant les métadonnées de dégradation pour l'audit. |
-| 6 | notify(SnapshotMetadata) | Data Ingestion Layer | Metric Manager | Signal asynchrone (Push) transmettant les métriques brutes d'observabilité (Best-effort). |
-| 7 | createJob(Pool: I/O Bulk, Data: PersistenceObject) | Data Ingestion Layer | Job Manager | Création et soumission d'une tâche de persistance asynchrone via l'interface IJobSubmissionPort. |
-| 8 | delegateJob(Bulk I/O) | Job Manager | Thread Manager | Allocation de la tâche au pool de threads de basse priorité dédié aux écritures massives. |
-| 9 | executeBulkInsert(DataBlock) | Thread Manager | Data Ingestion Layer | Activation du thread alloué pour piloter l'opération physique d'écriture en base de données. |
-| 10 | bulkInsert(SnapshotHeader, MarketQuote) | Data Ingestion Layer | Database | Exécution de l'insertion SQL/NoSQL en masse via le PersistencePort pour l'archivage long terme. |
-| 11 | notifyCompletion() | Database | Job Manager | Signal de clôture de l'opération permettant la libération des ressources et le nettoyage du job. |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|:--|:---|:---|:---|:---|
+|1|notifyDataReady(index)|EventBus|Data Ingestion Layer|Signal asynchrone notifiant qu'un nouveau slot de données est stabilisé dans le buffer.|
+|2|fetchSessionData(index)|Data Ingestion Layer|Historic Live Hub|Requête synchrone pour extraire l'agrégat de prix via l'interface ISlowLaneProvider.|
+|3|MarketQuote+Metadata|Historic Live Hub|Data Ingestion Layer|Retour des données brutes et du statut d'intégrité depuis le buffer gelé (Double Buffering).|
+|4|validateAndBuildSnapshot()|Data Ingestion Layer|Data Ingestion Layer|Analyse interne de la complétude des données pour qualifier le futur SnapshotHeader.|
+|5|createPersistenceObject(FullSnapshot)|Data Ingestion Layer|Data Ingestion Layer|Instanciation du DTO avec le marquage NOMINAL (si les données sont complètes).|
+|6|createPersistenceObject(DegradedSnapshot)|Data Ingestion Layer|Data Ingestion Layer|Instanciation du DTO avec le marquage DEGRADED (si les données sont partielles).|
+|7|createJob(Pool:I/OBulk,Data:PersistenceObject)|Data Ingestion Layer|Job Manager|Soumission de la tâche de persistance ; libère immédiatement le DIL.|
+|8|delegateJob(Bulk I/O)|Job Manager|Thread Manager|Ordonnancement de la tâche vers le pool de threads dédié aux écritures disque.|
+|9|activatePoolThread()|Thread Manager|Thread Manager|Mécanisme interne d'allocation d'un thread de basse priorité du pool Bulk.|
+|10|bulkInsert(SnapshotHeader)|Thread Manager|Database|Écriture physique du DTO et des métadonnées d'audit dans le stockage persistant.|
+|11|notifyCompletion()|Database|Job Manager|Confirmation de transaction notifiée au gestionnaire pour clôture du cycle de vie du Job.|
+
 ---
 
 ### 6. Ports et Interfaces
