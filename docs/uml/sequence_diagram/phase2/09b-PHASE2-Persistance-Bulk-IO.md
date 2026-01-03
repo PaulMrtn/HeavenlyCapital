@@ -9,43 +9,47 @@
 
 ### 1. Objectif
 
-Garantir l'auditabilité et la traçabilité complète de l'activité de marché en enregistrant les données reconstruites (`MarketQuote` et `SnapshotHeader`) en base de données. L'opération est conçue pour isoler les traitements lourds en I/O afin de ne jamais impacter la latence de la boucle d'exécution critique (Fast-Lane).
+Garantir l'auditabilité et la traçabilité complète de l'activité de marché en enregistrant les données reconstruites (DTO `SnapshotHeader` et `MarketQuote`) en base de données. L'opération est conçue pour isoler les traitements lourds en I/O afin de ne jamais impacter la latence de la boucle d'exécution critique (Fast-Lane) grâce à une architecture **Trigger-then-Pull**.
 
 ---
 
 ### 2. Contexte
 
-Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques. Il opère en **Slow-Lane**, de manière totalement asynchrone par rapport à la réception des flux. Le point d'entrée est  le **`Data Cache`**, où sont récupérées les cotations consolidées pour assembler une image cohérente du marché (le `SnapshotHeader`) destinée à l'historique. L'architecture distingue clairement deux flux sortants après la reconstruction du snapshot par le `Data Ingestion Layer` (DIL) :
-  * **Flux d'Audit :** Persistance exhaustive en base de données pour analyse offline.
-  * **Flux d'Observabilité :** Diffusion d'événements push vers des abonnés passifs via l’interface `IMarketDataObserverPort`, pour monitoring live et dashboards futurs.
+Ce module gère l'écriture en masse (*Bulk Insert*) des données historiques en **Slow-Lane**, de manière totalement asynchrone. Le point d'entrée n'est plus un timer, mais un signal provenant de l'**`EventBus`**. Les données sont extraites du **`Historic Live Hub (LHB)`**, qui sert de zone tampon structurée avec accès .
+L'architecture distingue deux flux après la qualification par le `Data Ingestion Layer` (DIL) :
+  * **Flux d'Audit :** Persistance exhaustive via le `Job Manager`.
+  * **Flux d'Observabilité :** Diffusion passive de signaux d'état (Nominal/Degraded) vers le `MetricManager` via l'interface `IMarketDataObserverPort`.
+  
 ---
 
 ### 3. Logique Générale
 
-1. **Extraction du Cache :** Le `Data Ingestion Layer` (DIL) interroge périodiquement le `Data Cache` pour récupérer les dernières `MarketQuote` immuables déposées par la Fast-Lane.
-2. **Reconstruction du Snapshot :** Le DIL exécute la fonction `validateAndBuildSnapshot()`. Il génère un `snapshot_id` unique et vérifie la présence de tous les actifs attendus.
-3. **Qualification (Auditabilité) :** Si des données manquent ou sont obsolètes, le snapshot est marqué comme `DEGRADED` ou `PARTIAL`. S'il est complet, il est marqué `NOMINAL`. Cette qualification garantit la fidélité de l'audit post-trade.
-4. **Observabilité :** Le DIL émet des signaux bruts (latence, drops, statut) vers le `MetricManager` via l'interface `IMarketDataObserverPort`.
-5. **Encapsulation et Job :** Les données sont préparées en tant qu'objet `PersistenceObject`. Ce "Job" est transmis au `Job Manager` (JM).
-6. **Exécution Asynchrone :** Le `JM` alloue la tâche au **`Pool I/O Bulk`** (basse priorité) via le `Thread Manager`. Un thread dédié exécute l'insertion massive en base de données sans bloquer les autres processus.
+1. **Notification (Trigger) :** L'**EventBus** notifie le `Data Ingestion Layer` (DIL) dès qu'un nouveau slot de minute est stabilisé dans le buffer.
+2. **Extraction (Pull) :** Le DIL effectue une lecture synchrone sur le buffer "gelé" du **LHB** (mécanisme de Double Buffering) pour garantir une isolation totale sans verrous.
+3. **Construction du DTO :** Le DIL exécute la fonction `validateAndBuildSnapshot()`. Il instancie le DTO `SnapshotHeader` et y injecte les `MarketQuote` extraites.
+4. **Qualification :** Si le LHB ou le DIL détecte des données incomplètes, l'objet est créé via `createPersistenceObject(DegradedSnapshot)`. Sinon, il est marqué `NOMINAL` via `FullSnapshot`.
+5. **Délégation de Job :** Le DIL soumet l'objet au **`Job Manager`** (JM) et se libère immédiatement.
+6. **Exécution Bulk I/O :** Le `JM` délègue la tâche au **`Thread Manager`** qui alloue un thread du **`Pool I/O Bulk`** (basse priorité) pour l'insertion physique en base de données.
+7. **Clôture :** Une fois l'écriture confirmée par la **Database**, le `Job Manager` est notifié pour clôturer le job et libérer la mémoire du DTO.
+
 ---
 
 ### 4. Règles Critiques
 
-* **Isolation Totale :** La Slow-Lane est strictement séparée de la Fast-Lane. Elle consomme les données du cache sans que le `LiveDataHub` n'ait connaissance du processus de persistance.
-* **Priorité Basse :** Les tâches utilisent exclusivement le **`Pool I/O Bulk`**. Ce pool est configuré avec la priorité la plus basse pour ne pas entrer en compétition avec les ressources CPU/IO requises par l'exécution d'ordres ou le calcul de risque.
-* **Auditabilité vs Exhaustivité :** Le système privilégie l'enregistrement de l'état réel "vu" par le système. Un snapshot incomplet est persisté avec son statut de dégradation pour assurer une transparence totale lors de l'analyse historique.
-* **Déclenchement Temporel :** Le cycle de persistance est déclenché par un timer ou un seuil de volume. Ces paramètres seront calibrés lors des phases de stress-test pour optimiser la charge système.
-* **Séparation des Rôles :** Le DIL ne produit que des signaux bruts ; le calcul, l'agrégation et la qualification des métriques sont la responsabilité exclusive du `MetricManager`.
-* **Modèle Subscriber (Best-Effort) :** L'observabilité repose sur un modèle *Event-driven* sans garantie de livraison forte afin de ne jamais ralentir le DIL ou la Fast-Lane.
-* **Indépendance du Runtime :** Les métriques sont strictement observatoires et n'ont aucun impact sur le runtime (pas de kill-switch ou throttling automatique).
-* Sécurité et intégrité : Assurée par le caractère immuable des objets `MarketQuote` et `SnapshotHeader`.
+
+* **Zéro Verrou (Lock-Free) :** L'isolation entre la Fast-Lane et la Slow-Lane est garantie par le mécanisme de **Double Buffering** du LHB : le DIL effectue son Pull dans le buffer "gelé" pendant que la Fast-Lane écrit dans le buffer actif, éliminant toute contention mémoire.
+* **Isolation et Priorité Basse :** Les tâches de persistance utilisent exclusivement le **`Pool I/O Bulk`**. Ce pool est configuré avec la priorité la plus basse pour ne jamais entrer en compétition avec les ressources CPU/IO requises par l'exécution d'ordres ou le calcul de risque.
+* **Fidélité de l'Audit :** Le système privilégie l'enregistrement de l'état réel "vu" par le système au moment du trading. Un snapshot incomplet est persisté avec son statut de dégradation (`DEGRADED` ou `PARTIAL`) pour assurer une transparence totale lors de l'analyse historique post-trade.
+* **Réactivité pilotée par l'EventBus :** Le cycle de persistance n'est plus déclenché par un timer approximatif, mais par l'arrivée effective des agrégats notifiée par l'**EventBus**, optimisant ainsi l'utilisation des ressources système.
+* **Gestion de la Pression (Backpressure) :** En cas de ralentissement de la base de données, les jobs s'accumulent de manière asynchrone dans le `Job Manager`. Le LHB agit comme un tampon circulaire (jusqu'à 1000 slots) permettant au DIL de rattraper son retard sans perte de données.
+* **Séparation des Rôles et Observabilité :** Le DIL ne produit que des signaux bruts ; le calcul et la qualification des métriques sont délégués au `MetricManager` via un modèle *Event-driven* en **Best-effort**, garantissant qu'aucune latence d'observabilité ne ralentisse la capture des données.
+* **Sécurité par Immuabilité :** L'intégrité des données est assurée par le caractère strictement immuable des objets `MarketQuote` et `SnapshotHeader` (DTO) circulant entre le LHB, le DIL et la Database.
 
 ---
 
 ### 5. Conclusion
 
-Ce module est le garant de l'audit et de l'historique par la reconstruction asynchrone des données. En utilisant l'isolation des ressources du `Pool I/O Bulk` et la qualification des blocs cohérents (`SnapshotHeader`), il permet de capturer une image fidèle et horodatée du marché pour l'analyse Post-Trade. Cette architecture garantit la transparence de l'audit, incluant les états dégradés, sans jamais impacter la performance en temps réel de la boucle de trading.
+Ce module assure l'auditabilité et la traçabilité du système par la reconstruction asynchrone des données via un modèle **Trigger-then-Pull**. En s'appuyant sur les notifications de l'**EventBus** et l'isolation physique offerte par le **Double Buffering** du **Historic Live Hub (LHB)**, il permet au **Data Ingestion Layer (DIL)** d'extraire des instantanés de marché sans aucune contention avec la Fast-Lane. L'utilisation du **Pool I/O Bulk** pour la persistance des DTO `SnapshotHeader` garantit que l'archivage des états, qu'ils soient nominaux ou dégradés, s'effectue avec une priorité basse sans jamais introduire de gigue dans la boucle de trading critique. Cette architecture consolide ainsi une base de données historique fidèle et hautement disponible pour l'analyse Post-Trade, tout en préservant l'intégrité de la performance en temps réel.
 
 ---
 
@@ -107,6 +111,4 @@ Ce module est le garant de l'audit et de l'historique par la reconstruction asyn
 ### NOTE
 
 * La liste des « actifs attendus » est injectée via la configuration système lors du bootstrap et constitue la source de vérité pour la reconstruction des snapshots.
-* L’acceptation architecturale des trous de données liés à la lecture du Data Cache doit être affirmée comme un comportement nominal de la Slow-Lane et non comme un incident.
-* Le caractère best-effort temporel de la persistance Bulk I/O n’est pas explicitement posé et devrait être clarifié pour éviter toute attente implicite de fraîcheur des données historiques.
-* La granularité exacte et le périmètre des métriques observées seront définis lors des phases de test et calibrés pour le monitoring live via IMarketDataObserverPort.
+
