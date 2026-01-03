@@ -63,6 +63,31 @@ Le **Live Data Hub (LDH)** applique une politique explicite de gestion de charge
   * Dégradation contrôlée de l’agrégation (ex. priorité au `last_price`, enrichissement bid/ask optionnel)
   * Snapshots potentiellement moins riches mais **toujours exploitables pour la gestion du risque**
 
+
+### 4.1 Règles Critiques de la Fast-Lane
+
+**Gestion du Flux et Autodéfense**
+
+* **Priorité Sécurité & Backpressure :** La gestion de charge (politique **Drop Oldest**) et la vérification de la latence (`checkLatency()`) sont impérativement exécutées par le `LiveDataHub` avant toute agrégation.
+* **Dégradation Contrôlée :** En cas de latence critique ou de stress extrême, le `SystemManager` ordonne le basculement en mode dégradé pour prioriser la fraîcheur du `last_price` et garantir la continuité du flux de risque.
+* **Non-Blocage Absolu :** Le thread producteur ne doit jamais être suspendu ; l'enregistrement des incidents (`logEvent`) est strictement asynchrone et l'opération `enqueue` sur la `FastLaneQueue` est non bloquante.
+
+**Séquençage et Intégrité en RAM**
+
+* **Séquençage Déterministe :** Les écritures en mémoire sont effectuées de manière strictement séquentielle par un seul thread consommateur. Cet ordre (Cache, puis LHB) garantit un index identique entre les deux structures sans recours à des verrous de synchronisation coûteux.
+* **Priorité au Cache :** L'écriture dans le `DataCache` est exécutée en premier pour minimiser la latence de diffusion du prix "Last". Elle est suivie immédiatement par l'indexation dans le **Historic Live Buffer** pour assurer la continuité de la série temporelle.
+* **Atomicité Logique :** Le transfert vers le Cache et le LHB est considéré comme une unité indivisible. Un snapshot ne peut être exposé aux consommateurs que s'il est présent dans les deux structures, évitant toute divergence entre un calcul de risque (Instant T) et un calcul de volatilité (Historique).
+
+**Performance et Isolation**
+
+* **Isolation des Tâches :** Le calcul lourd (agrégation des ticks) est isolé sur le thread Producteur, tandis que les opérations d'I/O mémoire sont réservées au thread Consommateur, protégeant ainsi le CPU du temps d'attente I/O.
+* **Double Buffering (Lock-Free) :** L'ingestion dans le LHB utilise un mécanisme de Double Buffering. Cela garantit que l'indexation historique ne ralentit jamais la consommation de la `FastLaneQueue`, permettant des lectures analytiques simultanées sans contention.
+* **Structure Immuable :** Seul l'objet `MarketQuote` (immuable et versionné) transite par la queue. Les consommateurs accèdent exclusivement à des versions validées, assurant une isolation totale contre la corruption de données en cours d'écriture.
+
+**Signalétique de Disponibilité**
+
+* **Modèle Signal-then-Pull :** La disponibilité effective de la donnée est matérialisée par l'envoi du message `notifyDataReady` sur l'EventBus. Ce signal est l'unique déclencheur autorisant le **Risk Monitor** et le **Portfolio Manager** à lire les nouvelles valeurs dans le Cache ou le Buffer via leurs interfaces "Reader" respectives.
+
 ---
 
 ### 5. Conclusion
