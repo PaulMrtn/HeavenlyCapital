@@ -218,23 +218,27 @@ TickData représente l’état d'un actif à un instant donné sur le marché : 
 
 #### 2.1. `SnapshotHeader`
 
-SnapshotHeader représente un instantané global du marché à un moment donné.
-Il regroupe toutes les cotations consolidées (MarketQuote) pour le TradingSystem à une fréquence donnée 
+Le `SnapshotHeader` n'est plus la structure de stockage interne du **Historic Live Hub (LHB)**, mais un objet de transport éphémère (DTO) instancié par le **Data Ingestion Layer (DIL)**. Il sert à encapsuler un instantané global du marché extrait de la matrice de primitives pour son acheminement vers la persistance.
 
 **Attributs :**
-
-* **`snapshot_id`** (`UUID`, *Primary Key*): ID du snapshot
+* **`snapshot_id`** (`UUID`, *Primary Key*):  Identifiant unique généré par le DIL lors de la construction du package.
 * `trading_system_id_ref` (`UUID`, *Foreign Key*): Vers `TradingSystem.system_id`
-* `timestamp` (`DateTime`): Timestamp de la mise à jour du snapshot.
+* `timestamp` (`DateTime`):  Horodatage précis correspondant à la clôture du slot dans le LHB.
 * `interval_type` (`string`): La fréquence de cet instantané (ex: '1m', '5m').
+* `integrity_status` (Enum) : Marquage d'intégrité récupéré depuis le LHB (NOMINAL, DEGRADED, PARTIAL).
 
 **Relations entre entités :**
-
 * `SnapshotHeader` 1 --- 1 `TradingSystem` 
   - Un snapshot est lié au système de trading.
 * `SnapshotHeader` 1 --- 0..* `MarketQuote` 
-  - Un snapshot regroupe l’ensemble des cotations de marché pour une date donnée.
-  
+  - Un snapshot regroupe l’ensemble des cotations de marché pour une date donnée
+
+**Cycle de Vie :**
+1. **Instanciation** : Créé par le **DIL** uniquement suite à une notification de l'**EventBus**.
+2. **Peuplement** : Le DIL injecte les `MarketQuote` extraites du buffer "gelé" du LHB.
+3. **Transfert** : L'objet est passé au **Job Manager** pour une insertion asynchrone.
+4. **Destruction** : Libéré par le Garbage Collector une fois la transaction en base de données confirmée, évitant toute saturation de la mémoire vive de la **Fast-Lane**.
+
 ---
 
 #### 2.1 `MarketQuote`
