@@ -28,65 +28,25 @@ Le découplage Producteur / Consommateur est découplé par une **Queue Non Bloq
 
 ---
 
-### 4.1 Règles Critiques
+### 4. Règles Critiques
 
-* **Priorité Sécurité & Backpressure :** La gestion de charge (Drop Oldest) et la vérification de la latence (`checkLatency()`) sont exécutées **avant** toute agrégation. En cas de latence critique, le `LiveDataHub` alerte le `SystemManager` qui peut ordonner un basculement en **Mode Dégradé**.
-* **Non-Blocage Absolu :** L'opération d'enregistrement des incidents (`logEvent`) est strictement **asynchrone**. L'opération `enqueue` sur la `FastLaneQueue` reste non bloquante, garantissant que l'agrégateur absorbe le flux maximum sans gigue (jitter).
-* **Isolation des Tâches :** Le calcul (agrégation en `MarketQuote`) est effectué par le Producteur, tandis que l'I/O (écriture cache) est effectuée par le Consommateur, isolant le CPU du temps I/O.
-* **Structure de Données :** Seul l'objet **`MarketQuote`** (cotation consolidée immuable) transite par la queue, minimisant la charge utile.
-* **Intégrité des Données :** Seul l'objet MarketQuote transite par la queue. Il est immuable et versionné dès sa création ; les consommateurs accèdent exclusivement à des versions validées, garantissant une isolation totale contre les données corrompues ou incomplètes.
+#### 4.1. Séquençage et Déterminisme
 
-### 4.2 Politique de Gestion de Charge et Dégradation Contrôlée
+* **Séquençage Déterministe en RAM** : Pour garantir une intégrité totale sans overhead de verrouillage, les écritures sont effectuées de manière strictement séquentielle par un thread consommateur unique. L'ordre d'exécution est immuable : mise à jour du **Data Cache** (Instant T), puis indexation dans le **Historic Live Buffer** (LHB), et enfin notification via l'**EventBus**.
+* **Priorité au Cache** : L'écriture dans le Data Cache est systématiquement déclenchée en premier afin de minimiser la latence du "Last Price". L'indexation dans le LHB suit immédiatement pour assurer la continuité de la série temporelle sans rupture de flux.
+* **Atomicité Logique de la Fast-Lane** : Le transfert vers le Cache et le LHB est considéré comme une opération indivisible. Un snapshot ne peut être considéré comme "disponible" que s'il est présent simultanément dans les deux structures, évitant ainsi toute divergence entre les calculs de risque (prix flash) et les calculs de volatilité (historique).
 
-Le **Live Data Hub (LDH)** applique une politique explicite de gestion de charge visant à garantir **la continuité de la diffusion des données de marché**, y compris en conditions de volatilité extrême, sans jamais bloquer le producteur ni interrompre le système.
+#### 4.2. Performance et Non-Blocage
 
-**Principe Général :**
-  * Le flux de ticks entrants est absorbé via une **queue bornée** en amont de l’agrégation. En cas de saturation, la politique **Drop Oldest** est appliquée afin de préserver en priorité les données de marché les plus récentes.
-  * Les seuils de capacité de la queue, ainsi que les critères précis de dégradation, ne sont **pas figés à ce stade** et seront calibrés lors des **phases de stress test et de mock de charge**, en fonction des caractéristiques réelles du marché et de la fréquence de snapshot retenue (ex. 1 minute).
+* **Non-Blocage Absolu** : Le thread producteur (`LiveDataHub`) ne doit jamais être ralenti par les consommateurs ou les services annexes. L'enregistrement des incidents (`logEvent`) et la notification de disponibilité (`notifyDataReady`) sont strictement asynchrones.
+* **Performance du LHB (Lock-Free)** : L'ingestion dans le Historic Live Buffer doit impérativement respecter le mécanisme de **Double Buffering**. Cette approche garantit que l'ajout de données historiques ne crée aucune contention ni gigue (jitter) sur la boucle de consommation critique.
+* **Isolation des Tâches** : Le cycle de vie d'une donnée est physiquement isolé : le calcul de l'agrégation (`MarketQuote`) est dévolu au Producteur, tandis que les opérations d'I/O mémoire (Cache/LHB) sont la responsabilité exclusive du Consommateur.
 
-**Niveaux de Fonctionnement :** La Fast-Lane reste non bloquante en toutes circonstances, garantissant que l’agrégation critique reste prioritaire. Le système supporte plusieurs niveaux de fonctionnement, activés dynamiquement sans interruption :
+#### 4.3. Intégrité et Gestion de la Charge
 
-* **Fonctionnement nominal**
-  * Agrégation complète des données de marché (bid, ask, volumes, last price)
-  * Snapshots produits à l’intervalle nominal
-  * Aucun drop significatif, métriques stables
-
-* **Stress de marché (volatilité élevée)**
-  * Politique Drop Oldest active sur la queue d’entrée
-  * Agrégation maintenue sans interruption
-  * Le `MetricManager` est notifié d’un taux de drop élevé
-  * Le `RiskMonitor` et le `PortfolioManager` continuent d’opérer sur le **dernier snapshot valide**
-
-* **Stress extrême**
-  * Toujours aucun blocage ni arrêt du système
-  * Maintien impératif de la fraîcheur des snapshots
-  * Dégradation contrôlée de l’agrégation (ex. priorité au `last_price`, enrichissement bid/ask optionnel)
-  * Snapshots potentiellement moins riches mais **toujours exploitables pour la gestion du risque**
-
-
-### 4.1 Règles Critiques de la Fast-Lane
-
-**Gestion du Flux et Autodéfense**
-
-* **Priorité Sécurité & Backpressure :** La gestion de charge (politique **Drop Oldest**) et la vérification de la latence (`checkLatency()`) sont impérativement exécutées par le `LiveDataHub` avant toute agrégation.
-* **Dégradation Contrôlée :** En cas de latence critique ou de stress extrême, le `SystemManager` ordonne le basculement en mode dégradé pour prioriser la fraîcheur du `last_price` et garantir la continuité du flux de risque.
-* **Non-Blocage Absolu :** Le thread producteur ne doit jamais être suspendu ; l'enregistrement des incidents (`logEvent`) est strictement asynchrone et l'opération `enqueue` sur la `FastLaneQueue` est non bloquante.
-
-**Séquençage et Intégrité en RAM**
-
-* **Séquençage Déterministe :** Les écritures en mémoire sont effectuées de manière strictement séquentielle par un seul thread consommateur. Cet ordre (Cache, puis LHB) garantit un index identique entre les deux structures sans recours à des verrous de synchronisation coûteux.
-* **Priorité au Cache :** L'écriture dans le `DataCache` est exécutée en premier pour minimiser la latence de diffusion du prix "Last". Elle est suivie immédiatement par l'indexation dans le **Historic Live Buffer** pour assurer la continuité de la série temporelle.
-* **Atomicité Logique :** Le transfert vers le Cache et le LHB est considéré comme une unité indivisible. Un snapshot ne peut être exposé aux consommateurs que s'il est présent dans les deux structures, évitant toute divergence entre un calcul de risque (Instant T) et un calcul de volatilité (Historique).
-
-**Performance et Isolation**
-
-* **Isolation des Tâches :** Le calcul lourd (agrégation des ticks) est isolé sur le thread Producteur, tandis que les opérations d'I/O mémoire sont réservées au thread Consommateur, protégeant ainsi le CPU du temps d'attente I/O.
-* **Double Buffering (Lock-Free) :** L'ingestion dans le LHB utilise un mécanisme de Double Buffering. Cela garantit que l'indexation historique ne ralentit jamais la consommation de la `FastLaneQueue`, permettant des lectures analytiques simultanées sans contention.
-* **Structure Immuable :** Seul l'objet `MarketQuote` (immuable et versionné) transite par la queue. Les consommateurs accèdent exclusivement à des versions validées, assurant une isolation totale contre la corruption de données en cours d'écriture.
-
-**Signalétique de Disponibilité**
-
-* **Modèle Signal-then-Pull :** La disponibilité effective de la donnée est matérialisée par l'envoi du message `notifyDataReady` sur l'EventBus. Ce signal est l'unique déclencheur autorisant le **Risk Monitor** et le **Portfolio Manager** à lire les nouvelles valeurs dans le Cache ou le Buffer via leurs interfaces "Reader" respectives.
+* **Sécurité & Backpressure (Drop Oldest)** : La santé du flux est vérifiée par `checkLatency()` avant toute agrégation. En cas de saturation de la queue d'entrée, la politique **Drop Oldest** est appliquée pour privilégier systématiquement la fraîcheur des données de marché sur l'exhaustivité.
+* **Dégradation Contrôlée** : En cas de stress extrême, le système maintient la diffusion des snapshots en dégradant la richesse de l'agrégation (ex: priorité au `last_price` sur le `bid/ask`) plutôt que de risquer un blocage ou une interruption du flux.
+* **Immuabilité des Données** : Seuls des objets `MarketQuote` immuables transitent par la queue. Chaque objet est versionné et validé dès sa création, garantissant une isolation totale des consommateurs contre les données corrompues.
 
 ---
 
