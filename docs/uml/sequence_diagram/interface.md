@@ -298,18 +298,25 @@ Soumission d’ordres critiques.
 
 ---
 
-### IMarketDataCacheWriter**
-  * **Implémenté par** : Data Cache
-  * **Injecté dans / Utilisé par** : Live Data Hub (via fragment 09a)
-  * **Responsabilité opérationnelle** : Mise à jour ultra-rapide des `MarketQuotes` agrégés en mémoire vive pour une disponibilité immédiate.
-  * **Règles d’accès ou d’usage** : Accès non-bloquant. Priorité `CRITICAL`. Utilisation d'une queue asynchrone pour garantir la faible latence. Usage exclusif de MarketQuotes immuables. Le port garantit l'accès aux seules versions validées (Atomic Versioning).
+### IMarketDataCacheWriter 
+* **Implémenté par** : `Data Cache`
+* **Injecté dans / Utilisé par** : `Thread Manager` (via le Pool I/O Real-Time)
+* **Responsabilité opérationnelle** : Mise à jour prioritaire par écrasement (Overwrite) atomique des agrégats de marché pour une disponibilité immédiate.
+* **Règles d’accès ou d’usage** :
+* Utilisé exclusivement par le consommateur de la `FastLaneQueue`.
+* Priorité **CRITICAL**.
+* Doit être exécuté avant l'indexation dans le LHB pour minimiser la latence du prix actuel.
 
 ---
 
-### IMarketDataCacheReader
-  * **Implémenté par** : DataCache
-  * **Injecté dans / Utilisé par** : RiskMonitor, PortfolioManager
-  * **Responsabilité opérationnelle** : Accès lecture seule, non bloquant, aux derniers MarketQuote disponibles. Règles d’accès ou d’usage. Lecture lock-free. Aucun accès aux structures internes. Usage exclusif de MarketQuotes immuables. Le port garantit l'accès aux seules versions validées (Atomic Versioning). Ne bloque jamais la Fast-Lane. Aucun effet de bord. Les objets écrits sont immuables et versionnés
+### IMarketDataCacheReader 
+* **Implémenté par** : `Data Cache`
+* **Injecté dans / Utilisé par** : `Risk Monitor`, `Portfolio Manager`
+* **Responsabilité opérationnelle** : Fournir un accès en lecture seule, ultra-rapide (), à la dernière `MarketQuote` consolidée (Instant T).
+* **Règles d’accès ou d’usage** :
+* Lecture **Lock-Free** obligatoire : ne doit jamais interférer avec le flux d'écriture de la Fast-Lane.
+* Accès via des versions validées (Atomic Versioning) pour garantir l'isolation totale.
+* Immuabilité : interdiction stricte de modifier l'objet retourné ; tout accès direct aux structures internes du cache est proscrit.
 
 ---
 
@@ -362,20 +369,30 @@ Soumission d’ordres critiques.
 
 ---
 
-**ILiveDataReader**
-* **Implémenté par** : `LiveHistoryBuffer` (LHB)
-* **Injecté dans / Utilisé par** : `Portfolio Manager`, `Risk Monitor`
-* **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant (), aux séries temporelles de la session. Fournir un accès lecture seule, non-bloquant, aux séries temporelles de la session via le Historic Live Buffer.
-* **Règles d’accès ou d’usage** : Utilisation de pointeurs vers la matrice de N slots. Interdiction stricte d'écriture. Utilisation de fenêtres (slices) temporelles. Accès via Double Buffering pour isolation totale de la Fast-Lane.
+### ILiveDataReader 
+* **Implémenté par** : `Historic Live Hub (LHB)`
+* **Injecté dans / Utilisé par** : `Risk Monitor`, `Portfolio Manager`
+* **Responsabilité opérationnelle** : Fournir un accès lecture seule aux séries temporelles (Time-Series) de la session en cours stockées dans le Historic Live Buffer.
+* **Règles d’accès ou d’usage** :
+* Accès par fenêtres temporelles (Slices/Vecteurs) via une indexation linéaire absolue ().
+* Garanti non-bloquant grâce au mécanisme de **Double Buffering** (isolation des lectures analytiques vis-à-vis de l'ingestion Fast-Lane).
 
 ---
 
-**IMarketDataCacheReader**
-* **Implémenté par** : `Data Cache`
-* **Injecté dans / Utilisé par** : `Risk Monitor`, `Portfolio Manager`
-* **Responsabilité opérationnelle** : Accès lecture seule, lock-free, à la dernière `MarketQuote` consolidée ().
-* **Règles d’accès** : Interdiction de mutation. Garanti lock-free pour ne pas ralentir le LDH.
+**IFastLaneQueuePort**
+* **Implémenté par** : `FastLaneQueue` (Structure technique SPSC)
+* **Injecté dans / Utilisé par** : `Live Data Hub` (Producteur) et `Thread Manager` (Consommateur)
+* **Responsabilité opérationnelle** : Fournir le vecteur de communication asynchrone ultra-basse latence entre l'agrégation et l'écriture RAM.
+* **Règles d’accès ou d’usage** : Utilisation exclusive d'objets `MarketQuote` immuables. Méthodes strictement non-bloquantes (`try_enqueue` / `try_dequeue`).
 
+---
+
+**IEventBusPort**
+* **Implémenté par** : `EventBus Global`
+* **Injecté dans / Utilisé par** : `Thread Manager` (Émetteur), `Risk Monitor` & `Portfolio Manager` (Abonnés)
+* **Responsabilité opérationnelle** : Notification "Signal-then-Pull" indiquant que les données sont synchronisées dans le Cache et le LHB.
+* **Règles d’accès ou d’usage** : Diffusion (Broadcast) asynchrone. Ne contient pas de données, seulement un signal de "Ready".
+  
 ---
 
 ## 4. Threading, Jobs & Execution
@@ -504,18 +521,13 @@ Gestion centralisée des erreurs critiques.
 
 ### IMarketDataHealthPort
 
-- **Implémenté par** : Live Data Hub (LDH)
-- **Injecté dans / Utilisé par** : System Manager
-- **Responsabilité opérationnelle** :
-  - Validation de la preuve de vie du flux de données marché
-  - Vérification de la couverture des instruments requis
-  - Contrôle de la fraîcheur des ticks reçus
-- **Règles d’accès ou d’usage** :
-  - Appel synchrone avec timeout dur
-  - Aucune opération I/O externe bloquante
-  - Logique de validation strictement encapsulée
-  - Échec ⇒ arrêt immédiat du système
-    
+* **Implémenté par** : `Live Data Hub (LDH)`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Surveillance de la vitalité du flux (Heartbeat), vérification de la couverture des instruments et contrôle de la fraîcheur (fraîcheur des ticks).
+* **Règles d’accès ou d’usage** :
+* Utilisé pour déclencher le message `notifyHighLatency()`.
+* Toute anomalie détectée (latence ou retard de snapshot) doit provoquer une remontée immédiate vers le superviseur pour arbitrage (basculement en Mode Dégradé).
+
 ---
 
 ### IBootstrapReadinessCheck
@@ -553,14 +565,6 @@ Validation OS de la priorité temps réel.
   * **Responsabilité opérationnelle** : Fournir une preuve de vie (Heartbeat) et valider la disponibilité du pool de connexions à la base de données principale.
   * **Règles d’accès ou d’usage** : Appel synchrone obligatoire au démarrage. Timeout à configuré.
   * **Contraintes** : Ne doit effectuer aucune lecture métier à ce stade, uniquement un test de liaison (`ping`).
-
----
-
-###IMarketDataHealthPort
-  * **Implémenté par** : `Live Data Hub (LDH)`
-  * **Injecté dans / Utilisé par** : `System Manager`
-  * **Responsabilité opérationnelle** : Validation de la preuve de vie du flux, vérification de la couverture et **contrôle de la fraîcheur (fraîcheur des ticks)**.
-  * **Règles d’accès ou d’usage** : Utilisé ici pour le message `notifyHighLatency()`. Toute anomalie de fraîcheur doit être remontée immédiatement.
 
 ---
 
@@ -769,4 +773,5 @@ Interface pivot entre l'orchestrateur système et l'intelligence de calcul.
   3. Être référencée ensuite dans les séquences UML
 - Une interface = une responsabilité claire
 - Aucun doublon fonctionnel toléré
+
 
