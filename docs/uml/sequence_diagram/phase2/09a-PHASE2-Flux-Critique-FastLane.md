@@ -71,19 +71,20 @@ Ce module garantit un flux de prix **déterministe et ultra-rapide**. Il assure 
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1 | tickData(...) | IBKR Gateway | Live Data Hub | Réception du flux de marché brut. |
-| 2 | applyBackpressure() | Live Data Hub | Live Data Hub | Politique Drop Oldest si saturation queue d'entrée. |
-| 3 | checkLatency() | Live Data Hub | Live Data Hub | Mesure du delta temps pour détection de retard. |
-| 4 | notifyHighLatency() | Live Data Hub | System Manager | Alerte de dégradation de performance au superviseur. |
-| 5 | setOperatingMode(Mode) | System Manager | Live Data Hub | Commande synchrone : basculement NOMINAL ou DEGRADED. |
-| 6 | logEvent(details) | Live Data Hub | Log Service | Enregistrement asynchrone non-bloquant de l'incident. |
-| 7 | createMarketQuote() | Live Data Hub | Live Data Hub | Agrégation des ticks en un objet immuable et versionné. |
-| 8 | enqueue(MarketQuote) | Live Data Hub | FastLaneQueue | Dépôt asynchrone (non-bloquant) de la cotation. |
-| 9 | dequeue() | Thread Manager | FastLaneQueue | Récupération par un thread du Pool I/O Real-Time. |
-| 10| writeToCache(quote) | Thread Manager | Data Cache | Écriture atomique dans la mémoire vive (DataCache). |
-| 11| Success | Data Cache | Thread Manager | Acquittement libérant le thread consommateur. |
+|1|tickData(tick_id,asset_id_ref,...)|IBKR Gateway|Live Data Hub|Réception du flux de marché brut en temps réel.|
+|2|applyBackpressure()|Live Data Hub|Live Data Hub|Application de la politique "Drop Oldest" si la queue d'entrée sature.|
+|3|checkLatency()|Live Data Hub|Live Data Hub|Mesure de l'écart temporel entre le tick et l'heure système.|
+|4|notifyHighLatency()|Live Data Hub|System Manager|Alerte au superviseur en cas de franchissement de seuil de latence.|
+|5|setOperatingMode(DEGRADED)|System Manager|Live Data Hub|Commande de basculement vers une agrégation simplifiée.|
+|6|logEvent(details)|Live Data Hub|Log Service|Journalisation asynchrone et non-bloquante de l'incident.|
+|7|createMarketQuote(AccumulatedTicks)|Live Data Hub|Live Data Hub|Agrégation des ticks en un objet immuable et versionné.|
+|8|enqueue(MarketQuote)|Live Data Hub|FastLaneQueue|Dépôt non-bloquant du snapshot dans la queue SPSC.|
+|9|dequeue()|Thread Manager|FastLaneQueue|Récupération de la quote par le thread du Pool I/O Real-Time.|
+|10|writeToCache(MarketQuote)|Thread Manager|Data Cache|Mise à jour prioritaire par écrasement atomique (Instant T).|
+|11|pushToBuffer(MarketQuote)|Thread Manager|Historic Live Hub|Indexation séquentielle dans le buffer circulaire de session.|
+|12|notifyDataReady()|Thread Manager|EventBus|Signal de disponibilité déclenchant le "Pull" des consommateurs.|
 
 ---
 
