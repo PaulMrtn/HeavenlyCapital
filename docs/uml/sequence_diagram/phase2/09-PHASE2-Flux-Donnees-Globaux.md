@@ -101,3 +101,14 @@ Interface unique pour signaler une demande d’arrêt global du système.
 * **Responsabilité** : Interface de type "Push" permettant d'écrire chaque `MarketQuote` consolidée dans le **Historic Live Buffer**.
 * **Règles d’accès** : Doit supporter le mécanisme de **Double Buffering** pour permettre une écriture Fast-Lane sans bloquer les lectures analytiques.
 
+**IMarketDataCacheReader**
+* **Implémenté par** : `Data Cache`
+* **Injecté dans / Utilisé par** : `Risk Monitor`, `Portfolio Manager`
+* **Responsabilité opérationnelle** : Accès lecture seule, lock-free, à la dernière `MarketQuote` consolidée ().
+* **Règles d’accès** : Interdiction de mutation. Garanti lock-free pour ne pas ralentir le LDH.
+
+**ILiveDataReader**
+* **Implémenté par** : `Historic Live Hub (LHB)`
+* **Injecté dans / Utilisé par** : `Risk Monitor`, `Portfolio Manager`
+* **Responsabilité opérationnelle** : Fournir un accès lecture seule, non-bloquant, aux séries temporelles de la session via le `Historic Live Buffer`.
+* **Règles d’accès** : Utilisation de fenêtres (slices) temporelles. Accès via Double Buffering pour isolation totale de la Fast-Lane.
