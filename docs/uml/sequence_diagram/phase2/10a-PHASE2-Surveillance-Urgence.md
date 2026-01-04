@@ -64,3 +64,47 @@ Ce module constitue la "ceinture de sécurité" du système. Par son architectur
 |ref|(OM-RouteOrderToBroker)|Order Manager|Externe|Fragment de référence pour le routage physique de l'ordre vers le broker.|
 
 ---
+
+### 6. Ports et Interfaces
+
+**IEventBusPort**
+* **Implémenté par** : `EventBus` (Infrastructure)
+* **Injecté dans / Utilisé par** : `Risk Monitor` (Abonné)
+* **Responsabilité opérationnelle** : Notification asynchrone transportant le `MarketStateContext` pour déclencher le cycle de surveillance.
+* **Règles d’accès ou d’usage** : Diffusion non-bloquante. Fournit l'index temporel indispensable à la synchronisation avec le LHB.
+
+**IPositionExposureReader**
+* **Implémenté par** : `Portfolio Manager` (via le PositionExposureStore)
+* **Injecté dans / Utilisé par** : `Risk Monitor`
+* **Responsabilité opérationnelle** : Fournir un accès instantané à l'état consolidé des positions via un snapshot immuable.
+* **Règles d’accès ou d’usage** : Lecture **Lock-Free** obligatoire. Le Risk Monitor ne doit jamais attendre après le Portfolio Manager ; il lit la dernière version atomique disponible.
+
+**ILiveDataReader**
+* **Implémenté par** : `Historic Live Hub (LHB)`
+* **Injecté dans / Utilisé par** : `Risk Monitor`
+* **Responsabilité opérationnelle** : Extraction de séries temporelles brutes (Time-Series) pour l'analyse locale.
+* **Règles d’accès ou d’usage** : Utilisation de la méthode `getRawBufferSlice(index, lookback)`. Accès en lecture seule sur le segment de mémoire défini par l'index du contexte.
+
+**IStopPredictionModel**
+* **Implémenté par** : Modèles de décision (Heuristiques, Baseline, ML, NN)
+* **Injecté dans / Utilisé par** : `Risk Monitor`
+* **Responsabilité opérationnelle** : Évaluer la probabilité de violation des seuils de risque à partir des données d'exposition et de marché.
+* **Règles d’accès ou d’usage** : Purement transformationnel et déterministe. Aucun accès I/O autorisé à l'intérieur du modèle.
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : `Risk Monitor`
+* **Responsabilité opérationnelle** : Journalisation de l'incident critique (`logCriticalEvent`) en cas de détection de violation.
+* **Règles d’accès ou d’usage** : **Mode synchrone et bloquant** impératif pour cette séquence. L'ordre ne peut être soumis tant que la persistance du log n'est pas confirmée.
+
+**IOrderInputQueuePort**
+* **Implémenté par** : `OrderInputQueue`
+* **Injecté dans / Utilisé par** : `Risk Monitor` (Producteur)
+* **Responsabilité opérationnelle** : Point de dépôt des ordres de liquidation d'urgence.
+* **Règles d’accès ou d’usage** : Attribution obligatoire de la priorité **`CRITICAL`**. Découple la décision de risque de l'exécution physique.
+
+**IOrderSubmissionPort**
+* **Implémenté par** : `Order Manager`
+* **Injecté dans / Utilisé par** : `Risk Monitor`
+* **Responsabilité opérationnelle** : Validation et acheminement de la requête d'ordre d'urgence vers le circuit d'exécution.
+* **Règles d’accès ou d’usage** : Priorité maximale de traitement. Doit garantir l'enfilement en tête de file (Priority Dequeueing).
