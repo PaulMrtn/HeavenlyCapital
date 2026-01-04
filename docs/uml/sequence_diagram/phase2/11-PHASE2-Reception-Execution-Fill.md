@@ -65,3 +65,37 @@ Ce module garantit que l'exécution d'un ordre de marché est traitée avec une 
 |15|Return: Transaction OK|Database|Data Ingestion Layer|Confirmation du succès de l'écriture et du commit de la transaction.|
 |16|Job Completed|Job Manager|Data Ingestion Layer|Notification de fin de processus de tâche par le gestionnaire.|
 |17|FillPersisted(fill_id)|Data Ingestion Layer|Live Data Hub|Confirmation finale clôturant la séquence de réception et de traitement du Fill.|
+
+---
+
+### 6. Ports et Interfaces
+
+**IExecutionReceiver**
+* **Implémenté par** : `Live Data Hub`
+* **Injecté dans / Utilisé par** : `IBKR Gateway`
+* **Responsabilité opérationnelle** : Point d'entrée unique pour les confirmations d'exécution (`Fills`) en provenance du broker. Assure l'enrichissement initial avec le contexte de session.
+* **Règles d’accès ou d’usage** : Accès asynchrone et non-bloquant. Doit supporter une haute fréquence de messages sans saturer le thread de réception réseau.
+
+**IFillDistributionPort**
+* **Implémenté par** : `Order Manager` et `Portfolio Manager`
+* **Injecté dans / Utilisé par** : `Live Data Hub`
+* **Responsabilité opérationnelle** : Définit le contrat de réception des événements de type `MarketFillEvent` pour la mise à jour des états internes.
+* **Règles d’accès ou d’usage** : Traitement exclusif en mémoire vive (RAM). Priorité de traitement élevée pour garantir la fraîcheur de l'inventaire avant le cycle de décision suivant.
+
+**IDataIntegrityCoordinator**
+* **Implémenté par** : `Data Ingestion Layer (DIL)`
+* **Injecté dans / Utilisé par** : `Order Manager` et `Portfolio Manager`
+* **Responsabilité opérationnelle** : Collecte les signaux de préparation (`Ready`) des deux managers pour synchroniser la persistance.
+* **Règles d’accès ou d’usage** : Agit comme une barrière de synchronisation (barrage technique). Ne déclenche la transaction DB que si les deux états (technique et financier) sont validés.
+
+**IJobSubmissionPort**
+* **Implémenté par** : `Job Manager`
+* **Injecté dans / Utilisé par** : `Data Ingestion Layer (DIL)`
+* **Responsabilité opérationnelle** : Soumission de l'unité de transaction atomique pour une exécution en arrière-plan.
+* **Règles d’accès ou d’usage** : Doit impérativement utiliser le **Pool I/O Real-Time** pour isoler la latence d'écriture disque du reste du système.
+
+**IAtomicDatabasePort**
+* **Implémenté par** : `Database` (via un adaptateur de persistance)
+* **Injecté dans / Utilisé par** : `Job Manager` (exécuté par le `Thread Manager`)
+* **Responsabilité opérationnelle** : Exécution physique du `bulkWrite` pour les tables d'ordres, de lots et de positions.
+* **Règles d’accès ou d’usage** : Transactionnelle (tout ou rien). En cas d'échec, doit notifier le DIL pour déclencher les procédures de rollback ou d'alerte critique.
