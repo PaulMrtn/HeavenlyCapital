@@ -8,34 +8,43 @@
 
 ### 1. Objectif
 
-Assurer une surveillance critique du capital en détectant toute violation de risque via une analyse déterministe basée sur des modèles de décision (statistiques, prédictifs ou heuristiques). Le module doit déclencher une liquidation avec une priorité maximale tout en garantissant un audit complet sans impacter la latence de la stratégie principale.
+La finalité de ce module est d'assurer une **surveillance critique et temps réel du capital**. Il doit détecter toute violation des limites de risque (techniques ou de marché) via une analyse déterministe s'appuyant sur un modèle de décision. Sa mission est de déclencher une liquidation avec une **priorité maximale absolue** tout en garantissant l'irréfutabilité par un audit bloquant, sans jamais impacter la performance du thread de stratégie.
 
 ---
 
 ### 2. Contexte
 
-Ce processus s'inscrit dans la **Phase II (In-Trade)** et est piloté par le **`RiskMonitor`**, un composant fonctionnant sur un thread de haute priorité dédié. Il est déclenché de manière asynchrone par l'événement **`notifySnapshotReady`** émis par le `LiveDataHub`, assurant que la surveillance s'effectue sur des données de prix complètes et cohérentes, à une fréquence régulière et critique (par exemple, toutes les minutes).
+Ce processus est le cœur défensif de la **Phase II (In-Trade)**. Il est piloté par le **`RiskMonitor`**, opérant sur un thread dédié à haute priorité (scheduling FIFO/Real-time). Contrairement aux architectures classiques, il est **réveillé de manière asynchrone** par l'**`EventBus`**. Il utilise un mécanisme de **Shared Memory State** pour obtenir l'état du portefeuille, garantissant qu'aucune contention ne ralentit la surveillance.
 
 ---
 
 ### 3. Logique Générale
 
-Le `RiskMonitor` fonctionne en boucle continue. À chaque signal `SnapshotReady`, il initie un double processus de récupération synchrone (Fetch) : il lit le prix dans le **`DataCache`** et l'état de la position auprès du **`PortfolioManager`**. Muni de ces deux données, il procède à l'évaluation des seuils (`checkThresholds`). Si un seuil est franchi, il crée un ordre d'urgence, journalise l'incident de manière bloquante, puis soumet cet ordre à l'`OrderManager` avec une priorité **`CRITICAL`**. L'ordre est ensuite sécurisé dans la `PriorityQueue` de l'OM avant d'être routé pour l'exécution physique.
+Le flux repose sur trois piliers de données synchronisés pour garantir une décision atomique :
+
+1. **Réveil Contextuel** : L'**`EventBus`** diffuse `notifyDataReady(MarketStateContext)`. Ce contexte transporte l'`index` de synchronisation qui verrouille temporellement la lecture dans le **`Live Historic Buffer (LHB)`**.
+2. **Capture de l'Exposition (Pattern Shared Memory)** : Le `RiskMonitor` consulte le **`PositionExposureStore`**. Il récupère un objet immuable **`PositionExposureSnapshot`** via une lecture **Lock-Free**. Ce snapshot contient les positions nettes, le levier et les marges déjà calculés par le `PortfolioManager`.
+3. **Extraction Marché (Raw Data Access)** : Le moniteur extrait une tranche de données brutes (`RawBufferSlice`) directement depuis le **LHB** en utilisant l'index du contexte.
+4. **Inférence & Évaluation** :
+  * **Pipeline Interne** : Le `RiskMonitor` transforme les données brutes en entrées pour ses modèles (Feature Engineering local).
+  * **Exécution du Modèle** : Évaluation de la conformité (Baseline, ML, ou règles métier).
+5. **Exécution d'Urgence** : Si une violation est prédite, le système bascule dans un flux de liquidation forcée incluant un audit synchrone avant l'envoi vers l'**`OrderManager`**.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Déclenchement et Découplage :** Le `RiskMonitor` est entièrement découplé de la logique de trading standard. Il ne dépend que des sources de données passives (caches) et du `PortfolioManager` pour son état, et agit uniquement sur le signal cohérent du `Snapshot`.
-* **Audit Synchrone :** L'enregistrement de l'incident (`logCriticalEvent`) est **obligatoirement synchrone et bloquant** (étape 9). Le `RiskMonitor` doit attendre la confirmation de l'écriture de la preuve d'audit avant de procéder à la soumission de l'ordre. C'est le prix de la conformité et de l'irréfutabilité.
-* **Priorité Maximale :** L'ordre est soumis avec la priorité **`CRITICAL`**. L'`OrderManager` doit garantir que cet ordre est inséré en tête de la `PriorityQueue` et traité avant tout ordre `STANDARD` ou `NORMAL`.
-* **Contrôle du Thread :** Le `RiskMonitor` utilise des appels synchrones pour l'audit et la soumission d'ordre (jusqu'à l'étape d'enfilement confirmée) afin de garantir que l'ordre est pris en charge avant que le thread ne soit libéré pour le cycle de surveillance suivant.
+* **Sémantique Lock-Free (IPositionExposureReader)** : La lecture du snapshot d'exposition ne doit utiliser aucun verrou (mutex/semaphore). L'implémentation doit reposer sur un `AtomicReference` avec un **swap atomique** côté `PortfolioManager` pour garantir une latence de lecture constante ().
+* **Immuabilité Stricte** : Le `PositionExposureSnapshot` est un **Value Object** pur. Une fois instancié, aucune de ses propriétés ne peut être modifiée. Toute mise à jour implique la création d'un nouvel objet par le `PortfolioManager`.
+* **Autonomie du Feature Engineering** : Le `RiskMonitor` est responsable de sa propre transformation de données à partir des "Slices" brutes du LHB. Cela évite de surcharger le LHB avec des calculs spécifiques à chaque moniteur.
+* **Audit Bloquant et Synchrone** : L'étape `logCriticalEvent` (ID 7) est la seule étape volontairement lente. Elle **doit confirmer l'écriture physique (fsync)** de l'incident avant que l'ordre ne soit soumis à la queue d'exécution, assurant la conformité réglementaire.
+* **Priorité 'CRITICAL'** : L'ordre généré doit porter un tag de priorité maximale, forçant l'**`OrderManager`** à vider la `PriorityQueue` en faveur de cet ordre avant tout traitement de stratégie standard.
 
 ---
 
 ### 5. Conclusion
 
-Le module **`10a-PHASE2-Surveillance-Urgence`** est le mécanisme de défense à haute priorité du système. Il garantit que toute violation de risque est détectée, auditée et contrée par une action immédiate (liquidation) dont la priorité d'exécution est formellement supérieure à toute autre opération de trading en cours.
+Ce module constitue la "ceinture de sécurité" du système. Par son architecture **Context-Driven** et son usage de la **Shared Memory**, il garantit que la sécurité n'est jamais sacrifiée au profit de la vitesse, tout en s'assurant que le processus de surveillance lui-même n'ajoute aucun "jitter" (variation de latence) à la boucle de trading principale.
 
 ---
 
@@ -53,3 +62,5 @@ Le module **`10a-PHASE2-Surveillance-Urgence`** est le mécanisme de défense à
 |10|Return: EnqueueConfirmed|PriorityQueue|Order Manager|Confirmation technique de la mise en file d'attente sécurisée.|
 |11|Return: OrderSubmitted|Order Manager|Risk Monitor|Confirmation finale du traitement de l'ordre au moniteur de risque.|
 |ref|(OM-RouteOrderToBroker)|Order Manager|Externe|Fragment de référence pour le routage physique de l'ordre vers le broker.|
+
+---
