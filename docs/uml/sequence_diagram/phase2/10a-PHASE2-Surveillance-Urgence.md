@@ -14,7 +14,7 @@ La finalité de ce module est d'assurer une **surveillance critique et temps ré
 
 ### 2. Contexte
 
-Ce processus est le cœur défensif de la **Phase II (In-Trade)**. Il est piloté par le **`RiskMonitor`**, opérant sur un thread dédié à haute priorité (scheduling FIFO/Real-time). Il est **réveillé de manière asynchrone** par l'**`EventBus`**. Il utilise un mécanisme de **Shared Memory State** pour obtenir l'état du portefeuille, garantissant qu'aucune contention ne ralentit la surveillance.
+Ce processus est le cœur défensif de la **Phase II (In-Trade)**. Il est piloté par le **`RiskMonitor`**, opérant sur un thread dédié à haute priorité (I/O Real-time). Il est **réveillé de manière asynchrone** par l'**`EventBus`**. Il utilise un mécanisme de **Shared Memory State** pour obtenir l'état du portefeuille, garantissant qu'aucune contention ne ralentit la surveillance.
 
 ---
 
