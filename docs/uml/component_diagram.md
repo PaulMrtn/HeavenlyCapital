@@ -63,6 +63,9 @@ Le DAL est la couche d'**abstraction de la lecture** qui fournit des méthodes s
 ### **Live Data Hub**
 
 Ce composant est l'**écouteur central** des flux de prix marché. Il écoute les *triggers* de prix en temps réel via l'**IBKR Gateway** pour créer des **snapshots de marché** réguliers. Ces données sont mises en cache via l'**Interface Cache** et mises en file d'attente pour la persistance via l'**Interface Buffer**.
+Le Live Data Hub joue effectivement un rôle de "Routeur Intelligent" bidirectionnel qui sépare les flux dès l'entrée : 
+  * Flux A (Market Data) : Réception des ticks → Agrégation → Mise à jour de la Market Quote (Cache) → Envoi vers le Historic Live Buffer.
+  * Flux B (Portfolio Data) : Réception des retours d'ordres (Fills) → Distribution immédiate vers l'Order Manager et le Portfolio Manager.
 
 * **Interfaces Fournies / Requises :**
     * **IBKR Data Interface** : **Interface requise** via **IBKR Gateway** pour recevoir les mises à jour de prix (*market data stream*).
