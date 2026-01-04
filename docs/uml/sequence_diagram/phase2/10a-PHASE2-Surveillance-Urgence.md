@@ -41,16 +41,15 @@ Le module **`10a-PHASE2-Surveillance-Urgence`** est le mécanisme de défense à
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|notifySnapshotReady(SnapshotHeader)|Live Data Hub|Risk Monitor|Notification asynchrone indiquant qu'un nouveau bloc de données de marché cohérent est disponible pour analyse.|
-|2|getRequiredQuotes(SnapshotHeader)|Risk Monitor|Data Cache|Requête synchrone pour extraire les prix spécifiques nécessaires au calcul de l'exposition au risque.|
-|3|Return: RequiredQuotes|Data Cache|Risk Monitor|Retour des données de cotation demandées.|
-|4|readCurrentPositionState()|Risk Monitor|Portfolio Manager|Appel pour obtenir l'état actuel des positions ouvertes (quantité, prix d'entrée, etc.).|
-|5|<<return>> PositionState|Portfolio Manager|Risk Monitor|Retour de l'état consolidé du portefeuille.|
-|6|checkThresholds(PositionState, SnapshotHeader)|Risk Monitor|Risk Monitor|Auto-évaluation comparant l'état du portefeuille aux limites de risque définies (ex: Stop-Loss).|
-|7|createEmergencyOrder(PositionState)|Risk Monitor|Risk Monitor|Génération interne d'un ordre de liquidation automatique si un seuil de risque est franchi.|
-|8|logCriticalEvent(OrderEvent)|Risk Monitor|Log Service|Enregistrement synchrone et bloquant de l'incident pour garantir l'auditabilité avant l'exécution.|
-|9|submitEmergencyOrder(RequestOrder, Priority: CRITICAL)|Risk Monitor|Order Manager|Soumission de l'ordre d'urgence avec le niveau de priorité le plus élevé du système.|
-|10|enqueue(OrderRequest)|Order Manager|PriorityQueue|Insertion physique de l'ordre en tête de la file d'attente prioritaire.|
-|11|Return: EnqueueConfirmed|PriorityQueue|Order Manager|Confirmation que l'ordre est sécurisé dans la file d'attente.|
-|12|Return: OrderSubmitted|Order Manager|Risk Monitor|Confirmation finale de la prise en charge de l'ordre d'urgence.|
-|ref|(OM-RouteOrderToBroker)|Order Manager|Externe|Référence à la séquence de routage de l'ordre vers le courtier pour exécution physique.|
+|1|notifyDataReady(MarketStateContext)|EventBus|Risk Monitor|Notification asynchrone déclenchant le cycle de surveillance avec l'index de synchronisation du LHB.|
+|2|getCurrentExposure()|Risk Monitor|Portfolio Manager|Appel non-bloquant pour consulter l'état actuel de l'exposition via le PositionExposureStore.|
+|3|<<return>> PositionExposureSnapshot|Portfolio Manager|Risk Monitor|Retour de l'objet immuable contenant les positions et agrégats d'exposition.|
+|4|getRawBufferSlice()|Risk Monitor|Live Historic Buffer|Extraction des séries temporelles brutes à partir de l'index fourni par le contexte.|
+|5|checkRiskViolation()|Risk Monitor|Risk Monitor|Calcul interne (Feature Engineering + Modèle ML) pour détecter un dépassement de seuil.|
+|6|createEmergencyOrder(PositionState)|Risk Monitor|Risk Monitor|Génération d'un ordre de liquidation si une violation critique est confirmée.|
+|7|logCriticalEvent(OrderEvent)|Risk Monitor|Log Service|Enregistrement synchrone et bloquant de l'incident pour garantir l'auditabilité.|
+|8|submitEmergencyOrder(Request, CRITICAL)|Risk Monitor|Order Manager|Transmission de l'ordre d'urgence avec le niveau de priorité maximale.|
+|9|enqueue(OrderRequest)|Order Manager|PriorityQueue|Insertion de l'ordre en tête de la file d'attente prioritaire de l'OM.|
+|10|Return: EnqueueConfirmed|PriorityQueue|Order Manager|Confirmation technique de la mise en file d'attente sécurisée.|
+|11|Return: OrderSubmitted|Order Manager|Risk Monitor|Confirmation finale du traitement de l'ordre au moniteur de risque.|
+|ref|(OM-RouteOrderToBroker)|Order Manager|Externe|Fragment de référence pour le routage physique de l'ordre vers le broker.|
