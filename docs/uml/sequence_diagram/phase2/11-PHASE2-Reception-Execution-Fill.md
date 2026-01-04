@@ -42,3 +42,26 @@ Le processus suit un enchaînement centralisé et contrôlé :
 ### 5. Conclusion
 
 Ce module garantit que l'exécution d'un ordre de marché est traitée avec une **garantie totale d'intégrité** et une **latence in-memory minimale**, tout en assurant que la persistance finale utilise une ressource I/O isolée et de haute priorité. Il est le point de vérité qui synchronise l'état physique du courtier avec l'état logique et financier de la plateforme.
+
+
+---
+
+|ID|Fonction / Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|Fill Received(fill_data, account_id)|IBKR Gateway|Live Data Hub|Réception de la notification d'exécution brute en provenance du courtier.|
+|2|enrichEvent(session_id_ref)|Live Data Hub|Live Data Hub|Auto-enrichissement du fill avec les métadonnées de session internes.|
+|3|MarketFillEvent(FillData, session_id_ref)|Live Data Hub|Order Manager|Transmission de l'événement d'exécution pour mise à jour du cycle de vie de l'ordre.|
+|4|updateOrder(fill_data)|Order Manager|Order Manager|Mise à jour interne du statut de l'ordre en mémoire vive (RAM).|
+|5|OrderUpdateReady(order_id)|Order Manager|Data Ingestion Layer|Notification au DIL que la mise à jour technique de l'ordre est prête pour persistance.|
+|6|MarketFillEvent(FillData, session_id_ref)|Live Data Hub|Portfolio Manager|Transmission de l'événement pour mise à jour comptable du portefeuille.|
+|7|updatePosition(fill_data)|Portfolio Manager|Portfolio Manager|Recalcul des positions nettes et des lots (méthode FIFO) en mémoire vive.|
+|8|PositionUpdateReady(session_id)|Portfolio Manager|Data Ingestion Layer|Notification au DIL que la mise à jour financière est prête pour persistance.|
+|9|createAtomicTransaction(OM_data, PM_data)|Data Ingestion Layer|Data Ingestion Layer|Préparation d'une unité de transaction groupée garantissant l'atomicité Ordre/Position.|
+|10|submitJob(Pool I/O Real-Time, transaction_unit)|Data Ingestion Layer|Job Manager|Soumission de la transaction au gestionnaire de tâches pour exécution asynchrone prioritaire.|
+|11|allocateThread(Pool I/O Real-Time)|Job Manager|Thread Manager|Requête d'allocation d'un thread spécifique depuis le pool temps-réel dédié.|
+|12|Return: thread_ID|Thread Manager|Job Manager|Retour de l'identifiant du thread alloué pour l'opération I/O.|
+|13|executeTransaction(transaction_unit)|Job Manager|Database|Exécution physique de la transaction atomique vers la base de données.|
+|14|bulkWrite(Order, Lots, Position)|Database|Database|Écriture simultanée des modifications techniques et financières dans le stockage persistant.|
+|15|Return: Transaction OK|Database|Data Ingestion Layer|Confirmation du succès de l'écriture et du commit de la transaction.|
+|16|Job Completed|Job Manager|Data Ingestion Layer|Notification de fin de processus de tâche par le gestionnaire.|
+|17|FillPersisted(fill_id)|Data Ingestion Layer|Live Data Hub|Confirmation finale clôturant la séquence de réception et de traitement du Fill.|
