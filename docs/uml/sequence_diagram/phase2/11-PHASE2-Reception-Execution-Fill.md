@@ -21,7 +21,7 @@ Ce processus s'inscrit dans la **"Fast Lane"** des événements de marché. Il e
 
 Le processus suit un enchaînement centralisé et contrôlé :
 
-* **Réception et Enrichissement :** La passerelle reçoit le Fill et le transmet au `LiveDataHub` qui ajoute le contexte essentiel (`session\_id\_ref`).
+* **Réception et Enrichissement :** La passerelle reçoit le Fill et le transmet au `LiveDataHub` qui ajoute le contexte essentiel (`session_id_ref`).
 * **Traitement Parallèle :** Le Fill enrichi est distribué simultanément au `OrderManager (OM)` et au `PortfolioManager (PM)`. Ces deux entités travaillent en parallèle pour mettre à jour l'Ordre (statut) et la Position (lots méthode FIFO) en mémoire.
 * **Coordination Critique :** Le `Data Integrity Layer` (DIL) attend la confirmation des deux managers (`OrderUpdateReady` et `PositionUpdateReady`).
 * **Délégation Atomique :** Une fois les deux états prêts, le DIL crée l'unité de transaction, la soumet au `JobManager` (qui l'alloue à un thread I/O Real-Time), et exécute le processus générique de persistance atomique (`DIL-AtomicDBWriteProces`).
