@@ -103,3 +103,5 @@ Le `ThreadManager` doit implémenter un mécanisme de notification vers le super
 L'intégrité du système repose sur l'unicité du `clientOrderID` généré en amont, garantissant qu'en cas de crash du `Dequeue Processor`, aucun ordre déjà transmis ne puisse être exécuté en double par le broker.
 * **Broker-Centric Truth**
 Le broker est la seule source de vérité temps réel ; la base de données n’est qu’une projection retardée mise à jour à partir des ACK broker. Cette approche impose une réconciliation au démarrage, la détection d’ordres orphelins par timeout (état `UNKNOWN_TRANSMISSION`) et un audit basé exclusivement sur les confirmations broker, garantissant performance et résilience sans compromis.
+* **Verrouillage "In-Flight" :** Dès l'acquittement transport (Message 9), notifier l'EventBus pour marquer l'ordre comme "en cours" en RAM et empêcher le PM de le ré-émettre au snapshot suivant.
+* **Résilience Socket :** Tout échec de transmission physique (Message 8) doit lever une alerte `SYSTEM_CRITICAL` immédiate et geler l'ordre pour éviter toute perte ou corruption du flux I/O.
