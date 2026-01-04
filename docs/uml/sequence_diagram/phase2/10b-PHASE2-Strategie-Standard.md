@@ -59,11 +59,6 @@ Ce module assure que les ordres de stratégie sont exécutés au moment jugé le
 |10|Return: OrderSubmitted|OrderManager|PortfolioManager|Accusé de réception final confirmant la prise en charge de l'ordre par la couche d'exécution.|
 |ref|(OM-RouteOrderToBroker)|OrderManager|Externe|Fragment de référence indiquant la transmission effective du message FIX/API vers la gateway du courtier.|
 
-
-### 6. Ports et Interfaces
-
-Voici la section **6. Ports et Interfaces** rédigée pour la documentation du module `10b-PHASE2-Strategie-Standard`. Elle s'appuie rigoureusement sur votre catalogue canonique tout en introduisant les spécificités liées au modèle "Signal-then-Pull" du LHB.
-
 ---
 
 ### 6. Ports et Interfaces
