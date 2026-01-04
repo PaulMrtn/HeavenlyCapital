@@ -115,6 +115,17 @@ Chargement initial des données de risque.
 
 ---
 
+### IPositionExposureReader
+* **Implémenté par** : `Portfolio Manager` (via son store d'exposition interne).
+* **Injecté dans / Utilisé par** : `Risk Monitor`.
+* **Responsabilité opérationnelle** : Fournir un accès instantané à l'état consolidé des positions et des marges via un objet immuable (`PositionExposureSnapshot`).
+* **Règles d’accès ou d’usage** :
+* Lecture **Lock-Free** obligatoire : ne doit jamais utiliser de mutex ou de sémaphore pour ne pas bloquer le thread de risque.
+* Accès via un pointeur atomique (Atomic Swap) pour garantir que le `Risk Monitor` travaille toujours sur la version la plus récente sans interrompre les calculs du `Portfolio Manager`.
+* Immuabilité : L'objet retourné ne peut être modifié par le consommateur.
+
+---
+
 ## 2. Configuration & Static Data
 
 ### StaticConfigPort
@@ -758,10 +769,14 @@ Interface pivot entre l'orchestrateur système et l'intelligence de calcul.
 ---
 
 **IStopPredictionModel**
-* **Implémenté par :** Modèles ML de risque chargés.
-* **Injecté dans :** Risk Monitor.
-* **Responsabilité :** Anticipation de sortie. Détermine si une liquidation préventive est requise avant l'atteinte mécanique du stop-loss.
-* **Règles :** Indépendant de la logique du Portfolio Manager.
+* **Implémenté par** : Modèles de décision de risque (Baseline linéaire, Régression, modèles ML/NN).
+* **Injecté dans / Utilisé par** : `Risk Monitor`.
+* **Responsabilité opérationnelle** : Oracle de sécurité. Évalue les données d'exposition et de marché pour prédire une violation de seuil avant qu'elle ne devienne critique.
+* **Règles d’accès ou d’usage** :
+* **Déterminisme** : Pour une entrée donnée, le modèle doit toujours produire la même sortie de risque.
+* **Zéro I/O** : Le modèle ne doit effectuer aucun appel disque ou réseau ; il travaille exclusivement avec les données fournies en argument (Snapshot + RawBufferSlice).
+* **Isolation** : Ce modèle est fonctionnellement indépendant de la logique "Alpha" (génération de profit) du Portfolio Manager.
+
 
 ---
 
