@@ -43,7 +43,7 @@ Le module **`10a-PHASE2-Surveillance-Urgence`** est le mécanisme de défense à
 |:---|:---|:---|:---|:---|
 |1|notifyDataReady(MarketStateContext)|EventBus|Risk Monitor|Notification asynchrone déclenchant le cycle de surveillance avec l'index de synchronisation du LHB.|
 |2|getCurrentExposure()|Risk Monitor|Portfolio Manager|Appel non-bloquant pour consulter l'état actuel de l'exposition via le PositionExposureStore.|
-|3|<<return>> PositionExposureSnapshot|Portfolio Manager|Risk Monitor|Retour de l'objet immuable contenant les positions et agrégats d'exposition.|
+|3|<< return >> PositionExposureSnapshot|Portfolio Manager|Risk Monitor|Retour de l'objet immuable contenant les positions et agrégats d'exposition.|
 |4|getRawBufferSlice()|Risk Monitor|Live Historic Buffer|Extraction des séries temporelles brutes à partir de l'index fourni par le contexte.|
 |5|checkRiskViolation()|Risk Monitor|Risk Monitor|Calcul interne (Feature Engineering + Modèle ML) pour détecter un dépassement de seuil.|
 |6|createEmergencyOrder(PositionState)|Risk Monitor|Risk Monitor|Génération d'un ordre de liquidation si une violation critique est confirmée.|
