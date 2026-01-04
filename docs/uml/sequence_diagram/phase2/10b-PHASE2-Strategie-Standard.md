@@ -8,34 +8,40 @@
 
 ### 1. Objectif
 
-L'objectif de cette séquence est d'exécuter de manière les ordres de trading standards **prédéterminés** (issus du rééquilibrage), en sélectionnant le moment optimal (timing) pour la soumission à l'exécution.
+L'objectif de cette séquence est d'exécuter de manière optimisée les ordres de trading standards **planifiés**. Ces ordres sont générés lors de la **Phase 4 (Strategy Update)** de la session précédente et chargés en mémoire vive lors du bootstrapping en **Phase 1**. Le module sélectionne le moment optimal (*timing*) pour la soumission à l'exécution en se basant sur l'analyse des séries temporelles intraday.
 
 ---
 
 ### 2. Contexte
 
-Ce processus s'inscrit au cœur de la **boucle de décision In-Trade** et est piloté par le **`PortfolioManager`**. Contrairement à l'urgence, il s'agit d'une **exécution planifiée**. Le cycle est déclenché par l'événement régulier **`notifySnapshotReady`** du `LiveDataHub`, qui fournit au PM l'opportunité d'évaluer l'état du marché à un instant précis.
+Ce processus constitue le cœur de la **boucle de décision In-Trade** pilotée par le **`PortfolioManager`**. Il s'agit d'une exécution tactique déclenchée par l'événement **`notifyDataReady`** provenant de l'**`EventBus`**. Ce signal indique que le **Historic Live Hub (LHB)** a stabilisé un nouveau snapshot de marché, permettant une analyse cohérente sans interférer avec le flux d'acquisition ultra-rapide.
 
 ---
 
 ### 3. Logique Générale
 
-Le `PortfolioManager` fonctionne en boucle persistante, s'activant à chaque notification de Snapshot. Il procède à un **Fetch synchrone** du prix le plus récent depuis le **`DataCache`**. Il utilise ensuite un algorithme de *timing* (ex: TWAP, VWAP) pour évaluer si ce prix est favorable par rapport à l'objectif de l'ordre précalculé, ou si le temps imparti pour l'exécution d'un lot est écoulé. Si la condition est jugée optimale, le PM récupère l'ordre correspondant, journalise sa décision d'exécution, et soumet l'ordre à l'`OrderManager`.
+Le `PortfolioManager` fonctionne en mode "Pull" réactif pour garantir l'isolation des ressources :
+
+1. **Réception du Signal** : Le PM est réveillé par l'**EventBus** avec le contexte du dernier snapshot.
+2. **Mise à jour et Extraction** : Le PM sollicite le **LHB** via `getRawBufferSlice()` pour obtenir un vecteur immuable de prix historiques (). Il met à jour ses indicateurs internes avec ces données.
+3. **Analyse de Timing** : Un algorithme de décision (ex: VWAP, ML) évalue si le prix actuel est favorable par rapport à l'objectif de l'ordre planifié.
+4. **Récupération de l'Ordre** : Si la condition est optimale, le PM extrait l'ordre correspondant (chargé initialement en Phase 1).
+5. **Audit et Envoi** : Le PM journalise sa décision de manière synchrone avant de soumettre l'ordre à l'**`OrderManager`** avec une priorité **`STANDARD`**.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Déclenchement Périodique :** Le `PortfolioManager` utilise la notification du Snapshot comme un *snapshot* d'horloge régulier pour ses algorithmes de *timing*, évitant de gaspiller des ressources sur une analyse à la fréquence brute des *ticks*.
-* **Priorité Standard :** L'ordre est soumis avec la priorité **`STANDARD`**. Il doit obligatoirement être inséré dans la `PriorityQueue` derrière tout ordre de priorité **`CRITICAL`**.
-* **Audit Synchrone :** L'enregistrement de la décision d'exécution (`logExecutionDecision`) est **synchrone**. Le PM doit enregistrer la justification de son choix de *timing* (le prix et le moment) avant de soumettre l'ordre pour garantir l'auditabilité de la performance d'exécution.
-* **Rôle d'Exécuteur :** Le `PortfolioManager` n'est pas le créateur de l'intention de trading, mais le **gestionnaire tactique de l'exécution**.
+* **Origine des Ordres** : Les intentions de trading sont générées en **Phase 4 (J-1)** et uniquement **chargées** depuis la base de données en **Phase 1 (J)**. Le PM en Phase 2 ne crée pas d'intention, il gère uniquement la tactique d'exécution.
+* **Isolation par Double Buffering** : Le PM lit exclusivement dans le buffer "gelé" du **LHB**, assurant une lecture **Lock-Free**. Cela garantit que l'analyse tactique ne ralentit jamais l'ingestion des nouveaux ticks (Fast-Lane).
+* **Priorité Relative** : Tout ordre issu de cette séquence porte le flag **`STANDARD`**. L'**`OrderManager`** et la **`PriorityQueue`** garantissent que ces ordres sont traités après les ordres de priorité `CRITICAL` (Urgence/Risque).
+* **Audit Synchrone** : L'appel `logExecutionDecision` doit être complété avant la soumission physique de l'ordre pour assurer une traçabilité parfaite entre le signal de prix et l'action engagée.
 
 ---
 
 ### 5. Conclusion
 
-Le module garantit que les ordres de stratégie sont exécutés au moment jugé le plus favorable par les algorithmes d'optimisation, sans jamais interférer avec la priorité absolue accordée aux ordres de surveillance et d'urgence gérés par le `RiskMonitor`. Il assure l'efficacité des transactions planifiées dans le respect strict des contraintes de priorité du système.
+Ce module assure que les ordres de stratégie sont exécutés au moment jugé le plus favorable par les algorithmes d'optimisation. En s'appuyant sur le **LHB** et l'**EventBus**, elle garantit une efficacité transactionnelle maximale tout en respectant la hiérarchie de priorité absolue imposée par les contraintes de risque du système.
 
 ---
 
@@ -52,3 +58,42 @@ Le module garantit que les ordres de stratégie sont exécutés au moment jugé 
 |9|Return: EnqueueConfirmed|PriorityQueue|OrderManager|Confirmation technique que l'ordre est bien enregistré dans la file d'attente système.|
 |10|Return: OrderSubmitted|OrderManager|PortfolioManager|Accusé de réception final confirmant la prise en charge de l'ordre par la couche d'exécution.|
 |ref|(OM-RouteOrderToBroker)|OrderManager|Externe|Fragment de référence indiquant la transmission effective du message FIX/API vers la gateway du courtier.|
+
+
+### 6. Ports et Interfaces
+
+Voici la section **6. Ports et Interfaces** rédigée pour la documentation du module `10b-PHASE2-Strategie-Standard`. Elle s'appuie rigoureusement sur votre catalogue canonique tout en introduisant les spécificités liées au modèle "Signal-then-Pull" du LHB.
+
+---
+
+### 6. Ports et Interfaces
+
+**IEventBusPort**
+* **Implémenté par** : `EventBus Global`
+* **Injecté dans / Utilisé par** : `Portfolio Manager` (Abonné)
+* **Responsabilité opérationnelle** : Notification asynchrone notifiant que le swap de buffer du LHB est effectué et qu'un nouveau snapshot cohérent est prêt pour analyse.
+* **Règles d’accès ou d’usage** : Diffusion asynchrone ultra-légère contenant uniquement l'index (ID) du slot mémoire stabilisé.
+
+**ILiveDataReader**
+* **Implémenté par** : `Historic Live Hub (LHB)`
+* **Injecté dans / Utilisé par** : `Portfolio Manager`
+* **Responsabilité opérationnelle** : Fournir un accès en lecture seule aux séries temporelles (Time-Series) de la session en cours via une indexation linéaire absolue.
+* **Règles d’accès ou d’usage** : Extraction synchrone en . Utilisation obligatoire du mécanisme de **Double Buffering** pour garantir une isolation totale vis-à-vis de l'ingestion Fast-Lane.
+
+**IExecutionDecisionModel**
+* **Implémenté par** : Modèles tactiques chargés (VWAP, TWAP, ML, Baseline)
+* **Injecté dans / Utilisé par** : `Portfolio Manager`
+* **Responsabilité opérationnelle** : Oracle de décision déterminant si le prix actuel et le contexte historique permettent l'exécution d'un ordre planifié.
+* **Règles d’accès ou d’usage** : Modèle strictement déterministe et **stateless**. Aucun effet de bord ni accès I/O autorisé lors de l'appel.
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : `Portfolio Manager`
+* **Responsabilité opérationnelle** : Journalisation des décisions tactiques (`logExecutionDecision`) incluant le prix et la justification du timing.
+* **Règles d’accès ou d’usage** : **Mode synchrone et bloquant** impératif avant la soumission de l'ordre pour garantir l'auditabilité de la performance d'exécution.
+
+**IOrderInputQueuePort**
+* **Implémenté par** : `OrderInputQueue`
+* **Injecté dans / Utilisé par** : `Portfolio Manager` (Producteur)
+* **Responsabilité opérationnelle** : Point de dépôt asynchrone pour les ordres générés par la logique de stratégie.
+* **Règles d’accès ou d’usage** : Attribution obligatoire de la priorité **`STANDARD`**. L'ordre sera traité par l'Order Manager après les flux critiques de risque.
