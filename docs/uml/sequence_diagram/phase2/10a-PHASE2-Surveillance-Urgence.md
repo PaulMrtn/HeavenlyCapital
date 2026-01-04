@@ -8,7 +8,7 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de garantir la **détection immédiate** d'une violation critique des limites de risque et de déclencher l'exécution d'un ordre de liquidation (Stop-Loss ou Kill-Switch) avec une **priorité maximale absolue**, préservant ainsi le capital.
+Assurer une surveillance critique du capital en détectant toute violation de risque via une analyse déterministe basée sur des modèles de décision (statistiques, prédictifs ou heuristiques). Le module doit déclencher une liquidation avec une priorité maximale tout en garantissant un audit complet sans impacter la latence de la stratégie principale.
 
 ---
 
