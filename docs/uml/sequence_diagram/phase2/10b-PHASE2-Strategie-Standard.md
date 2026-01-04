@@ -39,16 +39,16 @@ Le module garantit que les ordres de stratégie sont exécutés au moment jugé 
 
 ---
 
-|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|ID|Fonction / Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|notifySnapshotReady(SnapshotHeader)|LiveDataHub|PortfolioManager|Signal asynchrone notifiant qu'un nouveau bloc de données de marché cohérent est disponible pour analyse tactique.|
-|2|getCurrentQuote(AssetID)|PortfolioManager|DataCache|Requête synchrone pour obtenir le prix de marché actuel de l'actif concerné par la stratégie.|
-|3|Return: CurrentMarketQuote|DataCache|PortfolioManager|Retour de la cotation la plus récente stockée en mémoire vive.|
-|4|checkTimingOpportunity(MarketQuote)|PortfolioManager|PortfolioManager|Auto-évaluation utilisant des algorithmes (ex: TWAP/VWAP) pour déterminer si le prix actuel est optimal pour l'exécution.|
-|5|fetchNextPendingOrder(TimingParameters)|PortfolioManager|PortfolioManager|Récupération interne de l'ordre planifié suivant (issu du rééquilibrage) lorsque le timing est jugé favorable.|
-|6|logExecutionDecision(OrderEvent)|PortfolioManager|Log Session|Enregistrement synchrone des paramètres ayant mené à la décision d'exécution pour audit de performance.|
-|7|submitNewOrder(RequestOrder, Priority: STANDARD)|PortfolioManager|OrderManager|Soumission de l'ordre à l'exécuteur avec un niveau de priorité normal (inférieur aux ordres critiques).|
-|8|enqueue(OrderRequest)|OrderManager|PriorityQueue|Placement de l'ordre dans la file d'attente prioritaire pour traitement par l'infrastructure d'exécution.|
-|9|Return: EnqueueConfirmed|PriorityQueue|OrderManager|Confirmation de la bonne réception et de la mise en attente de l'ordre dans la queue.|
-|10|OrderSubmissionAccepted|OrderManager|PortfolioManager|Confirmation finale au gestionnaire de portefeuille que l'ordre a été pris en charge avec succès.|
-|ref|(OM-RouteOrderToBroker)|OrderManager|Externe|Référence à la procédure de transmission effective de l'ordre vers le courtier externe.|
+|1|notifyDataReady(MarketStateContext)|EventBus|PortfolioManager|Signal asynchrone notifiant que le swap de buffer LHB est effectué et que les données sont prêtes pour analyse.|
+|2|getRawBufferSlice()|PortfolioManager|Live Historic Buffer|Requête synchrone (O(1)) pour extraire une fenêtre de séries temporelles (vecteur) depuis la mémoire gelée.|
+|3|TimeSeriesVector|Live Historic Buffer|PortfolioManager|Retour immuable des données historiques nécessaires aux calculs des modèles de timing (ex: VWAP, ML).|
+|4|checkTimingOpportunity()|PortfolioManager|PortfolioManager|Auto-évaluation (modèle tactique) déterminant si le prix actuel et la tendance valident une entrée immédiate.|
+|5|fetchNextPendingOrder(TimingParameters)|PortfolioManager|PortfolioManager|Récupération de l'ordre planifié issu du rééquilibrage de Phase 1 une fois le signal de timing validé.|
+|6|logExecutionDecision(OrderEvent)|PortfolioManager|Log Session|Enregistrement synchrone et bloquant de la justification du timing (prix/contexte) pour l'audit de performance.|
+|7|submitNewOrder(RequestOrder, Priority: STANDARD)|PortfolioManager|OrderManager|Soumission de l'ordre de stratégie à l'exécuteur avec un niveau de priorité normal (Standard).|
+|8|enqueue(OrderRequest)|OrderManager|PriorityQueue|Placement de l'ordre dans la file d'attente prioritaire pour séquençage physique vers le broker.|
+|9|Return: EnqueueConfirmed|PriorityQueue|OrderManager|Confirmation technique que l'ordre est bien enregistré dans la file d'attente système.|
+|10|Return: OrderSubmitted|OrderManager|PortfolioManager|Accusé de réception final confirmant la prise en charge de l'ordre par la couche d'exécution.|
+|ref|(OM-RouteOrderToBroker)|OrderManager|Externe|Fragment de référence indiquant la transmission effective du message FIX/API vers la gateway du courtier.|
