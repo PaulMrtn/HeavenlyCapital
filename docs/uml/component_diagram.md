@@ -180,6 +180,10 @@ Le Portfolio Manager est également un Subscriber à l'événement `FILL_RECEIVE
     * **CashFlow** : Représente un mouvement de liquidité (dépôt, retrait) affectant la ligne de trésorerie.
     * **Position** : Représente la quantité agrégée d'un actif détenu.
 
+
+`PositionExposureSnapshot` est un objet **immuable** représentant l’état courant des positions et expositions, **créé et mis à jour exclusivement par le PortfolioManager**, initialisé au bootstrap puis **recréé intégralement** après chaque exécution d’ordre, modification de position ou ajustement interne ; chaque nouvelle instance est publiée via un **swap atomique** dans un `PositionExposureStore` (référence unique volatile/atomique), rendant l’ancienne éligible au GC. L’objet contient uniquement des **données déjà calculées** (aucune logique) : en utilisant uniquement des primitives ou structures plates non modifiables. La **lecture est lock-free, non bloquante, sans allocation**, via `.getCurrentExposure()`, utilisée uniquement par le `RiskMonitor`, qui **ne contacte jamais le PortfolioManager** et ne déclenche aucun calcul métier ; l’écriture est synchrone via `IPositionExposureUpdater.publishNewExposure(snapshot)`, appelée uniquement par le PM. Aucune synchronisation explicite (mutex/synchronized) n’est autorisée ; la visibilité mémoire est garantie par l’atomicité. Le snapshot n’a **aucune dépendance** vers le LHB, le DataCache ou le RM, n’est **jamais persisté, sérialisé ni diffusé** via l’EventBus. 
+
+
 #### Notes
 
 * **Simulation de l'État Cible (Lookahead) :** Le PM doit être capable de **simuler** l'état futur (`Portfolio`) en intégrant les ordres de rééquilibrage, les coûts de transaction et le *slippage* anticipé **avant** de soumettre les ordres.
