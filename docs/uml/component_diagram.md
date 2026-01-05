@@ -333,24 +333,6 @@ Le `Thread Manager` collabore étroitement avec le **`Database Connector`** pour
 
 ## V. Monitoring & Logging
 
-### **Monitoring Module**
-
-Le **Monitoring Module** est le service central responsable de la collecte et de l'agrégation des **métriques de performance** du système. Son objectif principal est de **supporter la phase de calibration** durant le *paper trading* en mesurant les latences réelles (temps d'exécution des ordres, récupération des prix, exécution des *jobs*). Il est conçu pour que la collecte des métriques soit **asynchrone** et **non bloquante** (*Fire-and-Forget*), afin de garantir l'absence d'impact sur la performance du cœur de trading. Les données sont stockées pour une analyse manuelle et l'identification des anomalies système.
-
-* **Interfaces Fournies / Requises :**
-    * **IMetricPublisher** : **Interface fournie** pour l'envoi asynchrone des métriques par les autres composants (ex: **Order Manager**).
-    * **IMetricReader** : **Interface fournie** pour exposer les métriques agrégées pour l'analyse (utilisé par le **System Manager** ou les outils d'analyse hors ligne).
-    * **ILogService** : **Interface requise** pour enregistrer les alertes ou les événements de métriques.
-
-* **Data Classes :**
-    * **SystemMetric** : Représente une seule mesure de performance ou de santé du système.
-    * **MetricSnapshot** : Conteneur agrégé de plusieurs `SystemMetric` sur une période donnée.
-
-#### Notes
-
-* **Isolation de la Collecte (Fire-and-Forget) :** L'implémentation doit garantir que l'appel à l'`IMetricPublisher` est **non bloquant** et s'exécute dans un *thread* séparé, de façon à ce que la collecte n'introduise **aucune latence** dans le flux d'exécution critique.
-* **Support à la Calibration :** La structure des `SystemMetric` doit prioriser les données pertinentes pour la calibration (ex: **latence inter-module**, **taux de remplissage des ordres simulés**) afin de faciliter la validation du système avant le passage en mode LIVE.
-
 
 ### **Log Service**
 
@@ -643,3 +625,22 @@ Le **Notification Service** est responsable de la **diffusion des alertes et mes
 #### TODO
 * **Config, Path, Params** : **Interfaces/Paramètres**
 ---
+
+
+### **Monitoring Module**
+
+Le **Monitoring Module** est le service central responsable de la collecte et de l'agrégation des **métriques de performance** du système. Son objectif principal est de **supporter la phase de calibration** durant le *paper trading* en mesurant les latences réelles (temps d'exécution des ordres, récupération des prix, exécution des *jobs*). Il est conçu pour que la collecte des métriques soit **asynchrone** et **non bloquante** (*Fire-and-Forget*), afin de garantir l'absence d'impact sur la performance du cœur de trading. Les données sont stockées pour une analyse manuelle et l'identification des anomalies système.
+
+* **Interfaces Fournies / Requises :**
+    * **IMetricPublisher** : **Interface fournie** pour l'envoi asynchrone des métriques par les autres composants (ex: **Order Manager**).
+    * **IMetricReader** : **Interface fournie** pour exposer les métriques agrégées pour l'analyse (utilisé par le **System Manager** ou les outils d'analyse hors ligne).
+    * **ILogService** : **Interface requise** pour enregistrer les alertes ou les événements de métriques.
+
+* **Data Classes :**
+    * **SystemMetric** : Représente une seule mesure de performance ou de santé du système.
+    * **MetricSnapshot** : Conteneur agrégé de plusieurs `SystemMetric` sur une période donnée.
+
+#### Notes
+
+* **Isolation de la Collecte (Fire-and-Forget) :** L'implémentation doit garantir que l'appel à l'`IMetricPublisher` est **non bloquant** et s'exécute dans un *thread* séparé, de façon à ce que la collecte n'introduise **aucune latence** dans le flux d'exécution critique.
+* **Support à la Calibration :** La structure des `SystemMetric` doit prioriser les données pertinentes pour la calibration (ex: **latence inter-module**, **taux de remplissage des ordres simulés**) afin de faciliter la validation du système avant le passage en mode LIVE.
