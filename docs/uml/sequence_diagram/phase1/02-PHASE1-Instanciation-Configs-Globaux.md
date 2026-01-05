@@ -59,12 +59,12 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 |7|getStaticConfig(IBKR_Config)|System Manager|System Manager|Extraction locale des paramètres spécifiques à la passerelle IBKR.|
 |8|new IBKRGateway(IBKR_Config, PersistencePort)|System Manager|IBKR Gateway|Instanciation de la passerelle broker avec injection de sa config et du port de persistance.|
 |9|HCheckUnitary(IBKRGateway)|System Manager|System Manager|Vérification unitaire de l'intégrité de la passerelle IBKR.|
-|10|systemStop(CRITICAL_ERROR)|System Manager|Error Service|Arrêt immédiat du bootstrapping en cas d'échec du H-Check de la passerelle.|
+|10|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt immédiat du bootstrapping en cas d'échec du H-Check de la passerelle.|
 |11|getConfig(LDH_Config)|System Manager|System Manager|Extraction locale des paramètres pour le Hub de données et le Buffer historique.|
 |12|new LiveHistoryBuffer(Config)|System Manager|Historic Live Hub|Création du singleton LHB et pré-allocation de la matrice linéaire de 1000 slots.|
 |13|new LiveDataHub(LDH_Config, PersistencePort, ILiveDataSubscriber(LHB))|System Manager|Live Data Hub|Instanciation du LDH avec injection du PersistencePort et de l'interface d'écriture vers le LHB.|
 |14|HCheckUnitary(LDH, LHB)|System Manager|System Manager|Validation groupée de l'intégrité du Hub de flux et de la structure mémoire du Buffer.|
-|15|systemStop(CRITICAL_ERROR)|System Manager|Error Service|Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie critique.|
+|15|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie critique.|
 
 ### 6. Ports et Interfaces
 
