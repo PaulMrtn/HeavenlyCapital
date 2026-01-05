@@ -166,12 +166,6 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
   * **Responsabilité :** Fournir les paramètres statiques et les seuils de risque par session.
   * **Règles d’usage :** **Lecture seule.** Pas de modification dynamique autorisée pendant la session de trading.
 
-**Port : IHealthCheckPort**
-  * **Implémenté par :** HealthService (Infrastructure Layer).
-  * **Injecté dans :** PM, RM, OM, System Manager.
-  * **Responsabilité :** Exposer l’état de santé des threads, des files d'attente et des dépendances critiques.
-  * **Règles d’usage :** Appel autorisé uniquement hors chemin critique (hors boucle de calcul). État calculé localement sans I/O bloquante. Cycle de vie aligné sur le manager hôte.
-
 **Port : IErrorHandler**
   * **Implémenté par :** ErrorService (Core Infrastructure).
   * **Injecté dans :** PM, RM, OM.
