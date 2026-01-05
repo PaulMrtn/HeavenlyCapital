@@ -561,9 +561,85 @@ Le **Shock Simulator** est une extension optionnelle du **Backtest Engine** déd
 
 ### IX. Utilitaires
 
-* **Reporting Manager** : Génère des rapports de performance et d'activité du système.
-#### TODO
-* **Notification Manager** : Envoie des alertes aux utilisateurs ou aux systèmes externes.
+### **Metric Service**
+
+Le **Metric Service** est le composant central pour la **collecte, l’agrégation et la diffusion des métriques système et applicatives**. Il fonctionne comme un **singleton global**, garantissant une référence unique pour toutes les métriques dans le système. Il est conçu pour supporter la **collecte asynchrone, non bloquante** et la publication vers différents consommateurs (Monitoring Module, System Manager, Strategy Engine).
+
+* **Type de composant :** Singleton, Publisher / Callback
+* **Interfaces Fournies / Requises :**
+
+  * **IMetricPublisher** : Interface fournie pour que les composants tiers publient leurs métriques.
+  * **IMetricReader** : Interface fournie pour exposer les métriques agrégées aux outils d’analyse ou modules internes.
+  * **ILogService** : Composant requis pour journaliser les métriques critiques ou anomalies.
+* **Data Classes :**
+
+  * **SystemMetric** : Représente une métrique unique (latence, taux d’exécution, consommation mémoire).
+  * **MetricSnapshot** : Regroupe plusieurs `SystemMetric` pour un intervalle de temps donné.
+* **Notes :**
+
+  * **Fire-and-Forget / Thread-Safe :** Les publications de métriques sont non bloquantes et exécutées sur un thread séparé.
+  * **Support Calibration :** Priorise les mesures critiques pour la validation avant passage en production.
+
+### **Log Service (mis à jour)**
+
+Le **Log Service** est le composant d’audit central et le **point de persistance des événements système et métier**. Il fonctionne comme un **singleton global**, et expose des **callbacks** pour les consommateurs qui souhaitent réagir en temps réel aux logs.
+
+* **Type de composant :** Singleton, Publisher / Callback
+* **Interfaces Fournies / Requises :**
+
+  * **ILogger** : Interface fournie pour l’écriture d’événements (`EventLog`).
+  * **ILogReader** : Interface fournie pour interroger l’historique des événements.
+  * **IDatabaseWriter** : Composant requis pour persister les logs.
+  * **IMetricPublisher** : Composant requis pour publier des métriques liées à la performance/logging.
+* **Data Classes :**
+
+  * **EventLog** : Contient `timestamp`, `level`, `component`, `session_id`, `payload` détaillé.
+* **Notes :**
+
+  * **Asynchrone / Non bloquant :** La persistance et la publication se font dans des threads séparés pour éviter l’impact sur la latence.
+  * **Callbacks multiples :** Les modules abonnés peuvent recevoir les événements pour audit ou alerting.
+
+### **Error Service**
+
+Le **Error Service** centralise la gestion des **exceptions critiques et erreurs système**. Il agit comme **singleton global**, et est réveillé via l’**Error Bus** chaque fois qu’un événement d’erreur est publié. Il distingue les erreurs selon les **domaines** (`ErrorDomain`) pour appliquer des stratégies adaptées (journalisation, notification, shutdown).
+
+* **Type de composant :** Singleton, Subscriber / Callback
+* **Interfaces Fournies / Requises :**
+
+  * **IErrorHandler** : Interface fournie pour gérer une erreur spécifique (`handle(error: ErrorDomain)`).
+  * **ErrorBus** : Composant requis pour recevoir toutes les erreurs publiées.
+  * **ILogger** : Composant requis pour journaliser l’erreur.
+  * **INotificationService** : Composant requis pour alerter les équipes sur les erreurs critiques.
+* **Data Classes :**
+
+  * **ErrorDomain** : Enum représentant les catégories d’erreurs (Ex: `DatabaseError`, `ExecutionError`, `PipelineError`).
+  * **ErrorEvent** : Contient `domain`, `severity`, `message`, `timestamp`, `context`.
+* **Notes :**
+
+  * **Réveil par publication :** Lorsqu’une erreur est publiée sur l’`ErrorBus`, l’instance singleton se déclenche et applique sa logique.
+  * **Gestion multi-domaines :** Chaque `ErrorDomain` peut avoir sa stratégie (ex: `shutdown()` pour `CriticalError`).
+  * **Propagation :** Peut re-publier des événements ou alerter le `Notification Service` selon le niveau de gravité.
+
+### **Notification Service**
+
+Le **Notification Service** est responsable de la **diffusion des alertes et messages critiques** aux utilisateurs ou systèmes externes. Il agit comme un **singleton global** et peut être appelé directement par le **Error Service**, **Job Manager**, ou tout composant qui souhaite notifier en temps réel.
+
+* **Type de composant :** Singleton, Publisher / Callback
+* **Interfaces Fournies / Requises :**
+
+  * **INotificationPublisher** : Interface fournie pour envoyer un message ou alerte.
+  * **ILogger** : Composant requis pour journaliser les notifications envoyées.
+  * **IMetricPublisher** : Composant requis pour publier des métriques de notification (latence, échec).
+* **Data Classes :**
+
+  * **NotificationEvent** : Contient `level`, `recipient_list`, `message`, `timestamp`, `context`.
+* **Notes :**
+
+  * **Priorité et canal configurable :** Emails, SMS, Webhooks, Slack, etc.
+  * **Thread-safe / Asynchrone :** L’envoi est non bloquant, et chaque destinataire est traité indépendamment.
+  * **Réception multi-abonné possible :** Plusieurs canaux peuvent recevoir la même notification simultanément.
+
+
 #### TODO
 * **Config, Path, Params** : **Interfaces/Paramètres**
 ---
