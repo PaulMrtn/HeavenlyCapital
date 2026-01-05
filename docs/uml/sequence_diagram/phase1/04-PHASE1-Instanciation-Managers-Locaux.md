@@ -51,8 +51,8 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 
 #### Étape 5 : Finalisation et Audit de Readiness
 
-* **Port de Santé Dédié :** Création d'un `IHealthCheckPort` spécifique au triplet pour superviser la latence locale et l'état des files.
-* **H-Check de Session :** Appel à `HCheckSessionReady(ID)` qui valide :
+* **Port de Santé Dédié :** Le System Manager effectue directement les vérifications de latence locale et de l'état des files pour le triplet PM/RM/OM.
+* **H-Check de Session :** A: Appel à `HCheckSessionReady(ID)` géré en interne par le System Manager, qui valide :
   1. La connectivité au **LHB**.
   2. La validité des pointeurs vers les modèles ML.
   3. L'intégrité des canaux de communication PM-RM-OM.
