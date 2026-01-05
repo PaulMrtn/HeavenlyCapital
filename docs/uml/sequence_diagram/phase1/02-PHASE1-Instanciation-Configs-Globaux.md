@@ -14,7 +14,7 @@ La finalité de ce module est de centraliser la récupération de **toutes les c
 
 ### 2. Contexte et Dépendances
 
-Ce module s'inscrit directement après la validation de la connectivité et du jour ouvré (Phase 01). Il représente la première étape d'allocation des ressources en mémoire vive. Les Singletons créés ici (`IBKR Gateway`, `Live Data Hub`, `Historic Live Hub`, `SystemHealthService`, `ErrorService`) sont des dépendances fondamentales pour tous les managers métier instanciés ultérieurement.
+Ce module s'inscrit directement après la validation de la connectivité et du jour ouvré (Phase 01). Il représente la première étape d'allocation des ressources en mémoire vive. Les Singletons créés ici (`IBKR Gateway`, `Live Data Hub`, `Historic Live Hub`, `ErrorService`) sont des dépendances fondamentales pour tous les managers métier instanciés ultérieurement.
 
 ---
 
@@ -28,7 +28,7 @@ Ce module s'inscrit directement après la validation de la connectivité et du j
 
 ### 4. Règles Critiques de Sécurité et Fail-Fast
 
-* **Socle d'Infrastructure :** Avant l'allocation des managers métier, le système doit instancier le **SystemHealthService** (contrôle des threads) et le **CriticalErrorHandlingService** (gestion des actions Fail-Fast).
+* **Socle d'Infrastructure :** Avant l'allocation des managers métier, le **CriticalErrorHandlingService** (a renommer ...) )(gestion des actions Fail-Fast).
 * **Intégrité par H-Check :** Un **H-Check unitaire** est effectué immédiatement après chaque création pour valider l'intégrité de l'objet en mémoire.
 * **Spécificité LDH :** Le H-Check du Live Data Hub vérifie la validité des seuils, l'injection du port de persistance et l'absence de connexion réseau active à ce stade.
 * **Spécificité LHB :** Le H-Check du Live History Buffer valide que les **Buffers A/B** sont correctement alloués, que l'**index initial est à 0**, qu'**aucun writer n'est actif** et que l'**EventBusPort** est injecté mais silencieux. Le lien de souscription est actif (vérification du pointeur). En cas d'échec de l'un de ces points, le systemStop est déclenché immédiatement.
@@ -54,17 +54,16 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 |2|create()|Data Access Layer|Config|Instanciation de l'objet de stockage mémoire pour les configurations statiques.|
 |3|write(AllConfigs)|Data Access Layer|Config|Hydratation de l'objet Config avec les données lues en base de données.|
 |4|ConfigData|Data Access Layer|System Manager|Retour de l'objet structuré contenant les paramètres globaux immuables.|
-|5|new SystemHealthService(Health_Config)|System Manager|Health Service|Création du service de supervision de l'état de santé des threads système.|
-|6|new CriticalErrorHandlingService(Error_Config)|System Manager|Error Service|Création du service de gestion des erreurs critiques et actions Fail-Fast.|
-|7|getStaticConfig(IBKR_Config)|System Manager|System Manager|Extraction locale des paramètres spécifiques à la passerelle IBKR.|
-|8|new IBKRGateway(IBKR_Config, PersistencePort)|System Manager|IBKR Gateway|Instanciation de la passerelle broker avec injection de sa config et du port de persistance.|
-|9|HCheckUnitary(IBKRGateway)|System Manager|System Manager|Vérification unitaire de l'intégrité de la passerelle IBKR.|
-|10|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt immédiat du bootstrapping en cas d'échec du H-Check de la passerelle.|
-|11|getConfig(LDH_Config)|System Manager|System Manager|Extraction locale des paramètres pour le Hub de données et le Buffer historique.|
-|12|new LiveHistoryBuffer(Config)|System Manager|Historic Live Hub|Création du singleton LHB et pré-allocation de la matrice linéaire de 1000 slots.|
-|13|new LiveDataHub(LDH_Config, PersistencePort, ILiveDataSubscriber(LHB))|System Manager|Live Data Hub|Instanciation du LDH avec injection du PersistencePort et de l'interface d'écriture vers le LHB.|
-|14|HCheckUnitary(LDH, LHB)|System Manager|System Manager|Validation groupée de l'intégrité du Hub de flux et de la structure mémoire du Buffer.|
-|15|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie critique.|
+|5|new CriticalErrorHandlingService(Error_Config)|System Manager|Error Service|Création du service de gestion des erreurs critiques et actions Fail-Fast.|
+|6|getStaticConfig(IBKR_Config)|System Manager|System Manager|Extraction locale des paramètres spécifiques à la passerelle IBKR.|
+|7|new IBKRGateway(IBKR_Config, PersistencePort)|System Manager|IBKR Gateway|Instanciation de la passerelle broker avec injection de sa config et du port de persistance.|
+|8|HCheckUnitary(IBKRGateway)|System Manager|System Manager|Vérification unitaire de l'intégrité de la passerelle IBKR.|
+|9|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt immédiat du bootstrapping en cas d'échec du H-Check de la passerelle.|
+|10|getConfig(LDH_Config)|System Manager|System Manager|Extraction locale des paramètres pour le Hub de données et le Buffer historique.|
+|11|new LiveHistoryBuffer(Config)|System Manager|Historic Live Hub|Création du singleton LHB et pré-allocation de la matrice linéaire de 1000 slots.|
+|12|new LiveDataHub(LDH_Config, PersistencePort, ILiveDataSubscriber(LHB))|System Manager|Live Data Hub|Instanciation du LDH avec injection du PersistencePort et de l'interface d'écriture vers le LHB.|
+|13|HCheckUnitary(LDH, LHB)|System Manager|System Manager|Validation groupée de l'intégrité du Hub de flux et de la structure mémoire du Buffer.|
+|14|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie critique.|
 
 ### 6. Ports et Interfaces
 
@@ -91,12 +90,6 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 * **Injecté dans / Utilisé par** : `System Manager`
 * **Responsabilité opérationnelle** : Gestion centralisée des erreurs critiques et propagation des erreurs fatales.
 * **Règles d’accès ou d’usage** : Appels synchrones pour erreurs critiques (Fail-Fast).
-
-**IHealthCheckPort**
-* **Implémenté par** : `HealthService`
-* **Injecté dans / Utilisé par** : `System Manager`
-* **Responsabilité opérationnelle** : Vérification de l'état de santé des composants et des structures mémoire (H-Checks).
-* **Règles d’accès ou d’usage** : Appel hors chemin critique, aucun I/O bloquant.
 
 **ILiveDataSubscriber**
 * **Implémenté par** : `LiveHistoryBuffer` (LHB)
