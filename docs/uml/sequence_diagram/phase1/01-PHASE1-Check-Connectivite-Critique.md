@@ -42,16 +42,21 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|publish(MarketEvent{SYSTEM_WAKEUP})|Market Clock|System Manager|Événement asynchrone déclenchant le réveil du système et le début du bootstrapping.|
-|ref|SM-RESILIENT-CHECK-CONNECTION(Service_Name)|System Manager|Fragment Résilience|Vérification séquentielle (DB, IBKR, EODHD) avec timeouts différenciés (2s, 10s, 5s).|
-|2,3,4|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Auto-appel déclenchant la procédure d'arrêt d'urgence et la destruction du runtime.|
-|5|calculateMarketDayStatus()|System Manager|System Manager|Logique interne déterminant si le jour actuel est un jour de trading via le module Calendar.|
-|6|persistMarketDayStatus()|System Manager|Data Ingestion Layer|Délégation au DIL pour la persistance du statut du jour et récupération de données contextuelles.|
-|7a|cleanupConnections()|System Manager|System Manager|Libération des sockets et ressources (DB/IBKR) pour éviter toute fuite de ressources en mode Off-Cycle.|
-|7b|transitionTo(Off-Cycle)|System Manager|System Manager|Mise en veille du système si le marché est fermé (pas d'instanciation nécessaire).|
-|8|call_02-PHASE1...()|System Manager|System Manager|Passage à la séquence suivante d'instanciation globale si toutes les conditions sont validées.|
+|1|IMarketEventPublisher.publish(MarketEvent{SYSTEM_WAKEUP})|Market Clock|System Manager|Signal de réveil asynchrone déclenchant le passage de l'état IDLE à la phase de vérification active.|
+|ref|SM-RESILIENT-CHECK-CONNECTION(checkStatus(Database_Service))|System Manager|Data Ingestion Layer|Appel au fragment de résilience pour vérifier la connectivité vitale à la base de données principale.|
+|2|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Arrêt d'urgence du processus en cas d'impossibilité de joindre la base de données.|
+|ref|SM-RESILIENT-CHECK-CONNECTION(checkStatus(IBKR_Service))|System Manager|Data Ingestion Layer|Vérification de la liaison avec la passerelle du courtier (Interactive Brokers).|
+|3|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Arrêt immédiat si la connexion au broker est défaillante au démarrage.|
+|ref|SM-RESILIENT-CHECK-CONNECTION(checkStatus(EODHD_Service))|System Manager|Data Ingestion Layer|Vérification de l'accès à l'API externe de données historiques et de référence.|
+|4|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Arrêt de sécurité si le fournisseur de données de référence est inaccessible.|
+|5|calculateMarketDayStatus()|System Manager|System Manager|Logique interne déterminant si la date actuelle est une session ouverte (calendrier boursier).|
+|6|persistMarketDayStatus|System Manager|Data Ingestion Layer|Enregistrement du statut de la journée via l'interface «MarketDayStatusWriter».|
+|7|cleanupConnections()|System Manager|System Manager|Fermeture propre des sockets et libération des ressources si le marché est fermé.|
+|8|transitionTo(Off-Cycle)|System Manager|System Manager|Retour à l'état de veille prolongée pour les jours non ouvrés (week-end/férié).|
+|9|launch_PHASE1_workflow()|System Manager|System Manager|Déclenchement des procédures de pré-ouverture (chargement portefeuille/risque) si PRE_MARKET.|
+|10|launch_PHASE4_workflow()|System Manager|System Manager|Initialisation des moteurs stratégiques si le réveil correspond au cycle STRATEGIC_SETUP.|
 
 ---
 
