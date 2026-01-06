@@ -57,3 +57,34 @@ Ce module garantit un **démarrage déterministe, auditable et polyvalent**. Que
 
 ---
 
+### 6. Ports et Interfaces
+
+**IProcessControlPort**
+* **Implémenté par** : `System Manager` / `Runtime Environment`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Gérer les transitions d'état de vie du processus et l'entrée dans les différents modes d'exécution.
+* **Règles d’accès ou d’usage** : Invoqué pour le message `setSystemState(STATE_IDLE_READY)` et la gestion du passage en mode `waitForSystemEvent()`.
+
+**IMarketEventProvider**
+* **Implémenté par** : `Market Clock`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Activation de la référence temporelle (`startClock`) et gestion des abonnements aux événements de structure de session.
+* **Règles d’accès ou d’usage** : Doit être opérationnel immédiatement après le boot pour permettre l'appel `subscribeToWakeup()`. Précision milliseconde requise.
+
+**ILogger**
+* **Implémenté par** : `Logger Global`
+* **Injecté dans / Utilisé par** : `System Manager` (et tous les futurs composants)
+* **Responsabilité opérationnelle** : Journalisation technique et opérationnelle du système.
+* **Règles d’accès ou d’usage** : Dans cette séquence, utilisé en **mode synchrone** via `logSystemState(BOOT_START)` pour garantir que la trace de démarrage est physiquement écrite avant la suite des opérations.
+
+**IKernelBootstrapPort** (Créé pour spécifier `initKernelPorts`)
+* **Implémenté par** : `System Manager` (Internal Logic)
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Liaison technique initiale (Bootstrapping) des "systèmes nerveux" de l'application (Error Handler, Notification Callback).
+* **Règles d’accès ou d’usage** : Premier appel après le `boot()`. Doit être exécuté avant toute tentative de log ou d'accès aux autres services.
+
+**IErrorHandler**
+* **Implémenté par** : `ErrorService`
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** : Classification et propagation des erreurs fatales si le bootstrap échoue (ex: échec de `startClock`).
+* **Règles d’accès ou d’usage** : Appels synchrones uniquement lors de cette phase pour garantir l'arrêt immédiat du processus en cas d'anomalie noyau.
