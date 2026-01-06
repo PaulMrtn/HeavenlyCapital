@@ -700,6 +700,20 @@ Cette interface est l'exécuteur des mesures de dernier recours. Elle assure qu'
   * **Idempotence** : Plusieurs appels successifs à `Emergency_Standby_Reset()` ne doivent pas corrompre l'état de redémarrage.
   * **Blocage d'Exécution** : Tant que cette interface n'a pas confirmé le succès du Reset, l'accès à la `Phase 2 (In-Trade)` est physiquement verrouillé.
 
+---
+
+### **IKernelBootstrapPort**
+
+* **Implémenté par** : `System Manager` (Logique interne du noyau)
+* **Injecté dans / Utilisé par** : `System Manager`
+* **Responsabilité opérationnelle** :
+* Assurer la liaison technique initiale (Binding) entre le Manager et les services d'infrastructure vitaux (Log, Error Service, Notification).
+* Garantir que le "système nerveux" est opérationnel avant toute tentative d'exécution de code à risque ou d'I/O.
+
+* **Règles d’accès ou d’usage** :
+* **Exclusivité Bootstrap** : Utilisée uniquement lors de la phase initiale du Micro-Kernel.
+* **Priorité Absolue** : Doit être la première interface sollicitée après l'appel `boot()`.
+* **Stateless** : Cette interface ne gère aucun état métier, elle ne fait que configurer les aiguillages (Ports) de bas niveau.
 
 
 ---
