@@ -4,3 +4,41 @@
   <img src="../img/SM-CORE-WakeUpSequence.jpg" width="900">
 </p>
 
+---
+
+### 1. Objectif
+
+L'objectif de ce module est d'initialiser le **noyau minimal** (Micro-Kernel) du système de trading. Il établit les fondations nécessaires pour que l'application puisse monitorer le temps, journaliser son activité et réagir aux événements système en amont du chargement des composants métiers.
+
+---
+
+### 2. Contexte
+
+Ce scénario constitue le point d'entrée lors du lancement du processus par le système d'exploitation. Il s'agit d'une **séquence générique** indispensable à tout type de démarrage :
+  * **Initialisation standard** : Pour le lancement de la Phase 1 (Pre-Trade) ou de la Phase 4 (Strategic Setup).
+  * **Reprise sur erreur** : Lors d'un reboot automatique suite à une défaillance critique.
+  * **Redémarrage forcé** : En cas de réinitialisation manuelle ou technique du moteur.
+
+---
+
+### 3. Logique générale
+
+Le processus suit une séquence d'auto-construction stricte et immuable :
+  * **Initialisation des services statiques** : Liaison immédiate avec les callbacks de bas niveau (Log, Notification, Erreur) pour permettre le signalement de tout échec ultérieur.
+  * **Démarrage de la référence temporelle** : Activation de la `Market Clock`, pilier central de la synchronisation des flux financiers.
+  * **Passage en veille active** : Le système s'abonne aux futurs signaux de réveil (`subscribeToWakeup`) et entre dans un état d'attente passive (`waitForSystemEvent`), minimisant la consommation de ressources CPU tant que l'heure d'ouverture ou le prochain cycle n'est pas atteint.
+
+---
+
+### 4. Règles critiques
+
+* **Universalité** : La séquence doit rester agnostique vis-à-vis de la phase qu'elle précède pour garantir la stabilité du boot.
+* **Priorité à l'Audit** : Aucun service ne doit démarrer avant que le `Log Service` ne soit lié, garantissant une trace de boot complète.
+* **Résilience du Réveil** : L'abonnement aux événements de réveil doit être effectif avant la fin du bootstrap pour éviter tout "sommeil éternel" du système.
+* **Consommation CPU** : L'état final d'attente doit être non-bloquant et économe pour respecter les fenêtres de maintenance OS.
+
+---
+
+### 5. Conclusion
+
+Ce module garantit un **démarrage déterministe, auditable et polyvalent**. Quel que soit le contexte (initialisation nominale ou reboot d'urgence), il assure que le moteur de trading est correctement "setup" et prêt à réagir aux signaux de la `Market Clock`.
