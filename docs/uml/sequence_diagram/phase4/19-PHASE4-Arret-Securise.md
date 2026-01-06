@@ -8,7 +8,7 @@
 
 ### 1. Objectif
 
-La finalité de ce module est d'assurer la **clôture administrative et technique** du cycle de préparation stratégique. Il garantit que les opérateurs sont informés du succès de la planification et que le processus système est libéré proprement après avoir persisté l'état final, évitant ainsi toute consommation de ressources inutile jusqu'au prochain réveil.
+La finalité de ce module est d'assurer la **clôture technique** du cycle de préparation stratégique. Il garantit que les opérateurs sont informés du succès de la planification et que le processus système est libéré proprement après avoir persisté l'état final, évitant ainsi toute consommation de ressources inutile jusqu'au prochain réveil.
 
 ---
 
@@ -31,8 +31,7 @@ L'orchestration est gérée directement par le **System Manager** :
 ### 4. Règles Critiques
 
 * **Immuabilité des Cibles :** L'arrêt ne peut être initié que si la Phase 18 a confirmé la persistance atomique de toutes les cibles.
-* **Code de Sortie Normalisé :** L'usage de `System.exit(0)` est impératif pour signaler à l'orchestrateur externe (script Bash/Crontab) que la tâche s'est terminée sans erreur. Tout autre code déclencherait une alerte système inutile.
-* **Simplification de l'Architecture :** Aucune tentative de déconnexion de "Manager locaux" ne doit être faite, car la Phase IV fonctionne sur un modèle de délégation (Job Manager/Strategy Engine) et non d'instanciation de services résidents.
+* **Code de Sortie Normalisé :** L'usage de `System.exit(0)` est impératif pour signaler à l'orchestrateur externe (script Bash) que la tâche s'est terminée sans erreur. Tout autre code déclencherait une alerte système inutile.
 * **Priorité de Notification :** La notification doit être envoyée *avant* l'appel au `Log Service` pour s'assurer que l'alerte part avant que les ressources de logging ne soient potentiellement verrouillées par l'arrêt du système.
 
 ---
