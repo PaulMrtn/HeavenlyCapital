@@ -48,7 +48,7 @@ Ce module garantit un **démarrage déterministe, auditable et polyvalent**. Que
 | ID | Fonction / Message | Émetteur | Récepteur | Description |
 |:---|:---|:---|:---|:---|
 | 1 | boot() | OS | System Manager | Lancement initial du processus par le système d'exploitation. |
-| 2 | initInternalCallbacks() | System Manager | System Manager | Liaison avec les services statiques de bas niveau (Log, Notification, Error). |
+| 2 | initKernelPorts() | System Manager | System Manager | Liaison avec les services statiques de bas niveau (Log, Notification, Error). |
 | 3 | logSystemState(BOOT_START) | System Manager | Log Service | Journalisation synchrone du début de l'auto-construction du noyau. |
 | 4 | startClock() | System Manager | Market Clock | Activation du composant de gestion du temps et de synchronisation marché. |
 | 5 | subscribeToWakeup() | System Manager | Market Clock | Abonnement du Manager aux signaux de réveil pour sortir du mode Idle. |
