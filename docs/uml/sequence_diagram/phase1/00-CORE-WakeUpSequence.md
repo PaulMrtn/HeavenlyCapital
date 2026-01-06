@@ -42,3 +42,17 @@ Le processus suit une séquence d'auto-construction stricte et immuable :
 ### 5. Conclusion
 
 Ce module garantit un **démarrage déterministe, auditable et polyvalent**. Quel que soit le contexte (initialisation nominale ou reboot d'urgence), il assure que le moteur de trading est correctement "setup" et prêt à réagir aux signaux de la `Market Clock`.
+
+---
+
+| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|:---|:---|:---|:---|:---|
+| 1 | boot() | OS | System Manager | Lancement initial du processus par le système d'exploitation. |
+| 2 | initInternalCallbacks() | System Manager | System Manager | Liaison avec les services statiques de bas niveau (Log, Notification, Error). |
+| 3 | logSystemState(BOOT_START) | System Manager | Log Service | Journalisation synchrone du début de l'auto-construction du noyau. |
+| 4 | startClock() | System Manager | Market Clock | Activation du composant de gestion du temps et de synchronisation marché. |
+| 5 | subscribeToWakeup() | System Manager | Market Clock | Abonnement du Manager aux signaux de réveil pour sortir du mode Idle. |
+| 6 | waitForSystemEvent() | System Manager | System Manager | Entrée dans un état de veille passive non-bloquante (Idle Mode). |
+
+---
+
