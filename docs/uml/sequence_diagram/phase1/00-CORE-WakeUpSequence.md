@@ -69,7 +69,7 @@ Ce module garantit un **démarrage déterministe, auditable et polyvalent**. Que
 * **Implémenté par** : `Market Clock`
 * **Injecté dans / Utilisé par** : `System Manager`
 * **Responsabilité opérationnelle** : Activation de la référence temporelle (`startClock`) et gestion des abonnements aux événements de structure de session.
-* **Règles d’accès ou d’usage** : Doit être opérationnel immédiatement après le boot pour permettre l'appel `subscribeToWakeup()`. Précision milliseconde requise.
+* **Règles d’accès ou d’usage** : Doit être opérationnel immédiatement après le boot pour permettre l'appel `subscribeToWakeup()` qui doit être effectif avant la fin du bootstrap.
 
 **ILogger**
 * **Implémenté par** : `Logger Global`
