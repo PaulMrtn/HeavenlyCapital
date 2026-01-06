@@ -8,37 +8,42 @@
 
 ### 1. Objectif
 
-Ce module a pour finalité d'agir comme **point d'entrée sécurisé** du système de trading. Il garantit que le processus de *bootstrapping* ne se poursuit qu'après avoir validé la **disponibilité de toutes les dépendances critiques** (via `IDatabaseConnectivityPort`, `IExternalConnectivity` et `IEODHDConnectivityPort`) et confirmé la **pertinence métier** par l'analyse du calendrier via `ICalendarServicePort`.
+Ce module a pour finalité d'agir comme **point d'entrée sécurisé et décisionnel** du système. Il garantit que le processus ne s'engage dans une phase opérationnelle (Trading Phase 1 ou Rebalancement Phase 4) qu'après avoir validé la **disponibilité des dépendances critiques** et la **pertinence du calendrier**. En cas d'échec, il transmet un signal d'erreur spécifique à l'orchestrateur externe (script Bash) pour permettre une remédiation automatisée.
 
 ---
 
 ### 2. Contexte
 
-Le module s'inscrit au début absolu de la **Phase Pré-Trade (Bootstrapping)**, immédiatement après la réception du signal **`SYSTEM_WAKEUP`** émis par l’`IMarketEventProvider` (Market Clock). Son existence vise à prévenir le gaspillage de ressources (temps d'instanciation des composants) si les services fondamentaux (I/O) ou la condition de marché sont absents.
+Le module est activé systématiquement lors de chaque réveil du système (**`SYSTEM_WAKEUP`**), qu'il s'agisse d'un démarrage programmé pour une session de trading, d'une exécution de stratégie de rebalancement, ou d'un **redémarrage forcé après un crash** ou une erreur critique. Il sert de garde-fou avant le lancement des phases coûteuses en ressources.
 
 ---
 
 ### 3. Logique Générale
 
-Le processus est orchestré par le **`System Manager`** et se déroule de manière séquentielle et conditionnelle :
+Le processus est orchestré par le **`System Manager`** selon une séquence strictement conditionnelle :
 
-1. **Vérification Sécurisée :** Le `System Manager` vérifie séquentiellement la **Base de Données**, l’**IBKR Gateway** puis l’**API EODHD**. Il utilise le fragment de résilience transversal avec des **timeouts différenciés** : très court pour la DB (2s) afin de détecter une panne immédiate, et plus long pour IBKR (10s) pour autoriser le handshake réseau.
-2. **Calcul du Statut :** Une fois les connexions établies, le système interroge son instance interne de gestion calendaire (`ICalendarServicePort`) pour déterminer le **`MarketDayStatus`**. Ce statut est persisté via l’`ISessionStatusWriter` (DIL) pour l'audit.
-3. **Décision de Poursuite :** Si le jour n'est pas ouvré, le système déclenche une fonction de **nettoyage** (`cleanupConnections`) pour libérer les sockets ouverts (DB/IBKR) avant d'entrer en veille (**`Off-Cycle`**). Si le jour est ouvré, le *bootstrapping* se poursuit vers l'étape d'instanciation.
+1. **Vérification Multi-Connectivité :** Le `System Manager` teste séquentiellement la **Base de Données**, l’**IBKR Gateway** puis l’**API EODHD**. Chaque test utilise le fragment de résilience avec des timeouts adaptés.
+2. **Gestion des Échecs (Relais Orchestrateur) :** En cas d'échec persistant sur une connexion, le système génère un **code d'erreur spécifique**. Ce code est renvoyé à l'orchestrateur (script Bash parent) qui prend en charge la résolution technique (ex: redémarrage de service ou de tunnel) avant de tenter un nouveau reboot.
+3. **Calcul de la Destination Opérationnelle :** Si les connexions sont valides, le système interroge l’`ICalendarServicePort`. Selon le calendrier et le type de réveil, le système décide :
+  * De lancer le workflow de **Phase 1** (Trading).
+  * De lancer le workflow de **Phase 4** (Rebalancement stratégique).
+  * De libérer les ressources (`cleanupConnections`) et retourner en veille (**`Off-Cycle`**) si le marché est fermé.
 
 ---
 
 ### 4. Règles Critiques
 
-* **Résilience Uniforme :** Toutes les vérifications de connexion utilisent le fragment **`SM-RESILIENT-CHECK-CONNECTION`** pour garantir une logique uniforme de gestion des pannes transitoires et de l'audit.
-* **Arrêt Atomique :** Un **échec critique et persistant** entraîne l'envoi immédiat d'une alerte et la **destruction immédiate** du processus via l’`IProcessControlPort` (`systemStop`). Cet arrêt est atomique et garantit la fermeture des descripteurs de fichiers ouverts.
+* **Signalétique d'Erreur :** Tout arrêt via `systemStop` doit émettre un code de sortie (Exit Code) normé et documenté, permettant au script de pilotage Bash d'identifier la dépendance en cause.
+* **Résilience Uniforme :** Toutes les vérifications utilisent le fragment **`SM-RESILIENT-CHECK-CONNECTION`** pour garantir un audit systématique des tentatives.
+* **Arrêt Atomique :** L'arrêt du processus est immédiat et doit garantir la fermeture propre des descripteurs de fichiers pour éviter les verrous (locks) lors du reboot automatique par l'orchestrateur.
 * **Responsabilité Unique (SRP) :** La logique calendaire est strictement encapsulée dans son service dédié. Le `System Manager` agit comme point d'entrée unique de la logique de contrôle sans porter la complexité du calcul des jours fériés.
+* **Polyvalence du Réveil :** La logique doit être capable de discriminer si le réveil est un cycle normal ou une récupération après erreur pour adapter les vérifications.
 
 ---
 
 ### 5. Conclusion
 
-Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du système est toujours **conditionnelle** à la santé de ses dépendances et à la pertinence du contexte de marché. Il assure l'**intégrité du démarrage** par une procédure d'arrêt strict en cas de défaillance fondamentale, ou une mise en veille optimisée par libération de ressources, avant de passer à la phase coûteuse d'instanciation.
+Ce module sécurise l'amorçage du système en liant sa survie à la santé de ses dépendances. Il transforme les pannes techniques en **signaux exploitables par l'orchestrateur externe**, permettant une auto-réparation du système (Self-Healing) via reboot forcé. Cette approche garantit que le moteur de trading ne démarre que dans un environnement stabilisé et conforme au calendrier boursier.
 
 ---
 
@@ -117,4 +122,3 @@ Le module **`01-PHASE1-Connectivite-Critique`** garantit que l'initialisation du
 3. **Market Events** : Les événements temporels (MarketOpen, SYSTEM_WAKEUP) sont déclencheurs uniques ; ajouter un garde-fou d’idempotence côté SM.
 4. **Heartbeat Policy** : En mode WAITING : échec Heartbeat LIVE → relancer le bootstrapping ; PAPER → retries conditionnels selon le temps restant avant l’open.
 5. **Process Stop Contract** :`systemStop()` doit garantir la libération des ressources (sockets, threads) même en arrêt fatal.
-
