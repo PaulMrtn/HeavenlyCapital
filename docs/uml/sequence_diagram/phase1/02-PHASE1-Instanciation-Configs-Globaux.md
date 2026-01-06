@@ -118,3 +118,11 @@ Ce module garantit que le système de trading repose sur un socle de services gl
   * Irréversible
   * PHASE2 uniquement
 
+
+### DATA OBJET
+
+Objet observé : IBKRGateway / LiveDataHub / LiveHistoryBuffer (Type : Singletons / Objets Métiers)
+Usage : Composants globaux (Infrastructure et Domaine).
+Évaluation : Sub-optimal (au niveau sémantique)
+Recommandation : Entités de Domaine (Process-scoped)
+Justification : Ces objets ne sont pas de simples conteneurs de données, mais des Entités. Ils possèdent une identité propre, un cycle de vie (Bootstrap -> Active -> Shutdown) et maintiennent un état interne complexe (connexion, index de buffer). Leur intégrité est d'ailleurs validée par les HCheckUnitary.
