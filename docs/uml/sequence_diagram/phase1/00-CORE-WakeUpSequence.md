@@ -45,14 +45,15 @@ Ce module garantit un **démarrage déterministe, auditable et polyvalent**. Que
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1 | boot() | OS | System Manager | Lancement initial du processus par le système d'exploitation. |
-| 2 | initKernelPorts() | System Manager | System Manager | Liaison avec les services statiques de bas niveau (Log, Notification, Error). |
-| 3 | logSystemState(BOOT_START) | System Manager | Log Service | Journalisation synchrone du début de l'auto-construction du noyau. |
-| 4 | startClock() | System Manager | Market Clock | Activation du composant de gestion du temps et de synchronisation marché. |
-| 5 | subscribeToWakeup() | System Manager | Market Clock | Abonnement du Manager aux signaux de réveil pour sortir du mode Idle. |
-| 6 | waitForSystemEvent() | System Manager | System Manager | Entrée dans un état de veille passive non-bloquante (Idle Mode). |
+|1|boot()|OS|System Manager|Commande de démarrage initiale du processus par le système d'exploitation.|
+|2|initKernelPorts()|System Manager|System Manager|Initialisation des interfaces de bas niveau et liaison des callbacks (Log, Error, Notification).|
+|3|logSystemState(BOOT_START)|System Manager|Log Service|Journalisation synchrone marquant l'entrée du noyau dans sa phase d'auto-construction.|
+|4|startClock()|System Manager|Market Clock|Activation de l'horloge système pour la gestion du temps et le futur ordonnancement.|
+|5|subscribeToWakeup()|System Manager|Market Clock|Enregistrement du System Manager pour recevoir les alertes de réveil programmées.|
+|6|setSystemState(STATE_IDLE_READY)|System Manager|System Manager|Transition interne vers l'état de veille active, confirmant que le noyau est armé et stable.|
+|7|waitForSystemEvent()|System Manager|System Manager|Entrée en mode basse consommation (Idle) en attente passive d'une interruption ou d'un signal.|
 
 ---
 
