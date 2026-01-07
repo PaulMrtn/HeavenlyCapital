@@ -10,9 +10,13 @@
 
 La finalité de ce module est d'allouer les ressources d'exécution physiques du système en créant quatre **Pools de Threads spécialisés** (`CRITICAL`, `STANDARD`, `BULK`, `AUDIT`). Il garantit que ces ressources sont entièrement pré-allouées, isolées, et que le Pool Critique opère avec une priorité garantie par l'OS avant tout engagement de trading.
 
+---
+
 ### 2. Contexte
 
 Ce module intervient après la lecture des configurations globales. C'est une étape d'**allocation de ressources lourdes**. Le système ne peut passer à la phase 04 (Instanciation des Managers Locaux) sans une validation explicite de la couche d'exécution, car la sécurité opérationnelle et la faible latence du système en dépendent.
+
+---
 
 ### 3. Logique Générale & Architecture des Pools
 
@@ -20,21 +24,20 @@ Le processus est orchestré par le **`Thread Manager (TM)`** selon une hiérarch
 
 1. **Récupération des Configs :** Le `TM` extrait les tailles et priorités depuis le `Configuration Store`.
 2. **Pré-allocation Systématique :** Le `TM` instancie les `PoolWorker` pour les quatre segments :
-* **CRITICAL_POOL (Priorité Maximale / Real-Time) :** Ordres d'urgence, liquidations Risk Management (RM) et transmission Order Manager (OM).
-* **STANDARD_POOL (Priorité Haute) :** Stratégies Portfolio Manager (PM), flux LDH et logique métier standard.
-* **BULK_POOL (Priorité Basse / Background) :** Écritures I/O non critiques, archivage des logs, persistance lente (DIL).
-* **AUDIT_POOL (Priorité Normale) :** Réconciliations post-trade et génération des SessionBooks.
-
-
+  * **CRITICAL_POOL (Priorité Maximale / Real-Time) :** Ordres d'urgence, liquidations Risk Management (RM) et transmission Order Manager (OM).
+  * **STANDARD_POOL (Priorité Haute) :** Stratégies Portfolio Manager (PM), flux LDH et logique métier standard.
+  * **BULK_POOL (Priorité Basse / Background) :** Écritures I/O non critiques, archivage des logs, persistance lente (DIL).
+  * **AUDIT_POOL (Priorité Normale) :** Réconciliations post-trade et génération des SessionBooks.
 3. **Boucle Persistante :** Chaque thread démarre une boucle d'attente (`startExecutionLoop`) immédiatement. Ils ne sont **jamais détruits** pendant la session pour éliminer la latence de création.
 4. **Validation OS (HCheckPriorityTest) :** Un test actif vérifie que le scheduler de l'OS honore réellement la priorité du `CRITICAL_POOL`.
+
+---
 
 ### 4. Règles Critiques & Zero-Tolerance
 
 * **Politique Zero-Tolerance :** Si un seul `PoolWorker` échoue à l'instanciation ou si le `HCheckPriorityTest` renvoie un échec (priorité non honorée), le `Thread Manager` doit retourner un état `CRITICAL_FAILURE`.
 * **Arrêt Immédiat :** En cas de `CRITICAL_FAILURE`, le `System Manager` doit exécuter un `systemStop()` immédiat. Le trading ne peut être engagé sans la certitude d'une isolation parfaite.
 * **Isolation Stricte :** Aucun pool ne doit interférer avec un autre. Les tâches lourdes du `BULK_POOL` ne peuvent en aucun cas cannibaliser les ressources du `CRITICAL_POOL`.
-
 
 ---
 
@@ -43,7 +46,6 @@ Le processus est orchestré par le **`Thread Manager (TM)`** selon une hiérarch
 Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécution du système est **entièrement pré-allouée, segmentée par priorité** et **validée en performance**. Il établit une base d'exécution fiable et à faible latence, essentielle avant l'instanciation des managers métier qui dépendront de ces ressources.
 
 ---
-
 
 |ID|Fonction / Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
@@ -62,7 +64,6 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 --- 
 
 ### 6. Ports et Interfaces
-
 
 **IThreadManagerPort**
 - **Implémenté par :** Thread Manager
@@ -90,7 +91,6 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 - **Injecté dans / Utilisé par :** Thread Manager, System Manager, Portfolio Manager, Risk Monitor, Order Manager  
 - **Responsabilité :** Journalisation technique, opérationnelle et audit de conformité du système  
 - **Règles :** Supporte les niveaux DEBUG / INFO / WARN / ERROR / CRITICAL / AUDIT. Mode synchrone obligatoire pour le bootstrapping et erreurs fatales. Mode non-bloquant pour le runtime métier. PoolWorkers ne peuvent jamais écrire directement.
-
 
 **IMetricPort**
 * **Implémenté par** : `Metric Service`
