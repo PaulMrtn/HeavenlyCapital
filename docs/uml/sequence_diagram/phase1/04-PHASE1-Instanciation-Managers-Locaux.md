@@ -14,7 +14,7 @@ La finalité de ce module est d'allouer la couche d'exécution métier du systè
 
 ### 2. Contexte
 
-Cette étape s'inscrit immédiatement après l'initialisation des services d'infrastructure persistants (Singletons globaux, Pools de Threads, `HealthService`, `ErrorService`). Elle constitue le pont entre l'infrastructure globale et l'exécution spécifique à une stratégie. Elle lie la logique de décision (**PM**) aux ressources d'exécution (**IG**, **LDH**, **LHB**) et au mécanisme de protection d'urgence (**RM**) tout en intégrant les modèles ML chargés depuis le système de fichiers. L'intégrité de ces modèles est vérifiée avant leur injection définitive dans les managers métier.
+Cette étape s'inscrit immédiatement après l'initialisation des services d'infrastructure persistants (Singletons globaux, Pools de Threads, `ErrorService`). Elle constitue le pont entre l'infrastructure globale et l'exécution spécifique à une stratégie. Elle lie la logique de décision (**PM**) aux ressources d'exécution (**IG**, **LDH**, **LHB**) et au mécanisme de protection d'urgence (**RM**) tout en intégrant les modèles ML chargés depuis le système de fichiers. L'intégrité de ces modèles est vérifiée avant leur injection définitive dans les managers métier.
 
 ---
 
