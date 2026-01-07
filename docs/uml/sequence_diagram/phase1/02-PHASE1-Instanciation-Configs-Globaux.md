@@ -14,7 +14,7 @@ La finalité de ce module est de centraliser la récupération de **toutes les c
 
 ### 2. Contexte et Dépendances
 
-Ce module s'inscrit directement après la validation de la connectivité et du jour ouvré (Phase 01). Il représente la première étape d'allocation des ressources en mémoire vive. Les Singletons créés ici (`IBKR Gateway`, `Live Data Hub`, `Historic Live Hub`) sont des dépendances fondamentales pour tous les managers métier instanciés ultérieurement.
+Ce module s'inscrit directement après la validation de la connectivité et du jour ouvré (Phase 01). Il représente la première étape d'allocation des ressources en mémoire vive. Les Singletons créés ici (`IBKR Gateway`, `Live Data Hub`, `Historic Live Hub`, `ForecastManager`) sont des dépendances fondamentales pour tous les managers métier instanciés ultérieurement.
 
 ---
 
