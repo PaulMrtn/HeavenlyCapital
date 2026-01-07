@@ -91,10 +91,16 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 - **Responsabilité :** Journalisation technique, opérationnelle et audit de conformité du système  
 - **Règles :** Supporte les niveaux DEBUG / INFO / WARN / ERROR / CRITICAL / AUDIT. Mode synchrone obligatoire pour le bootstrapping et erreurs fatales. Mode non-bloquant pour le runtime métier. PoolWorkers ne peuvent jamais écrire directement.
 
----
 
-### Note
-
-**Monitoring & Alerting Thread Pools** : Ajouter un suivi temps réel des pools de threads via un port de monitoring interne, avec alertes synchronisées sur saturation ou blocage des threads critiques. Complète les H-Checks et garantit la visibilité continue sans affecter les pools non critiques.
-
+**IMetricPort**
+* **Implémenté par** : `Metric Service`
+* **Injecté dans / Utilisé par** : `PoolWorker`
+* **Responsabilité opérationnelle** :
+* Fournir un canal de communication dédié à la télémétrie pour la mesure des latences d'exécution au sein des threads.
+* Permettre la remontée continue des données de performance vers le `Metric Service` pour le suivi de la congestion et de la santé des pools.
+* **Règles d’accès ou d’usage** :
+  * **Injection au Bootstrap** : L'interface doit être injectée lors de l'instanciation de chaque `PoolWorker` durant la PHASE 1.
+  * **Asynchronisme strict** : L'utilisation de ce port par les workers doit être non-bloquante pour ne jamais impacter la latence du traitement métier, particulièrement pour le `CRITICAL_POOL`.
+  * **Mode Fire-and-Forget** : En cas de saturation du service de métriques, les données de télémétrie doivent être abandonnées (dropped) plutôt que de mettre le thread en attente.
+  * **Identification** : Chaque message transmis via ce port doit inclure le `PoolID` unique pour permettre une agrégation correcte par le service de monitoring.
 
