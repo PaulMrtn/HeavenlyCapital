@@ -45,17 +45,19 @@ Le module **`03-PHASE1-Initialisation-Threads`** garantit que la couche d'exécu
 ---
 
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
-| --- | --- | --- | --- | --- |
-| 1 | **initThreads()** | System Manager | Thread Manager | Commande synchrone d'initialisation de la couche d'exécution. |
-| 2 | **getThreadConfigs()** | Thread Manager | Config Store | Récupération des paramètres (tailles des 4 pools et niveaux de priorité). |
-| 3 | **new PoolWorker()** | Thread Manager | PoolWorker | Instanciation (Loop) des 4 types de pools (Critical, Std, Bulk, Audit). |
-| 4 | **startPersistentLoop()** | PoolWorker | PoolWorker | Auto-activation du thread en mode veille active (Ready-to-work). |
-| 5 | **runPriorityValidation()** | Thread Manager | HCheckPriorityTest | Vérification technique de la priorité Real-Time du pool critique. |
-| 6 | **logStatus()** | Thread Manager | LoggerPort | Journalisation du résultat du test et de l'état des pools. |
-| 7 | **Initialization_Complete** | Thread Manager | System Manager | Retour du statut final : **SUCCESS** ou **CRITICAL_FAILURE**. |
-| 8 | **systemStop()** | System Manager | System Manager | Déclenché immédiatement si le statut est CRITICAL_FAILURE. |
-| 9 | **Phase_04_Start** | System Manager | System Manager | Poursuite de la séquence d'initialisation uniquement si SUCCESS. |
+|ID|Fonction / Message|Émetteur|Récepteur|Description|
+|:---|:---|:---|:---|:---|
+|1|initThreads()|System Manager|Thread Manager|Synchronous command to initialize the system's execution layer.|
+|2|getThreadConfigs()|Thread Manager|Configuration Store|Retrieval of pool sizes and priority levels from static configuration.|
+|3|new PoolWorker(priority, isolation, IMetricPort)|Thread Manager|PoolWorker|Instantiation of pool threads with injected telemetry port for latency measurement.|
+|4|startPersistentLoop()|PoolWorker|PoolWorker|Activation of the thread loop in a persistent "ready-to-work" standby mode.|
+|5|runPriorityValidation(CRITICAL_POOL)|Thread Manager|HCheckPriorityTest|Technical validation that the OS honors real-time priority for the critical pool.|
+|6|testResult|HCheckPriorityTest|Thread Manager|Asynchronous return of the priority validation result.|
+|7|log("Initialization_Complete: SUCCESS")|Thread Manager|LoggerPort|Logging of successful thread pool allocation and validation.|
+|8|return SUCCESS|Thread Manager|System Manager|Confirmation to the system manager that the execution layer is operational.|
+|9|log("CRITICAL_FAILURE: Priority Mismatch")|Thread Manager|LoggerPort|Logging of a fatal error if thread isolation or priority is compromised.|
+|10|systemStop()|System Manager|System Manager|Immediate process destruction triggered by a thread initialization failure.|
+|11|registerMonitoring(PoolID)|Thread Manager|Metric Service|Registration of pools with the metric service for continuous congestion monitoring.|
 
 --- 
 
