@@ -47,21 +47,25 @@ Ce module garantit que le système de trading repose sur un socle de services gl
 
 ---
 
-|ID|Fonction/Message|Émetteur|Récepteur|Description|
+|ID|Fonction / Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|readAllStaticConfigs()|System Manager|Data Access Layer|Requête synchrone pour l'intégralité du référentiel (IP, Ports, API Keys, Buffers).|
-|2|create()|Data Access Layer|Config|Instanciation de l'objet de stockage mémoire pour les configurations statiques.|
-|3|write(AllConfigs)|Data Access Layer|Config|Hydratation de l'objet Config avec les données lues en base de données.|
-|4|ConfigData|Data Access Layer|System Manager|Retour de l'objet structuré contenant les paramètres globaux immuables.|
-|5|getStaticConfig(IBKR_Config)|System Manager|System Manager|Extraction locale des paramètres spécifiques à la passerelle IBKR.|
-|6|new IBKRGateway(IBKR_Config, PersistencePort)|System Manager|IBKR Gateway|Instanciation de la passerelle broker avec injection de sa config et du port de persistance.|
-|7|HCheckUnitary(IBKRGateway)|System Manager|System Manager|Vérification unitaire de l'intégrité de la passerelle IBKR.|
-|8|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt immédiat du bootstrapping en cas d'échec du H-Check de la passerelle.|
-|9|getConfig(LDH_Config)|System Manager|System Manager|Extraction locale des paramètres pour le Hub de données et le Buffer historique.|
-|10|new LiveHistoryBuffer(Config)|System Manager|Historic Live Hub|Création du singleton LHB et pré-allocation de la matrice linéaire de 1000 slots.|
-|11|new LiveDataHub(LDH_Config, PersistencePort, ILiveDataSubscriber(LHB))|System Manager|Live Data Hub|Instanciation du LDH avec injection du PersistencePort et de l'interface d'écriture vers le LHB.|
-|12|HCheckUnitary(LDH, LHB)|System Manager|System Manager|Validation groupée de l'intégrité du Hub de flux et de la structure mémoire du Buffer.|
-|13|systemStop(CRITICAL_ERROR)|Error Service|System Manager|Arrêt du système si le socle de données (LDH ou LHB) présente une anomalie critique.|
+|1|readAllStaticConfigs()|System Manager|Data Access Layer|Requête d'extraction de l'ensemble des paramètres de configuration immuables du système.|
+|2|create()|Data Access Layer|Config|Instanciation de l'objet Config destiné à stocker les paramètres en mémoire vive.|
+|3|write(AllConfigs)|Data Access Layer|Config|Injection des données lues en base de données dans l'objet de configuration structuré.|
+|4|ConfigData|Data Access Layer|System Manager|Retour de l'objet de configuration global hydraté au superviseur.|
+|5|getStaticConfig(IBKR_Config)|System Manager|System Manager|Extraction des paramètres spécifiques à la passerelle de courtage Interactive Brokers.|
+|6|new IBKRGateway(IBKR_Config, PersistencePort)|System Manager|IBKR Gateway|Instanciation du singleton de communication broker avec injection de sa config et du port de persistance.|
+|7|HCheckUnitary(IBKRGateway)|System Manager|System Manager|Vérification de l'intégrité mémoire et de l'état initial de la passerelle IBKR.|
+|8|getConfig(LDH_Config)|System Manager|System Manager|Extraction des paramètres de seuils et de structure pour les hubs de données.|
+|9|new LiveHistoryBuffer(Config)|System Manager|Historic Live Hub|Création du buffer historique et pré-allocation de la matrice de données linéaire.|
+|10|new LiveDataHub(LDH_Config, PersistencePort, ILiveDataSubscriber(LHB))|System Manager|Live Data Hub|Instanciation du hub de flux avec liaison synchrone vers le buffer historique.|
+|11|HCheckUnitary(LDH, LHB)|System Manager|System Manager|Validation groupée de la cohérence du flux de données et de l'allocation mémoire du buffer.|
+|12|getConfig(ML_Forecast_Config)|System Manager|System Manager|Extraction des configurations liées aux modèles de Machine Learning et au répertoire d'artefacts.|
+|13|new ForecastManager(ML_Forecast_Config, ILiveDataReader, IMarketDataObserverPort)|System Manager|ForecastManager|Instanciation du hub analytique avec injection des ports de lecture historique et d'observation.|
+|14|HCheckUnitary(ForecastManager)|System Manager|System Manager|Vérification de la découverte des modèles ML et de l'intégrité des checksums sur le file system.|
+|15|systemStop(CRITICAL_ERROR)|System Manager|Error Service|Déclenchement de l'arrêt d'urgence du bootstrapping en cas d'échec d'un Health-Check.|
+
+---
 
 ### 6. Ports et Interfaces
 
