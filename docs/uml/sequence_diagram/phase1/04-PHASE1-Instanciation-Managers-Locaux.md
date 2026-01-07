@@ -62,21 +62,30 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 ### 4. Règles Critiques
 
 * **Primauté du Constructeur :** L'injection par **constructeur** est obligatoire pour tous les ports critiques (`IOrderSubmissionPort`, `IPositionProvider`, `IErrorHandler`, `ILiveDataReader`). Les setters sont strictement réservés aux liaisons de second rang (ex: `setOrderManager`) pour résoudre les dépendances circulaires sans compromettre l'immuabilité initiale.
+  
 * **Dualité d'Accès Data (LDH vs LHB)** :
   * Le **LDH** (via `MarketDataPort`) fournit l'événement de notifcation et l'arrivée d'une `Marketquote`.
   * Le **LHB** (via `ILiveDataReader`) fournit la profondeur historique nécessaire aux calculs vectoriels. Cette séparation garantit que la lecture d'une série temporelle lourde ne bloque jamais la réception du prochain tick.
+  
 * **Couplage Minimal et Standardisé :** Le **RM** n'écrit jamais dans le **PM**. L'**OM** n'accède jamais au **PM**. Tout échange inter-composant est médié par des ports immuables.
 * **Isolation RM/PM :** Le **Risk Monitor** ne possède aucune référence à la logique interne du PM. Il consomme l'état des positions via des snapshots immuables fournis par le port **`IPositionProvider`**. Cela garantit que le RM reste réactif (Zero-Lock) même si le PM effectue des calculs intensifs.
 * **Performance du Pull  :** L'accès aux N slots du **LHB** via `ILiveDataReader` est garanti **lock-free**. Le PM et le RM peuvent "Pull" des tranches de données (Slices) sans créer de contention sur le thread d'ingestion des prix.
+  
 * **Segmentation des Pools d'Exécution :**
   * **RM :** Isolé sur le `RM_CRITICAL_POOL` (Priorité OS maximale).
   * **PM :** Opère sur le `STRATEGY_POOL`.
   * **OM :** Géré par le `IO_POOL` (Réseau/Persistance).
+  * 
 * **Immutabilité des Modèles :** Une fois injectés, `IExecutionDecisionModel` et `IStopPredictionModel` sont en lecture seule. Ils ne possèdent aucun état interne mutable.
 * **Pureté Fonctionnelle :** Les modèles agissent comme des fonctions pures (). Ils n'ont aucun droit d'accès aux ports de persistance ou de connectivité broker.
 * **Isolation ML/Manager :** Chaque instance de manager possède son propre exemplaire d'oracle. Un manager ne peut jamais invoquer le modèle d'un composant tiers.
 * **Abstraction du DIL :** Les managers n'ont aucun couplage direct avec le **Data Integrity Layer**. Ils utilisent des interfaces métier dont les appels sont routés vers le `BULK_POOL` ou le `AUDIT_POOL` via des transactions atomiques (`startTransaction`).
-* **Centralisation Fail-Fast :** Le port **`IErrorHandler`** est le canal unique de remontée. Toute erreur fatale déclenche un `systemStop` immédiat via l'infrastructure globale, sans tentative de récupération locale (No-Retry).
+  
+* **Centralisation Fail-Fast :** Le port `IErrorHandler` reste le canal unique de remontée. La sévérité `CRITICAL` déclenche un `systemStop` immédiat si et seulement si elle impacte l'infrastructure globale ou une session configurée en mode `LIVE`. Pour les sessions `PAPER`, l'erreur fatale au bootstrap est interceptée par le `System Manager` pour déclencher une destruction locale (`destroy()`) sans interrompre le processus global.
+
+* **Isolation de l'Échec (Paper vs Live) :** Toute session configurée en mode `LIVE` est considérée comme une dépendance critique du système ; son échec au bootstrap entraîne l'arrêt total (`systemStop`). Les sessions `PAPER` sont considérées comme facultatives.
+* **Nettoyage Mémoire :** En cas d'échec d'une session Paper, le System Manager doit explicitement appeler le destructeur de la `TradingSession` pour s'assurer qu'aucun thread ou port (notamment l'abonnement à l'`EventBus`) ne reste actif en arrière-plan.
+* **Audit des Échecs :** Même si le système continue son exécution après l'échec d'une session Paper, l'erreur doit être enregistrée avec un niveau WARN pour permettre une analyse post-mortem
 * **Silence du Bootstrapping :** Bien qu'injecté, l'**`IEventBusPort`** est maintenu en état "mute" durant toute la Phase 1 pour éviter tout déclenchement de logique métier avant l'ouverture officielle de la session.
 
 ---
