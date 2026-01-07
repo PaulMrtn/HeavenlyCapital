@@ -11,35 +11,72 @@ Coming soon ...
 ## Folder Structure 
 
 ```tree
-trading_station/
-├── core/                   # Le "Real-Time Core" et l'orchestration
-│   ├── system_manager.py   # Singleton central, autorité suprême
-│   ├── session_manager.py  # Gestion du cycle de vie des sessions
-│   ├── thread_manager.py   # Gestion des pools (Critical vs Bulk)
-│   └── market_clock.py     # Source temporelle unique
-├── data/                   # "Data Management"
-│   ├── dil/                # Data Ingestion Layer (Écritures)
-│   ├── dal/                # Data Access Layer (Lectures)
-│   ├── lhb/                # Live History Buffer (Cache mémoire)
-│   └── connector.py        # Database Connector (SQLAlchemy)
-├── execution/              # Gestion des ordres et exécution
-│   ├── order_manager.py    # Cycle de vie des ordres
-│   ├── gor.py              # Global Order Router (Priorisation)
-│   └── job_manager.py      # Ordonnanceur de tâches
-├── gateway/                # Interfaces externes
-│   ├── ibkr_gateway.py     # Wrapper ib_async
-│   └── eod_service.py      # Client API EODHD
-├── models/                 # Data Classes (DTO, Entities)
+trading_system/
+│
+├── core/
+│   ├── __init__.py
+│   ├── system_manager.py         # Composant central SystemManager
+│   ├── market_clock.py           # Singleton pour le cadencement temporel
+│   ├── session_manager.py        # Gestion des TradingSession
+│   ├── thread_manager.py         # Gestion des pools et threads I/O
+│   └── job_manager.py            # Orchestration des tâches et jobs
+│
+├── data/
+│   ├── __init__.py
+│   ├── database_connector.py     # Gestion DB, pool, sessions
+│   ├── data_ingestion.py         # DIL
+│   ├── data_access.py            # DAL
+│   ├── live_data_hub.py          # Flux temps réel
+│   └── live_history_buffer.py    # Cache/Buffer central
+│
+├── trading/
+│   ├── __init__.py
+│   ├── portfolio_manager.py
+│   ├── order_manager.py
+│   ├── risk_monitor.py
+│   ├── global_order_router.py
+│   └── ibkr_gateway.py
+│
+├── pipeline/
+│   ├── __init__.py
+│   ├── pipeline_manager.py
+│   ├── asset_selection.py
+│   ├── filter_manager.py
+│   ├── portfolio_optimizer.py
+│   ├── risk_manager.py
+│   └── data_integrity_engine.py
+│
+├── strategy/
+│   ├── __init__.py
+│   ├── strategy_engine.py
+│   └── backtest_engine.py
+│       ├── parametric_optimizer.py
+│       └── shock_simulator.py
+│
+├── monitoring/
+│   ├── __init__.py
+│   ├── log_service.py
+│   ├── metric_service.py
+│   ├── error_service.py
+│   └── notification_service.py
+│
+├── models/                        # Data classes et ODT/DTO
+│   ├── __init__.py
+│   ├── portfolio.py
 │   ├── order.py
-│   ├── session.py
-│   └── market_data.py
-├── pipeline/               # "Pipeline Core" (Stratégie & Calcul)
-│   ├── manager.py          # Pipeline Manager
-│   ├── engine.py           # Strategy Engine
-│   └── steps/              # AssetSelection, Optimizer, RiskManager...
-└── utils/                  # Services transverses (Monitoring, Log, Error)
-    ├── logger.py           # Log Service
-    ├── metrics.py          # Metric Service
-    └── notifications.py    # Notification Service
+│   ├── market_data.py
+│   ├── trading_session.py
+│   └── pipeline_dot.py
+│
+├── utils/
+│   ├── __init__.py
+│   └── helpers.py
+│
+├── config/
+│   ├── __init__.py
+│   └── settings.py                 # Paramètres globaux, secrets, paths
+│
+└── main.py                         # Point d’entrée pour démarrage du système
+
 ```
 
