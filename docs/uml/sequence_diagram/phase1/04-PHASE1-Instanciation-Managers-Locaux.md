@@ -100,9 +100,9 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 |:---|:---|:---|:---|:---|
 |1|getSessionsToLoad()|System Manager|Config|Récupération de la liste exhaustive des SessionIDs configurés pour la journée.|
 |2|new SessionManager(SessionID,Config)|System Manager|Session Manager|Instanciation d'un manager local dédié. Crée l'objet TradingSession en interne.|
-|3|new PortfolioManager(ID,Config,LDH,LHB,IPersistence,IExecModel,ErrorService)|Session Manager|Portfolio Manager|Création du PM avec injection obligatoire des ports de données (LDH/LHB) et du modèle ML au constructeur.|
-|4|new RiskMonitor(ID,Config,LDH,LHB,IPositionProvider,IOrderSubmission,IStopModel,ErrorService)|Session Manager|Risk Monitor|Création du RM avec injection du modèle de risque prédictif et des ports d'accès aux positions/ordres.|
-|5|new OrderManager(ID,IG,IPersistence,ErrorService)|Session Manager|Order Manager|Instanciation de l'exécuteur technique assurant le pont vers la passerelle broker (IG).|
+|3|new PortfolioManager(ID, Config, LDH, LHB, IPersistence, IExecModel, ErrorService)|Session Manager|Portfolio Manager|Création du PM avec injection obligatoire des ports de données (LDH/LHB) et du modèle ML au constructeur.|
+|4|new RiskMonitor(ID, Config, LDH,LHB, IPositionProvider, IOrderSubmission, IStopModel, ErrorService)|Session Manager|Risk Monitor|Création du RM avec injection du modèle de risque prédictif et des ports d'accès aux positions/ordres.|
+|5|new OrderManager(ID, IG, IPersistence, ErrorService)|Session Manager|Order Manager|Instanciation de l'exécuteur technique assurant le pont vers la passerelle broker (IG).|
 |6|setOrderManager(OM)|Session Manager|Portfolio Manager|Liaison de second rang établissant le canal de transmission des ordres de performance du PM vers l'OM.|
 |7|HCheckSessionReady(ID)|Session Manager|Session Manager|Auto-vérification synchrone de l'intégrité de l'instance (modèles ML, latence ports, cohérence ID).|
 |8|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Fail-Fast global : Arrêt immédiat de tout le système si une session LIVE échoue au bootstrap.|
