@@ -28,16 +28,17 @@ Le processus est orchestré par le **`Thread Manager (TM)`** selon une hiérarch
   * **STANDARD_POOL (Priorité Haute) :** Stratégies Portfolio Manager (PM), flux LDH et logique métier standard.
   * **BULK_POOL (Priorité Basse / Background) :** Écritures I/O non critiques, archivage des logs, persistance lente (DIL).
   * **AUDIT_POOL (Priorité Normale) :** Réconciliations post-trade et génération des SessionBooks.
+Chaque PoolWorker est instancié avec une injection du IMetricPort, permettant une mesure native et asynchrone de la latence d'exécution dès l'allocation.
 3. **Boucle Persistante :** Chaque thread démarre une boucle d'attente (`startExecutionLoop`) immédiatement. Ils ne sont **jamais détruits** pendant la session pour éliminer la latence de création.
 4. **Validation OS (HCheckPriorityTest) :** Un test actif vérifie que le scheduler de l'OS honore réellement la priorité du `CRITICAL_POOL`.
-
+5. **Activation du Monitoring :** Une fois les ressources validées, le Thread Manager enregistre chaque pool auprès du Metric Service pour initialiser la collecte continue des données de congestion et de temps de réponse
 ---
 
 ### 4. Règles Critiques & Zero-Tolerance
 
 * **Politique Zero-Tolerance :** Si un seul `PoolWorker` échoue à l'instanciation ou si le `HCheckPriorityTest` renvoie un échec (priorité non honorée), le `Thread Manager` doit retourner un état `CRITICAL_FAILURE`.
 * **Arrêt Immédiat :** En cas de `CRITICAL_FAILURE`, le `System Manager` doit exécuter un `systemStop()` immédiat. Le trading ne peut être engagé sans la certitude d'une isolation parfaite.
-* **Isolation Stricte :** Aucun pool ne doit interférer avec un autre. Les tâches lourdes du `BULK_POOL` ne peuvent en aucun cas cannibaliser les ressources du `CRITICAL_POOL`.
+* **Isolation Stricte :** Aucun pool ne doit interférer avec un autre. Les tâches lourdes du `BULK_POOL` ne peuvent en aucun cas cannibaliser les ressources du `CRITICAL_POOL`. L'instrumentation de mesure doit fonctionner en mode Fire-and-Forget : l'envoi des métriques de performance ne doit, sous aucun prétexte, induire une latence ou un blocage dans la boucle d'exécution du worker.
 
 ---
 
