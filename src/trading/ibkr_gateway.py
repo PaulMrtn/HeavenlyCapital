@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 
-from src.core.runtime_config import IBKRConfig
+from src.core.runtime_config import IBKRConfig, RuntimeModule
 from src.core.system_manager import SystemPorts
 
 
-class IBKRGateway:
+class IBKRGateway(RuntimeModule):
 
     def __init__(self) -> None:
         self._configured: bool = False
@@ -48,6 +48,10 @@ class IBKRGateway:
             raise RuntimeError("IBKRGateway: ports not set (configure() not called)")
         return self._ports
 
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
 
 
 _instance: Optional[IBKRGateway] = None

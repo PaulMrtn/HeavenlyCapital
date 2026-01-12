@@ -1,32 +1,28 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 
-from src.core.runtime_config import HistoricHubConfig
+from src.core.runtime_config import HistoricHubConfig, RuntimeModule
 from src.core.system_manager import SystemPorts
 
 
-class HistoricDataHub:
+class HistoricDataHub(RuntimeModule):
 
     def __init__(self) -> None:
         self._configured: bool = False
         self._started: bool = False
 
-        self._enabled: bool = True
         self._config: Optional[HistoricHubConfig] = None
         self._ports: Optional[SystemPorts] = None
 
     def configure(self, *, config: HistoricHubConfig, ports: SystemPorts) -> None:
         self._config = config
         self._ports = ports
-        self._enabled = bool(config.enabled)
         self._configured = True
 
     def start(self) -> None:
         if not self._configured:
             raise RuntimeError("HistoricDataHub: start() called before configure()")
-        if not self._enabled:
-            return
         self._started = True
 
     def stop(self) -> None:
@@ -41,10 +37,6 @@ class HistoricDataHub:
         return self._started
 
     @property
-    def enabled(self) -> bool:
-        return self._enabled
-
-    @property
     def config(self) -> HistoricHubConfig:
         if self._config is None:
             raise RuntimeError("HistoricHubConfig: config not set (configure() not called)")
@@ -56,11 +48,16 @@ class HistoricDataHub:
             raise RuntimeError("HistoricHubConfig: ports not set (configure() not called)")
         return self._ports
 
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
+
 
 _instance: Optional[HistoricDataHub] = None
 
 
-def get_historic_service() -> HistoricDataHub:
+def get_historic_data_hub() -> HistoricDataHub:
     global _instance
     if _instance is None:
         _instance = HistoricDataHub()

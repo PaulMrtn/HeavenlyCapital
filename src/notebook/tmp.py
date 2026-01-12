@@ -5,7 +5,9 @@ from src.core.system_manager import SystemManager
 from src.data.data_access import InMemoryTradingSessionDAL
 from src.data.data_ingestion import InMemoryTradingSessionDIL
 
+
 from src.monitoring.health_checks import build_readiness_checks
+
 
 checks = build_readiness_checks(db_connector=None, ibkr_gateway=None, eodhd_client=None)
 
@@ -28,7 +30,11 @@ system_manager = SystemManager(market_clock=market_clock,
 
 system_manager._market_clock.start()
 
-system_manager._prepare_bootstrap(checks=checks)
+# system_manager._prepare_bootstrap(checks=checks)
+
+# system_manager.launch_global_runtime()
+
+
 
 
 
