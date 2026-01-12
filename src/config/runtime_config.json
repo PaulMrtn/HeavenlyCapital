@@ -1,0 +1,6 @@
+{
+  "ibkr": { "host": "127.0.0.1", "port": 4002, "client_id": 1 },
+  "historic": { "enabled": true, "lookback_days": 30 },
+  "live_hub": { "enabled": true, "max_symbols": 50 },
+  "forecast": { "enabled": false, "model_name": "baseline" }
+}

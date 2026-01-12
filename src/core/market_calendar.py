@@ -59,6 +59,15 @@ class USMarketsCalendar:
         tomorrow_market = (now_market + timedelta(days=1)).date()
         return self._source.is_open_on_date(tomorrow_market, tz=self.tz)
 
+    def today(self, now: Optional[datetime] = None) -> str:
+        now = now or datetime.now(tz=ZoneInfo("UTC"))
+
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=ZoneInfo("UTC"))
+
+        now_market = now.astimezone(ZoneInfo(self.tz))
+        return now_market.strftime("%d-%m-%Y")
+
 
 
 class RandomMarketCalendar:
@@ -66,7 +75,19 @@ class RandomMarketCalendar:
     def __init__(self, seed: Optional[int] = None, p_true: float = 5 / 7):
         self._rng = random.Random(seed)
         self._p_true = float(p_true)
+        self.tz = "America/New_York"
 
     def is_open_today(self, now: Optional[datetime] = None) -> bool:
         _ = now or datetime.now(tz=ZoneInfo("UTC"))
         return self._rng.random() < self._p_true
+
+
+    def today(self, now: Optional[datetime] = None) -> str:
+        now = now or datetime.now(tz=ZoneInfo("UTC"))
+
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=ZoneInfo("UTC"))
+
+        now_market = now.astimezone(ZoneInfo(self.tz))
+        return now_market.strftime("%d-%m-%Y")
+

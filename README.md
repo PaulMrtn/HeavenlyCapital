@@ -48,6 +48,7 @@ trading_system/
 │
 ├── strategy/
 │   ├── __init__.py
+│   ├── forecast_manager.py 
 │   ├── strategy_engine.py
 │   └── backtest_engine.py
 │       ├── parametric_optimizer.py
