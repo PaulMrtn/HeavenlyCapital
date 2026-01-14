@@ -2,8 +2,8 @@ from src.core.market_calendar import USMarketsCalendar
 from src.core.market_clock import MarketClock, AcceleratedTimeHeartbeat
 from src.core.system_manager import SystemManager
 
-from src.data.data_access import InMemoryTradingSessionDAL
-from src.data.data_ingestion import InMemoryTradingSessionDIL
+from src.data.data_access import InMemoryMarketDaySessionDAL
+from src.data.data_ingestion import InMemoryMarketDaySessionDIL
 
 
 from src.monitoring.health_checks import build_readiness_checks
@@ -18,8 +18,8 @@ sim_heartbeat = AcceleratedTimeHeartbeat()
 market_clock = MarketClock(time_source=sim_heartbeat)
 market_calendar = USMarketsCalendar()
 
-data_ingestion = InMemoryTradingSessionDIL()
-data_access = InMemoryTradingSessionDAL()
+data_ingestion = InMemoryMarketDaySessionDIL()
+data_access = InMemoryMarketDaySessionDAL()
 
 
 system_manager = SystemManager(market_clock=market_clock,

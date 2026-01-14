@@ -62,28 +62,28 @@ class ShutdownRequest:
 
 #endregion
 
-#region TradingSession DataClass
-class TradingSessionStatus(str, Enum):
+#region MarketDaySession DataClass
+class SessionStatus(str, Enum):
     OPEN = "OPEN"
     CLOSED = "CLOSED"
 
-class TradingSessionPhase(str, Enum):
+class SessionPhase(str, Enum):
     STRATEGIC_SETUP = "STRATEGIC_SETUP"
     PRE_MARKET = "PRE_MARKET"
     IN_MARKET = "IN_MARKET"
     POST_MARKET = "POST_MARKET"
 
-class TradingSessionState(str, Enum):
+class SessionState(str, Enum):
     DONE = "DONE"
     RUNNING = "RUNNING"
 
 @dataclass(slots=True)
-class TradingSession:
+class MarketDaySession:
     session_id: UUID
     session_date: date
-    status: TradingSessionStatus
-    phase: TradingSessionPhase
-    state : TradingSessionState
+    status: SessionStatus
+    phase: SessionPhase
+    state : SessionState
     error: bool = False
 
 #endregion
@@ -99,7 +99,7 @@ class BootDecision(str, Enum):
 @dataclass(slots=True)
 class BootPlan:
     decision: BootDecision
-    session: TradingSession
+    session: MarketDaySession
     procedure: str  #  ex: "PRE_MARKET", "STRATEGIC_SETUP", "RECOVERY:<phase>"
 
 #endregion
@@ -199,7 +199,7 @@ class SystemManager:
         self._error = error_service or NullErrorService()
         self._notif = notification_service or NullNotificationService()
 
-        self.trading_session: TradingSession | None = None
+        self.trading_session: MarketDaySession | None = None
         self._active_trading_day = None
 
 
@@ -234,15 +234,15 @@ class SystemManager:
 
 
 #region Bootstrap
-    def _build_boot_plan(self, today_session : None | TradingSession) -> BootPlan | None:
+    def _build_boot_plan(self, today_session : None | MarketDaySession) -> BootPlan | None:
 
         if today_session is None:
-            today_session = TradingSession(
+            today_session = MarketDaySession(
                 session_id=uuid4(),
                 session_date=self._market_calendar.today(),
-                status=TradingSessionStatus.OPEN,
-                phase=TradingSessionPhase.STRATEGIC_SETUP,
-                state=TradingSessionState.RUNNING,
+                status=SessionStatus.OPEN,
+                phase=SessionPhase.STRATEGIC_SETUP,
+                state=SessionState.RUNNING,
                 error=False
             )
             return BootPlan(
@@ -253,35 +253,35 @@ class SystemManager:
 
         match (today_session.status, today_session.error, today_session.phase):
 
-            case (TradingSessionStatus.OPEN, False, TradingSessionPhase.PRE_MARKET):
+            case (SessionStatus.OPEN, False, SessionPhase.PRE_MARKET):
                  return BootPlan(
                     decision=BootDecision.REBOOT,
                     session=today_session,
                     procedure="PRE_MARKET",
                 )
 
-            case(TradingSessionStatus.OPEN, True, TradingSessionPhase.STRATEGIC_SETUP):
+            case(SessionStatus.OPEN, True, SessionPhase.STRATEGIC_SETUP):
                 return BootPlan(
                     decision=BootDecision.REBOOT,
                     session=today_session,
                     procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
                 )
 
-            case(TradingSessionStatus.OPEN, True, TradingSessionPhase.PRE_MARKET):
+            case(SessionStatus.OPEN, True, SessionPhase.PRE_MARKET):
                 return BootPlan(
                     decision=BootDecision.REBOOT,
                     session=today_session,
                     procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
                 )
 
-            case (TradingSessionStatus.OPEN, True, TradingSessionPhase.IN_MARKET):
+            case (SessionStatus.OPEN, True, SessionPhase.IN_MARKET):
                 return BootPlan(
                     decision=BootDecision.RECOVERY,
                     session=today_session,
                     procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
                 )
 
-            case(TradingSessionStatus.OPEN, True, TradingSessionPhase.POST_MARKET):
+            case(SessionStatus.OPEN, True, SessionPhase.POST_MARKET):
                 return BootPlan(
                     decision=BootDecision.RECOVERY,
                     session=today_session,
@@ -419,7 +419,7 @@ class SystemManager:
     # TODO : Priority with duckDN or/with postgresDB,
     def persist_session(
             self,
-            session: TradingSession,
+            session: MarketDaySession,
             *,
             patch: Optional[Mapping[str, Any]] = None,
             note: Optional[str] = None,

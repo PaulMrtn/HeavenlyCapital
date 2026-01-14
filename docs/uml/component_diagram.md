@@ -280,7 +280,7 @@ Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorit
     * **IStatusResolver** : **Interface requise** ppour obtenir le statut global du jour (`MarketDayStatus`).
 
 * **Data Classes :**
-    * **TradingSystem** : Représente l'instance unique du système de trading, supervisant son état opérationnel, l'état des connexions (DB, IBKR), la version et orchestrant les `TradingSession`.
+    * **TradingSystem** : Représente l'instance unique du système de trading, supervisant son état opérationnel, l'état des connexions (DB, IBKR), la version et orchestrant les `MarketDaySession`.
     * **MarketDayStatus** : Indique le type de cycle pour la journée de trading à la suite du reveil du ``TradingSystem`.
 
 #### Notes
@@ -290,16 +290,16 @@ Le **System Manager** est le **point d'entrée unique (Singleton)** et l'autorit
 
 ### **Session Manager**
 
-**Description :** Le **Session Manager** est le composant responsable de la gestion de l'état et du cycle de vie de chaque session d'exécution (`TradingSession`). Une session modélise l'exécution d'une stratégie sur un portefeuille et peut opérer en mode **LIVE**, **PAPER** ou **BACKTEST**. Il gère la création, le démarrage, la mise en pause et l'arrêt (status) des sessions, et fournit le contexte d'exécution (mode, priorité) aux autres composants du système.
+**Description :** Le **Session Manager** est le composant responsable de la gestion de l'état et du cycle de vie de chaque session d'exécution (`MarketDaySession`). Une session modélise l'exécution d'une stratégie sur un portefeuille et peut opérer en mode **LIVE**, **PAPER** ou **BACKTEST**. Il gère la création, le démarrage, la mise en pause et l'arrêt (status) des sessions, et fournit le contexte d'exécution (mode, priorité) aux autres composants du système.
 
 * **Interfaces Fournies / Requises :**
     * **ISessionManager** : **Interface fournie** pour les opérations CRUD sur l'état d'une session.
     * **IExecutionContextProvider** : **Interface fournie** pour fournir le contexte d'exécution (`mode`, `session_id`) aux composants en aval (ex: **Order Manager** pour l'attribution de la priorité).
-    * **IDatabaseWriter** : **Interface requise** (via DIL) pour la persistance des nouveaux objets `TradingSession`.
+    * **IDatabaseWriter** : **Interface requise** (via DIL) pour la persistance des nouveaux objets `MarketDaySession`.
     * **IDataReader** : **Interface requise** (via DAL) pour la récupération des sessions existantes.
 
 * **Data Classes :**
-    * **TradingSession** : Modélise l'unité centrale de l'exécution, définissant le contexte, le mode d'exécution (`LIVE`, `PAPER`), le statut, et les relations avec l'ensemble des données de trading.
+    * **MarketDaySession** : Modélise l'unité centrale de l'exécution, définissant le contexte, le mode d'exécution (`LIVE`, `PAPER`), le statut, et les relations avec l'ensemble des données de trading.
 
 #### Notes
 
@@ -443,7 +443,7 @@ Le **Data Integrity Engine** est la **cinquième et dernière étape de transfor
 
 ### VIII. Strategy Engine
 
-Le **Strategy Engine** est le cœur décisionnel du système, chargé d'encapsuler la **logique d'investissement** sous la forme d'un algorithme paramétrable. Le composant doit supporter et gérer plusieurs stratégies simultanément. Il est toujours exécuté dans le **contexte d'une session unique (`TradingSession`)**, garantissant ainsi que les décisions prises (lancement de la Pipeline) utilisent le jeu de **`StrategyParameters`** et le mode d'exécution spécifiques à cette session. Pour se réaliser, il **accède aux données** nécessaires via l'interface **`IDataReader`** fournie par le **Data Access Layer (DAL)**.
+Le **Strategy Engine** est le cœur décisionnel du système, chargé d'encapsuler la **logique d'investissement** sous la forme d'un algorithme paramétrable. Le composant doit supporter et gérer plusieurs stratégies simultanément. Il est toujours exécuté dans le **contexte d'une session unique (`MarketDaySession`)**, garantissant ainsi que les décisions prises (lancement de la Pipeline) utilisent le jeu de **`StrategyParameters`** et le mode d'exécution spécifiques à cette session. Pour se réaliser, il **accède aux données** nécessaires via l'interface **`IDataReader`** fournie par le **Data Access Layer (DAL)**.
 
 Son rôle est d'**initier et d'orchestrer le processus de rééquilibrage** :
 1.  Il utilise le contexte de la session pour identifier et injecter les **`StrategyParameters`** (déterminés lors de la phase de backtest) dans le flux.
@@ -465,7 +465,7 @@ Son rôle est d'**initier et d'orchestrer le processus de rééquilibrage** :
 | Attribut | Type de Donnée | Description |
 | :--- | :--- | :--- |
 | **`strategy_id`** | UUID | Identifiant unique de l'instance de stratégie. |
-| **`session_id`** | UUID | **Identifiant unique de la `TradingSession`** (Ajouté pour le contexte multi-stratégie). |
+| **`session_id`** | UUID | **Identifiant unique de la `MarketDaySession`** (Ajouté pour le contexte multi-stratégie). |
 | **`evaluation_timestamp`** | DateTime | Horodatage de l'instant où l'évaluation du rééquilibrage est effectuée. |
 | **`strategy_parameters`** | StrategyParams Object | L'ensemble des paramètres configurés appliqués à la Pipeline. |
 | **`current_market_snapshot`** | MarketData Object | Le dernier instantané de prix marché reçu (pour lecture contextuelle). |
