@@ -8,6 +8,7 @@
 ---
 
 **EDIT :** Ajoute ThreadManager et TradingSessionManager
+
 ---
 
 ### 1. Objectif
