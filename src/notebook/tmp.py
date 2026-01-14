@@ -30,9 +30,9 @@ system_manager = SystemManager(market_clock=market_clock,
 
 system_manager._market_clock.start()
 
-# system_manager._prepare_bootstrap(checks=checks)
+system_manager._prepare_bootstrap(checks=checks)
 
-# system_manager.launch_global_runtime()
+system_manager.launch_global_runtime()
 
 
 

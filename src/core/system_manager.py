@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import threading
-from typing import Optional, Iterable, Any, Mapping
+from typing import Optional, Iterable, Any, Mapping, Protocol
+
+
 from enum import Enum, IntEnum
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
@@ -75,7 +77,6 @@ class TradingSessionState(str, Enum):
     DONE = "DONE"
     RUNNING = "RUNNING"
 
-
 @dataclass(slots=True)
 class TradingSession:
     session_id: UUID
@@ -104,6 +105,28 @@ class BootPlan:
 #endregion
 
 # region GlobalRuntime DataClass
+class MarketPorts(Protocol):
+    market_clock: Any
+    market_calendar: Any
+
+
+class StoragePorts(Protocol):
+    data_ingestion: Any
+    data_access: Any
+
+
+class ObservabilityPorts(Protocol):
+    log_service: Any
+    metric_service: Any
+    error_service: Any
+    notification_service: Any
+
+
+# Optionnel: une vue "complète" si certains modules ont vraiment besoin de tout
+class FullSystemPorts(MarketPorts, StoragePorts, ObservabilityPorts, Protocol):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class SystemPorts:
     market_clock: Any
@@ -117,12 +140,15 @@ class SystemPorts:
     error_service: Any
     notification_service: Any
 
+
 @dataclass(slots=True)
 class RuntimeModules:
     ibkr_gateway: Optional[RuntimeModule] = None
     historic: Optional[RuntimeModule] = None
     live_hub: Optional[RuntimeModule] = None
     forecast_manager: Optional[RuntimeModule] = None
+    thread_manager: Optional[RuntimeModule] = None
+
 
 # endregion
 
@@ -295,7 +321,6 @@ class SystemManager:
     def _proc_pre_market(self, plan: "BootPlan") -> None:
         # TODO: to continue
         self.launch_global_runtime()
-        # self.launch_thread_manager()
         # self.launch_local_runtime()
         return
 
@@ -311,7 +336,8 @@ class SystemManager:
     def _prepare_bootstrap(self, checks):
         self.run_readiness_checks(checks=checks)
 
-        if self._market_calendar.is_open_today() :
+        # TODO : add / remove not in prod
+        if not self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -427,12 +453,14 @@ class SystemManager:
             historic_data_hub: RuntimeModule,
             live_data_hub: RuntimeModule,
             forecast_manager: RuntimeModule,
+            thread_manager: RuntimeModule,
     ) -> None:
 
         self._modules.ibkr_gateway = ibkr_gateway
         self._modules.historic = historic_data_hub
         self._modules.live_hub = live_data_hub
         self._modules.forecast_manager = forecast_manager
+        self._modules.thread_manager = thread_manager
         self._modules_configured = False
 
     def _build_ports(self) -> SystemPorts:
@@ -458,6 +486,7 @@ class SystemManager:
             (self._modules.historic, self._runtime_config.historic),
             (self._modules.live_hub, self._runtime_config.live_hub),
             (self._modules.forecast_manager, self._runtime_config.forecast),
+            (self._modules.thread_manager, self._runtime_config.thread),
         )
 
         for module, config in modules_to_configure:
@@ -475,6 +504,7 @@ class SystemManager:
             self._modules.historic,
             self._modules.live_hub,
             self._modules.forecast_manager,
+            self._modules.thread_manager
         )
 
         for module in modules_to_start:
@@ -489,6 +519,7 @@ class SystemManager:
             self._modules.historic,
             self._modules.live_hub,
             self._modules.forecast_manager,
+            self._modules.thread_manager
         )
 
         results = [m.health_check() for m in modules_to_check if m is not None]
@@ -503,7 +534,9 @@ class SystemManager:
         from src.data.live_data_hub import get_live_data_hub
         from src.data.historic_data_hub import get_historic_data_hub
         from src.trading.ibkr_gateway import get_ibkr_gateway
+        from src.core.thread_manager import get_thread_manager
 
+        # TODO : handle this import to
         runtime_config = get_global_runtime_config()
         self.set_runtime_config(runtime_config)
 
@@ -512,6 +545,7 @@ class SystemManager:
             historic_data_hub=get_historic_data_hub(),
             live_data_hub=get_live_data_hub(),
             forecast_manager=get_forecast_manager(),
+            thread_manager=get_thread_manager(),
         )
 
         self.configure_runtime_modules()
@@ -519,4 +553,5 @@ class SystemManager:
         self.health_checks_runtime_modules()
 
     # endregion
+
 

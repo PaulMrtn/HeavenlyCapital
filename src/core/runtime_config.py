@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, Any, runtime_checkable
 
+#TODO : load les config depuis un ficher json
 
 @dataclass(frozen=True, slots=True)
 class IBKRConfig:
@@ -26,17 +27,29 @@ class HistoricHubConfig:
 class ForecastConfig:
     pass
 
+
+@dataclass(frozen=True, slots=True)
+class ThreadConfig:
+    critical: int = 2
+    standard: int = 4
+    bulk: int = 2
+    audit: int = 1
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     ibkr: IBKRConfig = IBKRConfig()
     live_hub: LiveHubConfig = LiveHubConfig()
     historic: HistoricHubConfig = HistoricHubConfig()
     forecast: ForecastConfig = ForecastConfig()
+    thread: ThreadConfig = ThreadConfig()
+
 
 
 _runtime_config: RuntimeConfig | None = None
 
 def get_global_runtime_config() -> RuntimeConfig:
+    # TODO : update runtime_config keys name
     global _runtime_config
     if _runtime_config is None:
         _runtime_config = RuntimeConfig(
@@ -44,6 +57,8 @@ def get_global_runtime_config() -> RuntimeConfig:
             historic=HistoricHubConfig(),
             live_hub=LiveHubConfig(),
             forecast=ForecastConfig(),
+            thread=ThreadConfig(),
+
         )
     return _runtime_config
 
@@ -53,8 +68,11 @@ def get_global_runtime_config() -> RuntimeConfig:
 
 @runtime_checkable
 class RuntimeModule(Protocol):
+
     def configure(self, *, config: Any, ports: Any) -> None: ...
+
     def start(self) -> None: ...
+
     def stop(self) -> None: ...
 
     @property
