@@ -6,6 +6,10 @@
 
 ---
 
+EDIT : La documentation et le diagramme doivent être mis à jour : il ne s’agit pas d’un contrôle de priorité des threads, mais d’un contrôle de santé (la notion de priorité n’existe pas).
+
+---
+
 ### 1. Objectif
 
 La finalité de ce module est d'allouer les ressources d'exécution physiques du système en créant quatre **Pools de Threads spécialisés** (`CRITICAL`, `STANDARD`, `BULK`, `AUDIT`). Il garantit que ces ressources sont entièrement pré-allouées, isolées, et que le Pool Critique opère avec une priorité garantie par l'OS avant tout engagement de trading.
