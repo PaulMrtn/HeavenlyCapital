@@ -6,7 +6,7 @@
 
 ---
 
-EDIT : La documentation et le diagramme doivent être mis à jour : il ne s’agit pas d’un contrôle de priorité des threads, mais d’un contrôle de santé (la notion de priorité n’existe pas).
+**EDIT :** La documentation et le diagramme doivent être mis à jour : il ne s’agit pas d’un contrôle de priorité des threads, mais d’un contrôle de santé (la notion de priorité n’existe pas).
 
 ---
 
