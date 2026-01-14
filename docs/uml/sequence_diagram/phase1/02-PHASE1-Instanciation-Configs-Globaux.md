@@ -4,6 +4,10 @@
   <img src="../img/02-PHASE1-Instanciation-Configs-Globaux.jpg" width="900">
 </p>
 
+
+---
+
+**EDIT :** Ajoute ThreadManager et TradingSessionManager
 ---
 
 ### 1. Objectif
