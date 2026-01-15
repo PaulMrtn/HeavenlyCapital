@@ -6,7 +6,7 @@
 
 ---
 
-EDIT : Pour la **séquence 04**, nous allons introduire la notion de **`TradingSession` multiples** et un **`TradingSessionManager`** chargé de leur cycle de vie, afin de permettre plusieurs exécutions de trading en parallèle (par exemple par stratégie, compte ou univers) sans dépendre d’une session “jour de marché” : chaque `TradingSession` embarque et **possède ses composants dédiés** — un `OrderManager`, un `RiskManager` et un `PortfolioManager` — ce qui garantit qu’il y a **autant de `RiskManager` (et des autres managers) que de `TradingSession`** ; le `TradingSessionManager` maintient un registre des sessions (création, récupération, démarrage/arrêt, suppression, arrêt global), applique une clé d’identification stable (ex. `session_key`) et fournit une interface unique au reste du système ; enfin, le est ajusté pour **orchestrer** ce manager (initialisation et accès), tout en gardant une séparation claire des responsabilités (le reste un orchestrateur global, et la logique métier de chaque run vit dans la `TradingSession` via ses managers dédiés). `SystemManager``SystemManager`
+EDIT : Pour la **séquence 04**, nous allons introduire la notion de **`TradingSession` multiples** et un **`TradingSessionManager`** chargé de leur cycle de vie, afin de permettre plusieurs exécutions de trading en parallèle (par exemple par stratégie, compte ou univers) sans dépendre d’une session “jour de marché” : chaque `TradingSession` embarque et **possède ses composants dédiés** — un `OrderManager`, un `RiskManager` et un `PortfolioManager` — ce qui garantit qu’il y a **autant de `RiskManager` (et des autres managers) que de `TradingSession`** ; le `TradingSessionManager` maintient un registre des sessions (création, récupération, démarrage/arrêt, suppression, arrêt global), applique une clé d’identification stable (ex. `session_key`) et fournit une interface unique au reste du système ; enfin, le est ajusté pour **orchestrer** ce manager (initialisation et accès), tout en gardant une séparation claire des responsabilités (le reste un orchestrateur global, et la logique métier de chaque run vit dans la `TradingSession` via ses managers dédiés).
 
 ---
 
@@ -24,7 +24,7 @@ Cette étape s'inscrit immédiatement après l'initialisation des services d'inf
 
 ### 3. Logique Générale
 
-Le **System Manager** orchestre une boucle itérative pour chaque identifiant de session récupéré via le `StaticConfigPort`. Le processus suit cet ordre strict pour garantir l'intégrité des liens et le respect du principe **Fail-Fast** :
+Le **TradingSessionManager** orchestre une boucle itérative pour chaque identifiant de session récupéré via le `StaticConfigPort`. Le processus suit cet ordre strict pour garantir l'intégrité des liens et le respect du principe **Fail-Fast** :
 
 #### Étape 1 : Récupération et Création Identitaire
 
@@ -40,7 +40,7 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 
 #### Étape 3 : Allocation des Oracles ML (Inférence Locale)
 
-* **Résolution des Artefacts :** Le System Manager localise les fichiers de modèles (ModelID + Version) définis en configuration.
+* **Résolution des Artefacts :** Le TradingSessionManager localise les fichiers de modèles (ModelID + Version) définis en configuration.
 * **Instanciation des Modèles :**
   * Injection de l'oracle `IExecutionDecisionModel` dans le **PM**.
   * Injection de l'oracle `IStopPredictionModel` dans le **RM**.
@@ -48,15 +48,15 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 
 #### Étape 4 : Liaison des Canaux et Abonnements (Linking)
 
-* **Canal de Performance :** Le System Manager lie l'OM au PM via `setOrderManager(OM)`.
-* **Canal de Surveillance :** Le System Manager lie le PM au RM via `setPortfolioReference(PM)`, permettant au RM d'interroger le port `IPositionProvider`.
+* **Canal de Performance :** Le TradingSessionManager lie l'OM au PM via `setOrderManager(OM)`.
+* **Canal de Surveillance :** Le TradingSessionManager lie le PM au RM via `setPortfolioReference(PM)`, permettant au RM d'interroger le port `IPositionProvider`.
 * **Abonnement EventBus :** Les managers (PM/RM) s'enregistrent sur l'**`IEventBusPort`**.
 * *Note : Le bus reste "Silencieux" (Mute) tant que le bootstrap n'est pas finalisé.*
 
 #### Étape 5 : Finalisation et Audit de Readiness
 
-* **Port de Santé Dédié :** Le System Manager effectue directement les vérifications de latence locale et de l'état des files pour le triplet PM/RM/OM.
-* **H-Check de Session :** A: Appel à `HCheckSessionReady(ID)` géré en interne par le System Manager, qui valide :
+* **Port de Santé Dédié :** Le TradingSessionManager effectue directement les vérifications de latence locale et de l'état des files pour le triplet PM/RM/OM.
+* **H-Check de Session :** A: Appel à `HCheckSessionReady(ID)` géré en interne par le TradingSessionManager, qui valide :
   1. La connectivité au **LHB**.
   2. La validité des pointeurs vers les modèles ML.
   3. L'intégrité des canaux de communication PM-RM-OM.
@@ -85,10 +85,10 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 * **Isolation ML/Manager :** Chaque instance de manager possède son propre exemplaire d'oracle. Un manager ne peut jamais invoquer le modèle d'un composant tiers.
 * **Abstraction du DIL :** Les managers n'ont aucun couplage direct avec le **Data Integrity Layer**. Ils utilisent des interfaces métier dont les appels sont routés vers le `BULK_POOL` ou le `AUDIT_POOL` via des transactions atomiques (`startTransaction`).
   
-* **Centralisation Fail-Fast :** Le port `IErrorHandler` reste le canal unique de remontée. La sévérité `CRITICAL` déclenche un `systemStop` immédiat si et seulement si elle impacte l'infrastructure globale ou une session configurée en mode `LIVE`. Pour les sessions `PAPER`, l'erreur fatale au bootstrap est interceptée par le `System Manager` pour déclencher une destruction locale (`destroy()`) sans interrompre le processus global.
+* **Centralisation Fail-Fast :** Le port `IErrorHandler` reste le canal unique de remontée. La sévérité `CRITICAL` déclenche un `systemStop` immédiat si et seulement si elle impacte l'infrastructure globale ou une session configurée en mode `LIVE`. Pour les sessions `PAPER`, l'erreur fatale au bootstrap est interceptée par le `TradingSessionManager` pour déclencher une destruction locale (`destroy()`) sans interrompre le processus global.
 
 * **Isolation de l'Échec (Paper vs Live) :** Toute session configurée en mode `LIVE` est considérée comme une dépendance critique du système ; son échec au bootstrap entraîne l'arrêt total (`systemStop`). Les sessions `PAPER` sont considérées comme facultatives.
-* **Nettoyage Mémoire :** En cas d'échec d'une session Paper, le System Manager doit explicitement appeler le destructeur de la `TradingSession` pour s'assurer qu'aucun thread ou port (notamment l'abonnement à l'`EventBus`) ne reste actif en arrière-plan.
+* **Nettoyage Mémoire :** En cas d'échec d'une session Paper, le TradingSessionManager doit explicitement appeler le destructeur de la `TradingSession` pour s'assurer qu'aucun thread ou port (notamment l'abonnement à l'`EventBus`) ne reste actif en arrière-plan.
 * **Audit des Échecs :** Même si le système continue son exécution après l'échec d'une session Paper, l'erreur doit être enregistrée avec un niveau WARN pour permettre une analyse post-mortem
 * **Silence du Bootstrapping :** Bien qu'injecté, l'**`IEventBusPort`** est maintenu en état "mute" durant toute la Phase 1 pour éviter tout déclenchement de logique métier avant l'ouverture officielle de la session.
 
@@ -168,13 +168,13 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 **Port : ILogger**
   * **Implémenté par :** Logger Global.
-  * **Injecté dans :** PM, RM, OM, System Manager.
+  * **Injecté dans :** PM, RM, OM, TradingSessionManager.
   * **Responsabilité :** Journalisation technique et audit de conformité.
   * **Règles d’usage :** Non-bloquant. Ne doit jamais impacter les threads critiques d'exécution. Respect rigoureux des niveaux de priorité d'audit.
 
 **Port : ISessionConfigProvider**
   * **Implémenté par :** Config Service Global.
-  * **Injecté dans :** System Manager, Order Manager.
+  * **Injecté dans :** TradingSessionManager, Order Manager.
   * **Responsabilité :** Fournir les paramètres statiques et les seuils de risque par session.
   * **Règles d’usage :** **Lecture seule.** Pas de modification dynamique autorisée pendant la session de trading.
 
