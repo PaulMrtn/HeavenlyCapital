@@ -72,10 +72,10 @@ L'injection par constructeur est privilégiée pour garantir l'immuabilité des 
 * **Performance du Pull  :** L'accès aux N slots du **LHB** via `ILiveDataReader` est garanti **lock-free**. Le PM et le RM peuvent "Pull" des tranches de données (Slices) sans créer de contention sur le thread d'ingestion des prix.
   
 * **Segmentation des Pools d'Exécution :**
-  * **RM :** Isolé sur le `RM_CRITICAL_POOL` (Priorité OS maximale).
-  * **PM :** Opère sur le `STRATEGY_POOL`.
-  * **OM :** Géré par le `IO_POOL` (Réseau/Persistance).
-  * 
+  * **RM :** Isolé sur le **CRITICAL_POOL** (Priorité Maximale / Real-Time) pour garantir une réaction immédiate lors des ordres d'urgence et des liquidations.
+  * **PM :** Opère sur le **STANDARD_POOL** (Priorité Haute) pour la logique métier, tout en accédant au **CRITICAL_POOL** pour l'émission d'ordres prioritaires.
+  * **OM :** Géré par le **CRITICAL_POOL** pour la transmission technique des ordres au broker, avec un repli sur le **BULK_POOL** (Priorité Basse) pour la persistance I/O non critique.
+
 * **Immutabilité des Modèles :** Une fois injectés, `IExecutionDecisionModel` et `IStopPredictionModel` sont en lecture seule. Ils ne possèdent aucun état interne mutable.
 * **Pureté Fonctionnelle :** Les modèles agissent comme des fonctions pures (). Ils n'ont aucun droit d'accès aux ports de persistance ou de connectivité broker.
 * **Isolation ML/Manager :** Chaque instance de manager possède son propre exemplaire d'oracle. Un manager ne peut jamais invoquer le modèle d'un composant tiers.
