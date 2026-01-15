@@ -6,10 +6,6 @@
 
 ---
 
-EDIT : Pour la **séquence 04**, nous allons introduire la notion de **`TradingSession` multiples** et un **`TradingSessionManager`** chargé de leur cycle de vie, afin de permettre plusieurs exécutions de trading en parallèle (par exemple par stratégie, compte ou univers) sans dépendre d’une session “jour de marché” : chaque `TradingSession` embarque et **possède ses composants dédiés** — un `OrderManager`, un `RiskManager` et un `PortfolioManager` — ce qui garantit qu’il y a **autant de `RiskManager` (et des autres managers) que de `TradingSession`** ; le `TradingSessionManager` maintient un registre des sessions (création, récupération, démarrage/arrêt, suppression, arrêt global), applique une clé d’identification stable (ex. `session_key`) et fournit une interface unique au reste du système ; enfin, le est ajusté pour **orchestrer** ce manager (initialisation et accès), tout en gardant une séparation claire des responsabilités (le reste un orchestrateur global, et la logique métier de chaque run vit dans la `TradingSession` via ses managers dédiés).
-
----
-
 ### 1. Objectif
 
 La finalité de ce module est d'allouer la couche d'exécution métier du système en instanciant **toutes les sessions de trading actives**. Cela comprend la création, l'injection de dépendances et la liaison des triplets de managers locaux (**Portfolio Manager**, **Risk Monitor**, **Order Manager**) pour chaque stratégie. L'objectif est de garantir qu'avant tout chargement de données, incluant les oracles ML, la structure logique de décision et de sécurité est opérationnelle, isolée et supervisée. Cette étape assure également que chaque session dispose de ses propres modèles d'inférence immuables pour valider les signaux d'exécution en temps réel.
