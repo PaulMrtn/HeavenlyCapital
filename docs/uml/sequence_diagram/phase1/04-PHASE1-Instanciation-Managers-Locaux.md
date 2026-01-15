@@ -102,15 +102,15 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|getSessionsToLoad()|System Manager|Config|Récupération de la liste exhaustive des SessionIDs configurés pour la journée.|
-|2|new SessionManager(SessionID,Config)|System Manager|Session Manager|Instanciation d'un manager local dédié. Crée l'objet TradingSession en interne.|
-|3|new PortfolioManager(ID, Config, LDH, LHB, IPersistence, IExecModel, ErrorService)|Session Manager|Portfolio Manager|Création du PM avec injection obligatoire des ports de données (LDH/LHB) et du modèle ML au constructeur.|
-|4|new RiskMonitor(ID, Config, LDH,LHB, IPositionProvider, IOrderSubmission, IStopModel, ErrorService)|Session Manager|Risk Monitor|Création du RM avec injection du modèle de risque prédictif et des ports d'accès aux positions/ordres.|
-|5|new OrderManager(ID, IG, IPersistence, ErrorService)|Session Manager|Order Manager|Instanciation de l'exécuteur technique assurant le pont vers la passerelle broker (IG).|
-|6|setOrderManager(OM)|Session Manager|Portfolio Manager|Liaison de second rang établissant le canal de transmission des ordres de performance du PM vers l'OM.|
-|7|HCheckSessionReady(ID)|Session Manager|Session Manager|Auto-vérification synchrone de l'intégrité de l'instance (modèles ML, latence ports, cohérence ID).|
-|8|systemStop(CRITICAL_ERROR)|System Manager|System Manager|Fail-Fast global : Arrêt immédiat de tout le système si une session LIVE échoue au bootstrap.|
-|9|destroy()|System Manager|Session Manager|Nettoyage mémoire : Destruction de l'instance si une session PAPER échoue, permettant de continuer la boucle.|
+|1|getSessionsToLoad()|TradingSessionManager|Config|Récupération de la liste des identifiants de sessions actives à initialiser pour la journée.|
+|2|new TradingSession(SessionID,Config)|TradingSessionManager|TradingSession|Instanciation de l'unité de runtime locale (Runtime Manager) pour une stratégie spécifique.|
+|3|new PortfolioManager(ID,Config,LDH,LHB,IPersistence,IExecModel,ErrorService)|TradingSession|Portfolio Manager|Création du manager de portefeuille avec injection des ports de données temps réel et historique, ainsi que de l'oracle ML.|
+|4|new RiskMonitor(ID,Config,LDH,LHB,IPositionProvider,IOrderSubmission,IStopModel,ErrorService)|TradingSession|Risk Monitor|Création du moniteur de risque incluant les ports de surveillance des positions et le modèle de prédiction des stops.|
+|5|new OrderManager(ID,IG,IPersistence,ErrorService)|TradingSession|Order Manager|Instanciation du gestionnaire d'ordres assurant la liaison technique avec la passerelle du courtier (Broker Gateway).|
+|6|setOrderManager(OM)|TradingSession|Portfolio Manager|Établissement du canal de communication permettant au PM de transmettre ses décisions d'exécution à l'OM.|
+|7|HCheckSessionReady(ID)|TradingSession|TradingSession|Appel interne d'auto-vérification pour valider l'intégrité du triplet (PM/RM/OM) et des connexions aux modèles ML.|
+|8|systemStop(CRITICAL_ERROR)|TradingSession|TradingSessionManager|Protocole Fail-Fast : Arrêt total du système global si une session en mode LIVE échoue à son test de santé.|
+|9|destroy()|TradingSessionManager|TradingSession|Protocole de résilience : Destruction de l'instance locale si une session PAPER échoue, permettant de continuer le bootstrap des autres sessions.|
 
 ---
 
