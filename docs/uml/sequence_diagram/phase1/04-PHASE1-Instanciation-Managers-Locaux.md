@@ -103,10 +103,10 @@ Ce module garantit que l'architecture métier est instanciée et que tous les **
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
 |1|getSessionsToLoad()|TradingSessionManager|Config|Récupération de la liste des identifiants de sessions actives à initialiser pour la journée.|
-|2|new TradingSession(SessionID,Config)|TradingSessionManager|TradingSession|Instanciation de l'unité de runtime locale (Runtime Manager) pour une stratégie spécifique.|
-|3|new PortfolioManager(ID,Config,LDH,LHB,IPersistence,IExecModel,ErrorService)|TradingSession|Portfolio Manager|Création du manager de portefeuille avec injection des ports de données temps réel et historique, ainsi que de l'oracle ML.|
-|4|new RiskMonitor(ID,Config,LDH,LHB,IPositionProvider,IOrderSubmission,IStopModel,ErrorService)|TradingSession|Risk Monitor|Création du moniteur de risque incluant les ports de surveillance des positions et le modèle de prédiction des stops.|
-|5|new OrderManager(ID,IG,IPersistence,ErrorService)|TradingSession|Order Manager|Instanciation du gestionnaire d'ordres assurant la liaison technique avec la passerelle du courtier (Broker Gateway).|
+|2|new TradingSession(SessionID, Config)|TradingSessionManager|TradingSession|Instanciation de l'unité de runtime locale (Runtime Manager) pour une stratégie spécifique.|
+|3|new PortfolioManager(ID,Config, LDH, LHB, IPersistence, IExecModel, ErrorService)|TradingSession|Portfolio Manager|Création du manager de portefeuille avec injection des ports de données temps réel et historique, ainsi que de l'oracle ML.|
+|4|new RiskMonitor(ID, Config, LDH, LHB, IPositionProvider, IOrderSubmission, IStopModel, ErrorService)|TradingSession|Risk Monitor|Création du moniteur de risque incluant les ports de surveillance des positions et le modèle de prédiction des stops.|
+|5|new OrderManager(ID, IG, IPersistence, ErrorService)|TradingSession|Order Manager|Instanciation du gestionnaire d'ordres assurant la liaison technique avec la passerelle du courtier (Broker Gateway).|
 |6|setOrderManager(OM)|TradingSession|Portfolio Manager|Établissement du canal de communication permettant au PM de transmettre ses décisions d'exécution à l'OM.|
 |7|HCheckSessionReady(ID)|TradingSession|TradingSession|Appel interne d'auto-vérification pour valider l'intégrité du triplet (PM/RM/OM) et des connexions aux modèles ML.|
 |8|systemStop(CRITICAL_ERROR)|TradingSession|TradingSessionManager|Protocole Fail-Fast : Arrêt total du système global si une session en mode LIVE échoue à son test de santé.|
