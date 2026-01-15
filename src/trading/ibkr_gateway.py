@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 from src.core.runtime_config import IBKRConfig, RuntimeModule
 from src.core.system_manager import SystemPorts
@@ -14,6 +14,9 @@ class IBKRGateway(RuntimeModule):
 
         self._config: Optional[IBKRConfig] = None
         self._ports: Optional[SystemPorts] = None
+
+        # TODO : MOCK sent order (update with OrderObject)
+        self._mock_sent_orders: list[dict[str, Any]] = list()
 
     def configure(self, *, config: IBKRConfig, ports: SystemPorts) -> None:
         self._config = config
@@ -52,6 +55,20 @@ class IBKRGateway(RuntimeModule):
         return {
             "is_healthy": True,
         }
+
+    # --- MOCK SINK API -------------------------------------------------
+
+    def order_sink(self, order: dict[str, Any]) -> None:
+        if not self._configured or not self._started:
+            raise RuntimeError("IBKRGateway: order_sink() called while not started/configured")
+
+        self._mock_sent_orders.append(order)
+
+    def get_order_sink(self) -> Callable[[dict[str, Any]], None]:
+        return self.order_sink
+
+    # ------------------------------------------------------------------
+
 
 
 _instance: Optional[IBKRGateway] = None

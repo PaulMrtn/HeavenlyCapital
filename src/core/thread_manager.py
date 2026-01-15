@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
+
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from src.core.runtime_config import RuntimeModule, ThreadConfig
@@ -176,6 +177,7 @@ class ThreadManager(RuntimeModule):
             pool.shutdown(wait=wait, timeout_s=timeout_s)
         self._started = False
 
+
     @property
     def is_configured(self) -> bool:
         return self._configured
@@ -210,7 +212,8 @@ class ThreadManager(RuntimeModule):
             "is_healthy": True,
         }
 
-
+    def join(self): ...
+    # TODO : herite join() from all the worker
 
 
 _instance: Optional[ThreadManager] = None
