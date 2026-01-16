@@ -545,6 +545,7 @@ class SystemManager:
             self._modules.session_manager
         )
 
+        #TODO:MEDIUM for , at the first failed you return the dict HealhCheckError
         results = [m.health_check() for m in modules_to_check if m is not None]
         failed_results = [r for r in results if r.get("is_healthy") is not True]
 
@@ -585,7 +586,9 @@ class SystemManager:
 # region LocalRuntimeLauncher
 
 
-    def launch_local_runtime(self) : ...
+    def launch_local_runtime(self) :
+        self._modules.session_manager.initialize_sessions_from_config()
+        # self._modules.session_manager.load_session_state_from_database()
 
 
 

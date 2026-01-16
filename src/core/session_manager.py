@@ -10,6 +10,7 @@ from uuid import uuid4, UUID
 
 from src.core.runtime_config import SessionConfig
 from src.core.system_manager import RuntimeModule
+from src.monitoring.error_service import HealthCheckError
 from src.trading.order_manager import OrderManager
 from src.trading.portfolio_manager import PortfolioManager
 from src.trading.risk_monitor import RiskMonitor
@@ -24,7 +25,7 @@ class TradingMode(str, Enum):
 
 
 class SessionState(str, Enum):
-    NEW = "NEW"
+    IDLE = "IDLE"
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
     CLOSED = "CLOSED"
@@ -86,6 +87,7 @@ class GlobalOrderRouter:
         self._worker: Optional[Thread] = None
 
         if start_worker:
+            # TODO:HIGHEST Replace by our poolthread CRITICAL
             self._worker = Thread(target=self._run, name=name, daemon=True)
             self._worker.start()
 
@@ -151,25 +153,68 @@ class GlobalOrderRouter:
 
 
 class TradingSession:
-    def __init__(self, *, key: TradingSessionKey, payload: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self,
+        *,
+        key: TradingSessionKey,
+        router: "GlobalOrderRouter",
+        ports: Optional["SystemPorts"] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> None:
+
         self.key = key
         self.session_id: UUID = uuid4()
-        self.state = SessionState.NEW
+        self.state: SessionState = SessionState.IDLE
+
         self._payload: Dict[str, Any] = payload or {}
+        self._ports: Optional["SystemPorts"] = ports
+        self._router: "GlobalOrderRouter" = router
 
         self.stack: Optional[SessionStack] = None
 
-    def initialize_modules(self) -> None:
+    @property
+    def ports(self) -> "SystemPorts":
+        return self._ports
 
+    @property
+    def router(self) -> "GlobalOrderRouter":
+        return self._router
+
+    @staticmethod
+    def _build_modules() -> tuple["OrderManager", "PortfolioManager", "RiskMonitor"]:
         orders = OrderManager()
         portfolio = PortfolioManager()
         risk = RiskMonitor()
+        return orders, portfolio, risk
 
-        modules = (orders, portfolio, risk)
+    def _inject_modules(self, *, orders: "OrderManager", portfolio: "PortfolioManager", risk: "RiskMonitor") -> None:
+        for m in (orders, portfolio, risk):
+            m.configure(session_id=self.session_id, key=self.key, ports=self.ports)
 
+    @staticmethod
+    def _wire_modules(
+            *,
+            orders: "OrderManager",
+            portfolio: "PortfolioManager",
+            risk: "RiskMonitor",
+            router: "GlobalOrderRouter",
+    ) -> None:
 
+        orders.wire(
+            portfolio_authorizer=portfolio.authorize_order,
+            risk_authorizer=risk.authorize_order,
+        )
 
+        orders.set_router(router)
 
+    def initialize_modules(self) -> None:
+        orders, portfolio, risk = self._build_modules()
+
+        self._inject_modules(orders=orders, portfolio=portfolio, risk=risk)
+
+        self._wire_modules(orders=orders, portfolio=portfolio, risk=risk, router=self.router)
+
+        self.stack = SessionStack(orders=orders, portfolio=portfolio, risk=risk)
 
 
     def start(self) -> None:
@@ -186,6 +231,11 @@ class TradingSession:
         if self.state == SessionState.CLOSED:
             return
         self.state = SessionState.CLOSED
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
 
     def snapshot(self) -> MarketDaySessionSnapshot:
         return MarketDaySessionSnapshot(
@@ -267,7 +317,6 @@ class SessionManager(RuntimeModule):
             "is_healthy": True,
         }
 
-
     def _current_session_date(self):
         # TODO:HIGH Persist current day dans unf format ISO (ou équivalent)
         return self.ports.market_calendar.today()
@@ -282,9 +331,9 @@ class SessionManager(RuntimeModule):
 
     def _create_trading_session(self, *, session_cfg, payload: dict | None = None) -> TradingSession:
         key = self._build_session_key(session_cfg=session_cfg)
-        return TradingSession(key=key, payload=payload)
+        return TradingSession(key=key, payload=payload, ports=self.ports, router=self.router)
 
-    def _init_sessions_from_config(self) -> None:
+    def initialize_sessions_from_config(self) -> None:
         for session_cfg in getattr(self._config, "sessions", []):
             session = self._create_trading_session(session_cfg=session_cfg)
 
@@ -292,14 +341,23 @@ class SessionManager(RuntimeModule):
                 continue
 
             self._sessions[session.key] = session
+            session.initialize_modules()
+
+            result = session.health_check()
+            if result.get("is_healthy") is False:
+                raise HealthCheckError(result)
+
+            # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session
+
+
+    def load_session_state_from_database(self) : ...
 
 
 
 
 
 
-
-# region OldFunction
+    # region OldFunction
 
     def get_session(self, key: TradingSessionKey) -> TradingSession:
         with self._lock:

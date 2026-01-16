@@ -27,8 +27,8 @@ class NullErrorService:
 
 
 # TODO : A deplacer vers un catalogue d error
-
 class HealthCheckError(RuntimeError):
-    def __init__(self, results: list[dict[str, Any]]):
+    # TODO:MEDIUM remove list input , dict in input
+    def __init__(self, results: list[dict[str, Any]] | dict[str, Any]):
         super().__init__(f"Health checks failed: {results}")
         self.results = results

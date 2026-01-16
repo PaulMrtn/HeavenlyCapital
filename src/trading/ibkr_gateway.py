@@ -59,7 +59,9 @@ class IBKRGateway(RuntimeModule):
 
     # --- MOCK SINK API -------------------------------------------------
 
-    def order_sink(self, order: dict[str, Any]) -> None:
+    def order_sink(self, session_key, order: dict[str, Any]) -> None:
+        # TODO: créer un objet Order contenant toutes les infos de TradingSessionKey et supprimer session-key en input.
+        # Appliquer sysmetriquement la modificatin
         if not self._configured or not self._started:
             raise RuntimeError("IBKRGateway: order_sink() called while not started/configured")
 
