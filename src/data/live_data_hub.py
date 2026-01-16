@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 
 from src.core.runtime_config import LiveHubConfig, RuntimeModule
-from src.core.system_manager import SystemPorts
 
+if TYPE_CHECKING:
+    from src.core.system_manager import SystemPorts
 
 class LiveDataHub(RuntimeModule):
 
@@ -13,9 +14,9 @@ class LiveDataHub(RuntimeModule):
         self._started: bool = False
 
         self._config: Optional[LiveHubConfig] = None
-        self._ports: Optional[SystemPorts] = None
+        self._ports: Optional["SystemPorts"] = None
 
-    def configure(self, *, config: LiveHubConfig, ports: SystemPorts) -> None:
+    def configure(self, *, config: LiveHubConfig, ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
         self._configured = True
@@ -43,7 +44,7 @@ class LiveDataHub(RuntimeModule):
         return self._config
 
     @property
-    def ports(self) -> SystemPorts:
+    def ports(self) -> "SystemPorts":
         if self._ports is None:
             raise RuntimeError("LiveDataHub: ports not set (configure() not called)")
         return self._ports

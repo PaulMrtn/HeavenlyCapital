@@ -6,10 +6,13 @@ import threading
 import time
 from dataclasses import dataclass
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, TYPE_CHECKING
 
-from src.core.runtime_config import RuntimeModule, ThreadConfig
-from src.core.system_manager import SystemPorts
+from src.core.runtime_config import ThreadConfig, RuntimeModule
+
+if TYPE_CHECKING:
+    from src.core.system_manager import SystemPorts
+
 
 PoolName = str
 
@@ -69,7 +72,6 @@ class PoolWorker(threading.Thread):
 
 
 class ThreadPool:
-    """A small fixed-size pool with persistent worker threads."""
 
     def __init__(self, config: ThreadPoolConfig) -> None:
         if config.size <= 0:
@@ -128,9 +130,9 @@ class ThreadManager(RuntimeModule):
         self._configured = False
 
         self._config: Optional[ThreadConfig] = None
-        self._ports: Optional[SystemPorts] = None
+        self._ports: Optional["SystemPorts"] = None
 
-    def configure(self, *, config: ThreadConfig, ports: SystemPorts) -> None:
+    def configure(self, *, config: ThreadConfig, ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
         self._configured = True
@@ -197,13 +199,13 @@ class ThreadManager(RuntimeModule):
     @property
     def config(self) -> ThreadConfig:
         if self._config is None:
-            raise RuntimeError("ForecastManager: config not set (configure() not called)")
+            raise RuntimeError("ThreadManager: config not set (configure() not called)")
         return self._config
 
     @property
-    def ports(self) -> SystemPorts:
+    def ports(self) -> "SystemPorts":
         if self._ports is None:
-            raise RuntimeError("ForecastManager: ports not set (configure() not called)")
+            raise RuntimeError("ThreadManager: ports not set (configure() not called)")
         return self._ports
 
 

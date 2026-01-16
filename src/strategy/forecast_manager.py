@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 
 from src.core.runtime_config import ForecastConfig, RuntimeModule
-from src.core.system_manager import SystemPorts
 
+if TYPE_CHECKING:
+    from src.core.system_manager import SystemPorts
 
 class ForecastManager(RuntimeModule):
 
@@ -13,9 +14,9 @@ class ForecastManager(RuntimeModule):
         self._started: bool = False
 
         self._config: Optional[ForecastConfig] = None
-        self._ports: Optional[SystemPorts] = None
+        self._ports: Optional["SystemPorts"] = None
 
-    def configure(self, *, config: ForecastConfig, ports: SystemPorts) -> None:
+    def configure(self, *, config: ForecastConfig, ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
         self._configured = True
@@ -43,7 +44,7 @@ class ForecastManager(RuntimeModule):
         return self._config
 
     @property
-    def ports(self) -> SystemPorts:
+    def ports(self) -> "SystemPorts":
         if self._ports is None:
             raise RuntimeError("ForecastManager: ports not set (configure() not called)")
         return self._ports

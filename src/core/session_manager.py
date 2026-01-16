@@ -5,9 +5,14 @@ from dataclasses import dataclass, asdict
 from datetime import date, datetime
 from enum import Enum
 from threading import Condition, RLock, Thread
-from typing import Any, Callable, Deque, Dict, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, Optional, Tuple, TYPE_CHECKING
+from uuid import uuid4, UUID
 
-from src.core.runtime_config import RuntimeModule
+from src.core.runtime_config import SessionConfig
+from src.core.system_manager import RuntimeModule
+
+if TYPE_CHECKING:
+    from src.core.system_manager import SystemPorts
 
 
 class TradingMode(str, Enum):
@@ -28,7 +33,6 @@ class TradingSessionKey:
     account_id: str
     strategy_id: str
     mode: TradingMode
-    name: str = "default"
 
 
 @dataclass
@@ -139,29 +143,25 @@ class GlobalOrderRouter:
 class TradingSession:
     def __init__(self, *, key: TradingSessionKey, payload: Optional[Dict[str, Any]] = None) -> None:
         self.key = key
+        self.session_id: UUID = uuid4()
         self.state = SessionState.NEW
         self._payload: Dict[str, Any] = payload or {}
-        now = datetime.utcnow().isoformat()
-        self._created_at_utc = now
-        self._updated_at_utc = now
+
 
     def start(self) -> None:
         if self.state in (SessionState.RUNNING, SessionState.CLOSED):
             return
         self.state = SessionState.RUNNING
-        self._updated_at_utc = datetime.utcnow().isoformat()
 
     def stop(self) -> None:
         if self.state != SessionState.RUNNING:
             return
         self.state = SessionState.STOPPED
-        self._updated_at_utc = datetime.utcnow().isoformat()
 
     def close(self) -> None:
         if self.state == SessionState.CLOSED:
             return
         self.state = SessionState.CLOSED
-        self._updated_at_utc = datetime.utcnow().isoformat()
 
     def snapshot(self) -> MarketDaySessionSnapshot:
         return MarketDaySessionSnapshot(
@@ -170,50 +170,112 @@ class TradingSession:
             strategy_id=self.key.strategy_id,
             mode=self.key.mode.value,
             state=self.state.value,
-            created_at_utc=self._created_at_utc,
-            updated_at_utc=self._updated_at_utc,
             payload=dict(self._payload),
         )
 
 
 
 
-class TradingSessionManager(RuntimeModule):
-    """
-    Manager unique au niveau SystemManager : registry, lifecycle et persistence EOD.
-    """
-    def __init__(self, *, data_ingestion: Any) -> None:
+class SessionManager(RuntimeModule):
+
+    def __init__(self) -> None:
+        self._configured: bool = False
+        self._started: bool = False
+
+        self._config: Optional[SessionConfig] = None
+        self._ports: Optional["SystemPorts"] = None
+
         self._lock = RLock()
         self._sessions: Dict[TradingSessionKey, TradingSession] = {}
-        self._data_ingestion = data_ingestion
-        self._router = GlobalOrderRouter(sink=None)
+        self._router: Optional[GlobalOrderRouter] = None
+
+    def configure(self, *, config: SessionConfig, ports: "SystemPorts") -> None:
+        self._config = config
+        self._ports = ports
+        self._configured = True
+
+    def start(self) -> None:
+        if not self._configured:
+            raise RuntimeError("SessionManager: start() called before configure()")
+        self._started = True
+
+    def stop(self) -> None:
+        self._started = False
+
+    def init_router(self, *, sink) -> None:
+        if sink is None:
+            raise ValueError("SessionManager: init_router() requires a non-null sink")
+        if self._router is not None:
+            raise RuntimeError("SessionManager: router already initialized")
+        self._router = GlobalOrderRouter(sink=sink)
 
     @property
     def router(self) -> GlobalOrderRouter:
+        if self._router is None:
+            raise RuntimeError(
+                "SessionManager: router not initialized yet. "
+                "Call init_router(sink=...) after IBKR sink injection."
+            )
         return self._router
 
-    def create_session(
-        self,
-        *,
-        session_date: date,
-        account_id: str,
-        strategy_id: str,
-        mode: TradingMode,
-        payload: Optional[Dict[str, Any]] = None,
-        replace: bool = False,
-    ) -> TradingSession:
-        key = TradingSessionKey(
-            session_date=session_date,
-            account_id=account_id,
-            strategy_id=strategy_id,
-            mode=mode,
+    @property
+    def is_configured(self) -> bool:
+        return self._configured
+
+    @property
+    def is_started(self) -> bool:
+        return self._started
+
+    @property
+    def config(self) -> SessionConfig:
+        if self._config is None:
+            raise RuntimeError("SessionManager: config not set (configure() not called)")
+        return self._config
+
+    @property
+    def ports(self) -> "SystemPorts":
+        if self._ports is None:
+            raise RuntimeError("SessionManager: ports not set (configure() not called)")
+        return self._ports
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
+
+
+    def _current_session_date(self):
+        # TODO:HIGH Persist current day dans unf format ISO (ou équivalent)
+        return self.ports.market_calendar.today()
+
+    def _build_session_key(self, *, session_cfg) -> TradingSessionKey:
+        return TradingSessionKey(
+            session_date=self._current_session_date(),
+            account_id=session_cfg.account_id,
+            strategy_id=session_cfg.strategy_id,
+            mode=session_cfg.mode,
         )
-        with self._lock:
-            if key in self._sessions and not replace:
-                return self._sessions[key]
-            session = TradingSession(key=key, payload=payload)
-            self._sessions[key] = session
-            return session
+
+    def _create_trading_session(self, *, session_cfg, payload: dict | None = None) -> TradingSession:
+        key = self._build_session_key(session_cfg=session_cfg)
+        return TradingSession(key=key, payload=payload)
+
+    def _init_sessions_from_config(self) -> None:
+        for session_cfg in getattr(self._config, "sessions", []):
+            session = self._create_trading_session(session_cfg=session_cfg)
+
+            if session.key in self._sessions:
+                continue
+
+            self._sessions[session.key] = session
+
+
+
+
+
+
+
+# region OldFunction
 
     def get_session(self, key: TradingSessionKey) -> TradingSession:
         with self._lock:
@@ -232,13 +294,6 @@ class TradingSessionManager(RuntimeModule):
     def list_sessions(self) -> Tuple[TradingSession, ...]:
         with self._lock:
             return tuple(self._sessions.values())
-
-
-
-
-
-
-
 
 
     def end_of_day_persist(self) -> None:
@@ -275,3 +330,13 @@ class TradingSessionManager(RuntimeModule):
         else:
             self._data_ingestion.insert(obj)
 
+    # endregion
+
+
+_instance: Optional[SessionManager] = None
+
+def get_session_manager() -> SessionManager:
+    global _instance
+    if _instance is None:
+        _instance = SessionManager()
+    return _instance

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Optional, Iterable, Any, Mapping, Protocol
-
+from typing import Optional, Iterable, Any, Mapping, Protocol, runtime_checkable
 
 from enum import Enum, IntEnum
 from dataclasses import dataclass, field
@@ -14,6 +13,12 @@ from uuid import UUID, uuid4
 from src.core.runtime_config import RuntimeConfig, RuntimeModule
 from src.core.market_clock import MarketStateChangeEvent
 from src.core.runtime_config import get_global_runtime_config
+from src.core.thread_manager import ThreadManager
+from src.strategy.forecast_manager import ForecastManager
+from src.data.live_data_hub import LiveDataHub
+from src.data.historic_data_hub import HistoricDataHub
+from src.trading.ibkr_gateway import IBKRGateway
+from src.core.session_manager import SessionManager
 
 from src.data.data_access import DataAccessLayer
 from src.data.data_ingestion import DataIngestionLayer
@@ -62,6 +67,7 @@ class ShutdownRequest:
 
 #endregion
 
+
 #region MarketDaySession DataClass
 class SessionStatus(str, Enum):
     OPEN = "OPEN"
@@ -88,6 +94,7 @@ class MarketDaySession:
 
 #endregion
 
+
 #region Boot DataClass
 class BootDecision(str, Enum):
     BOOT_NEW_SESSION = "BOOT_NEW_SESSION"
@@ -103,6 +110,7 @@ class BootPlan:
     procedure: str  #  ex: "PRE_MARKET", "STRATEGIC_SETUP", "RECOVERY:<phase>"
 
 #endregion
+
 
 # region GlobalRuntime DataClass
 class MarketPorts(Protocol):
@@ -142,16 +150,16 @@ class SystemPorts:
 
 
 @dataclass(slots=True)
-class RuntimeModules:
-    ibkr_gateway: Optional[RuntimeModule] = None
-    historic: Optional[RuntimeModule] = None
-    live_hub: Optional[RuntimeModule] = None
-    forecast_manager: Optional[RuntimeModule] = None
-    thread_manager: Optional[RuntimeModule] = None
+class RuntimeRegistry:
+    ibkr_gateway: Optional[RuntimeModule | IBKRGateway] = None
+    historic: Optional[RuntimeModule | HistoricDataHub] = None
+    live_hub: Optional[RuntimeModule | LiveDataHub] = None
+    forecast_manager: Optional[RuntimeModule | ForecastManager] = None
+    thread_manager: Optional[RuntimeModule | ThreadManager] = None
+    session_manager: Optional[RuntimeModule | SessionManager] = None
 
 
 # endregion
-
 
 
 class SystemManager:
@@ -205,7 +213,7 @@ class SystemManager:
         self._active_trading_day = None
 
 
-        self._modules = RuntimeModules()
+        self._modules = RuntimeRegistry()
         self._runtime_config = RuntimeConfig()
         self._modules_configured = False
         self._modules_started = False
@@ -444,18 +452,19 @@ class SystemManager:
 
 # region GlobalRuntimeLauncher
 
-    def set_runtime_config(self, config: RuntimeConfig) -> None:
+    def _set_runtime_config(self, config: RuntimeConfig) -> None:
         self._runtime_config = config
         self._modules_configured = False
 
-    def attach_runtime_modules(
+    def _attach_runtime_modules(
             self,
             *,
-            ibkr_gateway: RuntimeModule,
-            historic_data_hub: RuntimeModule,
-            live_data_hub: RuntimeModule,
-            forecast_manager: RuntimeModule,
-            thread_manager: RuntimeModule,
+            ibkr_gateway: Optional[RuntimeModule | IBKRGateway],
+            historic_data_hub: Optional[RuntimeModule | HistoricDataHub],
+            live_data_hub: Optional[RuntimeModule | LiveDataHub],
+            forecast_manager: Optional[RuntimeModule | ForecastManager],
+            thread_manager: Optional[RuntimeModule | ThreadManager],
+            session_manager: Optional[RuntimeModule | SessionManager],
     ) -> None:
 
         self._modules.ibkr_gateway = ibkr_gateway
@@ -463,6 +472,7 @@ class SystemManager:
         self._modules.live_hub = live_data_hub
         self._modules.forecast_manager = forecast_manager
         self._modules.thread_manager = thread_manager
+        self._modules.session_manager = session_manager
         self._modules_configured = False
 
     def _build_ports(self) -> SystemPorts:
@@ -477,7 +487,7 @@ class SystemManager:
             notification_service=self._notif,
         )
 
-    def configure_runtime_modules(self) -> None:
+    def _configure_runtime_modules(self) -> None:
         if self._modules_configured:
             return
 
@@ -489,6 +499,7 @@ class SystemManager:
             (self._modules.live_hub, self._runtime_config.live_hub),
             (self._modules.forecast_manager, self._runtime_config.forecast),
             (self._modules.thread_manager, self._runtime_config.thread),
+            (self._modules.session_manager, self._runtime_config.session_manager)
         )
 
         for module, config in modules_to_configure:
@@ -497,7 +508,7 @@ class SystemManager:
 
         self._modules_configured = True
 
-    def start_runtime_modules(self) -> None:
+    def _start_runtime_modules(self) -> None:
         if self._modules_started:
             return
 
@@ -506,7 +517,8 @@ class SystemManager:
             self._modules.historic,
             self._modules.live_hub,
             self._modules.forecast_manager,
-            self._modules.thread_manager
+            self._modules.thread_manager,
+            self._modules.session_manager
         )
 
         for module in modules_to_start:
@@ -515,13 +527,22 @@ class SystemManager:
 
         self._modules_started = True
 
-    def health_checks_runtime_modules(self) -> None:
+    def _wire_runtime_modules(self) -> None:
+        self._wire_routing()
+
+    def _wire_routing(self) -> None:
+        sink = self._modules.ibkr_gateway.order_sink
+        self._modules.session_manager.init_router(sink=sink)
+
+
+    def _health_checks_runtime_modules(self) -> None:
         modules_to_check = (
             self._modules.ibkr_gateway,
             self._modules.historic,
             self._modules.live_hub,
             self._modules.forecast_manager,
-            self._modules.thread_manager
+            self._modules.thread_manager,
+            self._modules.session_manager
         )
 
         results = [m.health_check() for m in modules_to_check if m is not None]
@@ -537,23 +558,36 @@ class SystemManager:
         from src.data.historic_data_hub import get_historic_data_hub
         from src.trading.ibkr_gateway import get_ibkr_gateway
         from src.core.thread_manager import get_thread_manager
+        from src.core.session_manager import get_session_manager
 
         # TODO : handle this import to
         runtime_config = get_global_runtime_config()
-        self.set_runtime_config(runtime_config)
+        self._set_runtime_config(runtime_config)
 
-        self.attach_runtime_modules(
+        self._attach_runtime_modules(
             ibkr_gateway=get_ibkr_gateway(),
             historic_data_hub=get_historic_data_hub(),
             live_data_hub=get_live_data_hub(),
             forecast_manager=get_forecast_manager(),
             thread_manager=get_thread_manager(),
+            session_manager=get_session_manager()
         )
 
-        self.configure_runtime_modules()
-        self.start_runtime_modules()
-        self.health_checks_runtime_modules()
+        self._configure_runtime_modules()
+        self._start_runtime_modules()
+        self._health_checks_runtime_modules()
+        self._wire_runtime_modules()
 
     # endregion
 
 
+
+# region LocalRuntimeLauncher
+
+
+    def launch_local_runtime(self) : ...
+
+
+
+
+# endregion

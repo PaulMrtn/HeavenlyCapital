@@ -2,7 +2,8 @@ from __future__ import annotations
 
 
 from dataclasses import dataclass
-from typing import Protocol, Any, runtime_checkable
+from typing import runtime_checkable, Protocol, Any
+
 
 #TODO : load les config depuis un ficher json
 
@@ -37,12 +38,43 @@ class ThreadConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class TradingSessionConfig:
+    name: str
+    account_id: str
+    strategy_id: str
+    mode: str
+    payload: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class SessionConfig:
+    sessions: tuple[TradingSessionConfig, ...] = (
+        TradingSessionConfig(
+            name="live_account_0_strategy_0",
+            account_id="account_0",
+            strategy_id="strategy_0",
+            mode="LIVE",
+            payload={},
+        ),
+        TradingSessionConfig(
+            name="paper_account_0_strategy_0",
+            account_id="account_0",
+            strategy_id="strategy_0",
+            mode="PAPER",
+            payload={},
+        ),
+    )
+
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     ibkr: IBKRConfig = IBKRConfig()
     live_hub: LiveHubConfig = LiveHubConfig()
     historic: HistoricHubConfig = HistoricHubConfig()
     forecast: ForecastConfig = ForecastConfig()
     thread: ThreadConfig = ThreadConfig()
+    session_manager: SessionConfig = SessionConfig()
 
 
 
@@ -58,13 +90,11 @@ def get_global_runtime_config() -> RuntimeConfig:
             live_hub=LiveHubConfig(),
             forecast=ForecastConfig(),
             thread=ThreadConfig(),
-
+            session_manager=SessionConfig(),
         )
     return _runtime_config
 
 
-
-# TODO : RuntimeModule ne semble pas a sa place
 
 @runtime_checkable
 class RuntimeModule(Protocol):
@@ -82,8 +112,4 @@ class RuntimeModule(Protocol):
     def is_started(self) -> bool: ...
 
     def health_check(self) -> dict[str, Any]: ...
-
-
-
-
 
