@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Optional, Iterable, Any, Mapping, Protocol, runtime_checkable
+from typing import Optional, Iterable, Any, Mapping, Protocol
 
 from enum import Enum, IntEnum
 from dataclasses import dataclass, field

@@ -10,6 +10,9 @@ from uuid import uuid4, UUID
 
 from src.core.runtime_config import SessionConfig
 from src.core.system_manager import RuntimeModule
+from src.trading.order_manager import OrderManager
+from src.trading.portfolio_manager import PortfolioManager
+from src.trading.risk_monitor import RiskMonitor
 
 if TYPE_CHECKING:
     from src.core.system_manager import SystemPorts
@@ -33,6 +36,13 @@ class TradingSessionKey:
     account_id: str
     strategy_id: str
     mode: TradingMode
+
+
+@dataclass(frozen=True)
+class SessionStack:
+    orders: OrderManager
+    portfolio: PortfolioManager
+    risk: RiskMonitor
 
 
 @dataclass
@@ -146,6 +156,20 @@ class TradingSession:
         self.session_id: UUID = uuid4()
         self.state = SessionState.NEW
         self._payload: Dict[str, Any] = payload or {}
+
+        self.stack: Optional[SessionStack] = None
+
+    def initialize_modules(self) -> None:
+
+        orders = OrderManager()
+        portfolio = PortfolioManager()
+        risk = RiskMonitor()
+
+        modules = (orders, portfolio, risk)
+
+
+
+
 
 
     def start(self) -> None:

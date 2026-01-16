@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Dict, Any
 from uuid import UUID
 
+from src.trading.portfolio_manager import PortfolioManager
+
+
 class RiskMonitor:
     def __init__(self) -> None:
         self._configured = False
