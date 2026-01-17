@@ -8,13 +8,13 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de charger l'état initial complet de toutes les sessions de trading **en parallèle**. Il vise à minimiser le temps de latence au démarrage en exploitant la parallélisation des opérations de lecture en base de données (I/O) de manière concurrente.
+La finalité de ce module est de charger l'état initial complet de chaque session de trading de manière séquentielle et isolée. Il vise à garantir l'intégrité absolue des données au démarrage en centralisant les opérations de lecture en base de données (I/O) et les contrôles métier au niveau de chaque manager local. Cette approche simplifiée assure une transition robuste vers la phase opérationnelle en validant la cohérence des snapshots de portefeuille et de risque avant toute activation.
 
 ---
 
 ### 2. Contexte
 
-Cette étape intervient immédiatement après l'**instanciation des managers locaux** (Phase 04) et s'appuie sur les **Pools de Threads** (initialisés en Phase 03). Elle constitue la première phase opérationnelle utilisant le parallélisme pour préparer le **Portfolio Manager (PM)** et le **Risk Monitor (RM)** avec les données nécessaires à leur activation.
+Cette étape intervient immédiatement après l'instanciation des managers locaux (Phase 04). Elle constitue la première phase opérationnelle de récupération de données réelles, où chaque Session Manager prépare son **Portfolio Manager** (PM) et son **Risk Monitor** (RM) avec les informations d'état nécessaires à leur activation.
 
 ---
 
@@ -67,21 +67,20 @@ Le succès de cette étape permet la transition vers l'initialisation du flux de
 
 ---
 
-| ID | Fonction / Message | Émetteur | Récepteur | Description |
+|ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-| 1 | **new Job(PM_Load, ID, Type)** | System Manager | Job (PM) | **Instanciation :** Crée la commande de chargement pour le Portfolio Manager. Inclut le `SessionType` (LIVE/PAPER) dès la création. |
-| 2 | **new Job(RM_Load, ID, Type)** | System Manager | Job (RM) | **Instanciation :** Crée la commande pour le Risk Monitor. Encapsule l'isolation totale entre sessions via l'interface `ILoadRiskStateCommand`. |
-| 3 | **submitParallelJobs(jobs)** | System Manager | Thread Manager | **Orchestration :** Envoi asynchrone des tâches au pool. Libère immédiatement l'émetteur pour respecter le principe de non-blocage. |
-| 4 | **execute(Job)** | Thread Manager | PoolWorker | **Exécution :** Déclenche le travail dans un thread dédié du pool. Applique la politique `IJobTimeoutPolicyPort` pour limiter la durée. |
-| 5 | **getPortfolioSnapshot(ID)** | PoolWorker | Portf. Manager | **Phase LOAD (I/O) :** Requête de lecture seule via `IPortfolioStateReader`. Interdiction d'écriture ou d'accès transactionnel. |
-| 6 | **getRiskLimits(ID)** | PoolWorker | Risk Monitor | **Phase LOAD (I/O) :** Récupération des snapshots immuables via `IRiskStateReader`. Aucune dépendance autorisée envers le PM. |
-| 7 | **fetchData(ID)** | Managers | DB Connector | **Persistance :** Appel effectif à la base de données (DAL). Phase critique pour la maximisation du débit I/O concurrent. |
-| 8 | **report(FATAL)** | Managers | Error Service | **Fail-Fast :** Signalement immédiat via `IErrorHandler`. Court-circuite l'attente des autres jobs pour une réaction système instantanée. |
-| 9 | **HCheckDataIntegrity()** | PoolWorker | Managers | **Phase VALIDATE (CPU) :** Vérification de la cohérence logique post-chargement via `IDataIntegrityCheckPort`. Aucun I/O autorisé ici. |
-| 10 | **notifyFailure(Error)** | PoolWorker | Thread Manager | **Gestion Résilience :** Retour d'erreur structuré. Permet au Thread Manager d'invalider (PAPER) ou de stopper (LIVE) selon le `SessionType`. |
-| 11 | **Return JobStatusList** | Thread Manager | System Manager | **Consolidation :** Remontée synchrone de la liste des résultats par session via `IJobStatusReporterPort` en fin de batch. |
-| 12 | **evaluateBootstrapStatus()**| System Manager | System Manager | **Décision :** Analyse finale des statuts. Déclenche `systemStop()` en cas d'échec sur une session de type LIVE. |
-| 13 | **log(READY / DISABLED)** | System Manager | (Gate/Audit) | **Audit :** Trace finale obligatoire pour l'observabilité. Marque la session comme `SESSION_READY` ou `SESSION_DISABLED`. |
+|1|DB.getPortfolioSnapshot(SessionID)|Session Manager|Data Access Layer|Requête synchrone de lecture des positions, du cash et des lots initiaux en base de données.|
+|2|DB.getRiskLimits(SessionID)|Session Manager|Data Access Layer|Requête synchrone de lecture des snapshots de risques et des limites immuables.|
+|3|Return PortfolioSnapshotDTO|Data Access Layer|Session Manager|Retour de l'objet de transfert de données (DTO) contenant l'état du portefeuille.|
+|4|Return RiskSnapshotDTO|Data Access Layer|Session Manager|Retour de l'objet de transfert de données (DTO) contenant les paramètres de risque.|
+|5|report(FATAL)|Portfolio Manager|Error Service|Signalement immédiat d'une erreur critique de lecture ou d'accès DB impactant le PM.|
+|6|report(FATAL)|Risk Monitor|Error Service|Signalement immédiat d'une erreur critique de lecture ou d'accès DB impactant le RM.|
+|7|HCheckDataIntegrity(DTO)|Session Manager|Portfolio Manager|Déclenchement de la validation CPU pour vérifier la cohérence logique des données de portefeuille.|
+|8|HCheckDataIntegrity(DTO)|Session Manager|Risk Monitor|Déclenchement de la validation CPU pour vérifier la cohérence des limites et seuils de risque.|
+|9|Return Status(Failure)|Portfolio Manager|Session Manager|Retour d'un échec si les données de portefeuille sont incohérentes (ex: somme des lots invalide).|
+|10|Return Status(Failure)|Risk Monitor|Session Manager|Retour d'un échec si les données de risque sont corrompues ou hors limites.|
+|11|evaluateBootstrapStatus(StatusList)|Session Manager|Session Manager|Analyse finale des retours des managers pour décider de l'activation ou de l'invalidation de la session.|
+|12|log(SESSION_READY/DISABLED)|Session Manager|Log Service|Enregistrement de l'état final de la session pour l'audit et l'étape suivante du bootstrap.|
 
 ---
 
@@ -137,23 +136,6 @@ Le succès de cette étape permet la transition vers l'initialisation du flux de
   - Retour structuré (OK / WARNING / FAIL)
   - Échec ⇒ propagation immédiate au System Manager
 
-**IJobTimeoutPolicyPort**
-- **Implémenté par** : Thread Manager
-- **Injecté dans / Utilisé par** : PoolWorker
-- **Responsabilité opérationnelle** : Application des délais maximum d’exécution par job
-- **Règles d’accès ou d’usage** :
-  - Timeout dur
-  - Dépassement ⇒ JobStatus.FAILURE
-  - Aucun retry automatique
-
-**IJobStatusReporterPort**
-- **Implémenté par** : Thread Manager
-- **Injecté dans / Utilisé par** : System Manager
-- **Responsabilité opérationnelle** : Remontée structurée des statuts d’exécution par session
-- **Règles d’accès ou d’usage** :
-  - Chaque statut doit contenir SessionID
-  - Aucun agrégat métier
-  - Transmission synchrone en fin de batch
 
 **IHealthCheckPort**
 - **Implémenté par** : HealthService (Infrastructure Layer)
