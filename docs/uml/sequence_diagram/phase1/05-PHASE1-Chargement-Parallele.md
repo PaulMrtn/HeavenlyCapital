@@ -8,62 +8,51 @@
 
 ### 1. Objectif
 
-La finalité de ce module est de charger l'état initial complet de chaque session de trading de manière séquentielle et isolée. Il vise à garantir l'intégrité absolue des données au démarrage en centralisant les opérations de lecture en base de données (I/O) et les contrôles métier au niveau de chaque manager local. Cette approche simplifiée assure une transition robuste vers la phase opérationnelle en validant la cohérence des snapshots de portefeuille et de risque avant toute activation.
+La finalité de ce module est de charger l'état initial complet de chaque session de trading de manière **séquentielle et isolée**. Il vise à garantir l'intégrité absolue des données au démarrage en centralisant les opérations de lecture en base de données (I/O) et les contrôles métier au niveau de chaque manager local. Cette approche simplifiée assure une transition robuste vers la phase opérationnelle en validant la cohérence des snapshots de portefeuille et de risque avant toute activation.
 
 ---
 
 ### 2. Contexte
 
-Cette étape intervient immédiatement après l'instanciation des managers locaux (Phase 04). Elle constitue la première phase opérationnelle de récupération de données réelles, où chaque Session Manager prépare son **Portfolio Manager** (PM) et son **Risk Monitor** (RM) avec les informations d'état nécessaires à leur activation.
+Cette étape intervient immédiatement après l'**instanciation des managers locaux** (Phase 04). Elle constitue la première phase opérationnelle de récupération de données réelles, où chaque **Trading Session** prépare son **Portfolio Manager (PM)** et son **Risk Monitor (RM)** avec les informations d'état nécessaires à leur activation.
 
 ---
 
 ### 3. Logique Générale
 
-Le **System Manager** orchestre la phase en déléguant la charge de travail au **Thread Manager**. Pour chaque session active, le processus suit une séparation stricte entre les phases I/O et CPU pour garantir l'observabilité.
-
- **Création et Soumission**
-  * Deux commandes de travail (`Job`) sont créées par session : une via **ILoadPortfolioStateCommand** et une via **ILoadRiskStateCommand**.
-  * Le **SessionType** (LIVE ou PAPER) est impérativement attaché au job dès sa création pour définir les règles de résilience.
-  * Les commandes sont soumises au **Thread Manager** pour exécution.
+Le **Session Manager** orchestre la phase en itérant sur chaque **Trading Session** active. Le processus suit une séparation stricte entre la récupération des données (I/O) et la validation métier (CPU).
 
 **Phase de Chargement (I/O Uniquement)**
-  * Des **PoolWorkers** distincts exécutent les tâches simultanément.
-  * Le **PM** utilise **IPortfolioStateReader** pour charger les positions et le cash (Lecture seule, sans accès transactionnel).
-  * Le **RM** utilise **IRiskStateReader** pour charger les snapshots de risques (Données immuables).
-  * Ces opérations sollicitent le **Database Connector** de manière concurrente.
+  * Chaque **Trading Session** pilote l'injection de données depuis la base de données vers ses composants internes.
+  * Le **PM** et le **RM** effectuent des requêtes de lecture synchrones via le **Data Access Layer** pour récupérer les snapshots de positions et de limites.
+  * En cas d'erreur technique majeure (base de données injoignable), un rapport **FATAL** est immédiatement transmis à l'**Error Service**.
 
 **Phase de Validation (CPU Uniquement)**
-  * Cette phase ne démarre que si **tous les chargements d'une session sont en succès**.
-  * Chaque manager sollicite le port **IDataIntegrityCheckPort** pour effectuer son contrôle d'intégrité métier (**HCheckDataIntegrity**).
+  * Une fois les données (DTO) réceptionnées, chaque manager effectue son contrôle d'intégrité métier (**HCheckDataIntegrity**).
   * Cette étape valide la cohérence logique (ex: somme des lots vs position totale) sans aucun accès I/O supplémentaire.
+  * Si un manager renvoie un statut **FAILED**, la session est immédiatement marquée pour annulation.
 
-**Consolidation**
-  * Le **Thread Manager** consolide les résultats via **IJobStatusReporterPort** et renvoie une **JobStatusList** au System Manager pour la clôture de la phase.
+**Consolidation et Arbitrage**
+  * Le **Session Manager** consolide les statuts de chaque `Trading Session` via `evaluateBootstrapStatus`.
+  * Le système applique alors les règles de résilience selon le mode de la session (LIVE ou PAPER).
+
 
 ---
 
 ### 4. Règles Critiques
 
-* **I/O Maximisation :** Le parallélisme est utilisé pour masquer la latence des opérations I/O bloquantes de la base de données.
-* **Vérification Métier :** Le **`HCheckDataIntegrity`** est un garde-fou. Il assure la **cohérence logique** des données (ex. : la somme des lots correspond à la position totale) avant la mise en service du manager.
-* **Non-Blocage :** Le thread du **System Manager** est libéré dès la soumission des tâches au Thread Manager. Il ne doit jamais être bloqué par l'attente des réponses de la base de données.
-* **Propagation Immédiate (Fail-Fast) :** Toute erreur classée **FATAL** doit être transmise immédiatement via **IErrorHandler**. Ce signal court-circuite l'attente des autres jobs de la session pour déclencher une action corrective immédiate.
-* **Gestion d'Erreur Différenciée :** Le Thread Manager applique les règles d'arrêt selon le **SessionType** :
-  * **LIVE :** Tout échec entraîne un arrêt global via `systemStop(CRITICAL_ERROR)`.
-  * **PAPER :** L'échec entraîne l'invalidation de la session spécifique, mais le processus global continue.
-* **Timeouts :** L'interface **IJobTimeoutPolicyPort** impose un délai maximum d'exécution. En cas de dépassement, le job est marqué en échec (FAILURE) sans tentative de retry automatique.
-* **Disponibilité :** Le port **IHealthCheckPort** doit être interrogé avant le lancement pour s'assurer de la santé locale des managers, sans I/O bloquant.
+* **Isolation Sessionnelle :** Chaque `Trading Session` gère ses propres échecs ; une erreur dans une session ne doit pas corrompre les données d'une autre.
+* **Vérification Métier :** Le `HCheckDataIntegrity` est obligatoire. Tout écart logique détecté post-chargement entraîne l'invalidation du manager.
+* **Fail-Fast Différencié :**
+  * **LIVE :** Tout échec de chargement ou d'intégrité déclenche un `systemStop(CRITICAL_ERROR)` global.
+  * **PAPER :** La session est annulée (`SESSION_DISABLED`), mais le `Session Manager` poursuit le bootstrap des autres sessions.
+* **Traçabilité d'Audit :** Chaque session doit finir dans l'un des deux états terminaux : `SESSION_READY` ou `SESSION_DISABLED`, consigné dans le `Log Service`.
 
 ---
 
 ### 5. Conclusion
 
-Ce module garantit un démarrage rapide et résilient en gérant efficacement la latence I/O.
-**Trace d'Audit :** À la clôture de la PHASE 1, une trace d'audit est obligatoirement émise pour chaque session. Les états possibles, essentiels pour le diagnostic post-mortem, sont strictement :
-  * **`SESSION_READY`** : Chargement et intégrité validés.
-  * **`SESSION_DISABLED`** : Session invalidée suite à un échec de chargement ou de validation (cas PAPER).
-Le succès de cette étape permet la transition vers l'initialisation du flux de données temps réel.
+Cette garantit un démarrage robuste en validant l'intégrité de chaque session avant son activation. Elle assure la protection du capital via un arrêt global en mode LIVE tout en permettant la continuité du système en mode PAPER.
 
 ---
 
@@ -154,7 +143,3 @@ Le succès de cette étape permet la transition vers l'initialisation du flux de
   - Écriture seule
   - Appel synchrone pour erreurs fatales
   - Interdiction de retry interne
-
-
-
-
