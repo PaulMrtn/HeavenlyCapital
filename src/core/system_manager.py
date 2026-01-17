@@ -165,7 +165,7 @@ class RuntimeRegistry:
 class SystemManager:
     _instance = None
 
-    # TODO : CHECK DE TOUT LES THREADS
+    # TODO:HIGH CHECK DE TOUT LES THREADS, LEUR PRESENCE DE LOCK SUR LES VARIABLES
     _lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
