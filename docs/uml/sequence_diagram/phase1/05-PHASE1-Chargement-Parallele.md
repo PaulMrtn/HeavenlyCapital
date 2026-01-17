@@ -69,18 +69,18 @@ Le succès de cette étape permet la transition vers l'initialisation du flux de
 
 |ID|Fonction/Message|Émetteur|Récepteur|Description|
 |:---|:---|:---|:---|:---|
-|1|DB.getPortfolioSnapshot(SessionID)|Session Manager|Data Access Layer|Requête synchrone de lecture des positions, du cash et des lots initiaux en base de données.|
-|2|DB.getRiskLimits(SessionID)|Session Manager|Data Access Layer|Requête synchrone de lecture des snapshots de risques et des limites immuables.|
-|3|Return PortfolioSnapshotDTO|Data Access Layer|Session Manager|Retour de l'objet de transfert de données (DTO) contenant l'état du portefeuille.|
-|4|Return RiskSnapshotDTO|Data Access Layer|Session Manager|Retour de l'objet de transfert de données (DTO) contenant les paramètres de risque.|
-|5|report(FATAL)|Portfolio Manager|Error Service|Signalement immédiat d'une erreur critique de lecture ou d'accès DB impactant le PM.|
-|6|report(FATAL)|Risk Monitor|Error Service|Signalement immédiat d'une erreur critique de lecture ou d'accès DB impactant le RM.|
-|7|HCheckDataIntegrity(DTO)|Session Manager|Portfolio Manager|Déclenchement de la validation CPU pour vérifier la cohérence logique des données de portefeuille.|
-|8|HCheckDataIntegrity(DTO)|Session Manager|Risk Monitor|Déclenchement de la validation CPU pour vérifier la cohérence des limites et seuils de risque.|
-|9|Return Status(Failure)|Portfolio Manager|Session Manager|Retour d'un échec si les données de portefeuille sont incohérentes (ex: somme des lots invalide).|
-|10|Return Status(Failure)|Risk Monitor|Session Manager|Retour d'un échec si les données de risque sont corrompues ou hors limites.|
-|11|evaluateBootstrapStatus(StatusList)|Session Manager|Session Manager|Analyse finale des retours des managers pour décider de l'activation ou de l'invalidation de la session.|
-|12|log(SESSION_READY/DISABLED)|Session Manager|Log Service|Enregistrement de l'état final de la session pour l'audit et l'étape suivante du bootstrap.|
+|1|DB.getPortfolioSnapshot(SessionID)|Portfolio Manager|Data Access Layer|Requête de lecture synchrone pour récupérer l'état initial des positions et du cash.|
+|2|DB.getRiskLimits(SessionID)|Risk Monitor|Data Access Layer|Requête de lecture synchrone pour récupérer les snapshots de risque et limites immuables.|
+|3|Return PortfolioSnapshotDTO|Data Access Layer|Portfolio Manager|Transfert de l'objet de données structuré contenant l'état du portefeuille chargé.|
+|4|Return RiskSnapshotDTO|Data Access Layer|Risk Monitor|Transfert de l'objet de données structuré contenant les paramètres de risque chargés.|
+|5|report(FATAL)|Portfolio Manager|Error Service|Signalement immédiat d'une erreur d'accès ou de lecture critique de la base de données.|
+|6|report(FATAL)|Risk Monitor|Error Service|Signalement immédiat d'une erreur d'infrastructure critique empêchant le chargement du risque.|
+|7|HCheackDataIntegrity(DTO)|Portfolio Manager|Portfolio Manager|Auto-vérification CPU de la cohérence logique des données de portefeuille reçues.|
+|8|HCheackDataIntegrity(DTO)|Risk Monitor|Risk Monitor|Auto-vérification CPU de la validité métier des seuils et limites de risque.|
+|9|Return Status(Failure)|Portfolio Manager|Trading Session|Notification au manager de session d'un échec de validation d'intégrité du portefeuille.|
+|10|Return Status(Failure)|Risk Monitor|Trading Session|Notification au manager de session d'un échec de validation d'intégrité du risque.|
+|11|evaluateBootstrapStatus(StatusList)|Session Manager|Session Manager|Analyse décisionnelle basée sur les retours des managers pour valider la session.|
+|12|log(SESSION_READY/DISABLED)|Session Manager|Log Service|Enregistrement final de l'état opérationnel de la session pour l'audit système.|
 
 ---
 
