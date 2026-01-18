@@ -347,14 +347,14 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if not self._market_calendar.is_open_today() :
+        if self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
             detail="The market is closed today."
             )
 
-        # TODO: récupérer la session du jour via DAL quand prêt
+        # TODO:HIGH: récupérer la session du jour via DAL quand prêt
         today_session = None  # ex: self._data_access.get_by_date(self._market_calendar.today())
         boot_plan = self._build_boot_plan(today_session=today_session)
         # self.persist_session(session=boot_plan.session)
@@ -577,6 +577,7 @@ class SystemManager:
         self._configure_runtime_modules()
         self._start_runtime_modules()
         self._health_checks_runtime_modules()
+        #before or after the health check
         self._wire_runtime_modules()
 
     # endregion

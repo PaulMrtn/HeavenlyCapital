@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
+from src.models.risk import RiskSnapshot
+
+
 if TYPE_CHECKING:
     from src.core.system_manager import SystemPorts
     from src.core.session_manager import TradingSessionKey
@@ -13,6 +16,8 @@ class RiskMonitor:
         self._session_id: Optional[UUID] = None
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
+
+        self._state: Optional[RiskSnapshot] = None
 
         self._configured = False
         self._started = False
@@ -33,3 +38,15 @@ class RiskMonitor:
 
 
     def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
+
+
+    def refresh_risk_state(self) -> None:
+        if not self._configured:
+            raise RuntimeError("PortfolioManager: refresh_portfolio_state() called before configure()")
+
+        snapshot = self._ports.data_access.get_risk_snapshot(self._key.account_id)
+        self._state = snapshot
+
+    @property
+    def risk_state(self) -> Optional[RiskSnapshot]:
+        return self._state

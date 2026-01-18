@@ -211,9 +211,7 @@ class TradingSession:
         orders, portfolio, risk = self._build_modules()
 
         self._inject_modules(orders=orders, portfolio=portfolio, risk=risk)
-
         self._wire_modules(orders=orders, portfolio=portfolio, risk=risk, router=self.router)
-
         self.stack = SessionStack(orders=orders, portfolio=portfolio, risk=risk)
 
 
@@ -351,6 +349,8 @@ class SessionManager(RuntimeModule):
 
 
     def load_session_state_from_database(self) : ...
+
+
 
 
 

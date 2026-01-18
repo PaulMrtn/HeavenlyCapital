@@ -1,24 +1,49 @@
 from __future__ import annotations
 
-from typing import Protocol, Optional, TYPE_CHECKING
-from datetime import date
+from datetime import date, datetime, timezone
+from decimal import Decimal
+from typing import Protocol, Optional, TYPE_CHECKING, Mapping
+from uuid import UUID
 
-if TYPE_CHECKING:
-    from src.core.system_manager import MarketDaySession
+from src.models.portfolio import Position, PortfolioSnapshot
+from src.models.risk import RiskSnapshot
 
 
 class DataAccessLayer(Protocol):
-
-    def get_by_date(self, session_date: date) -> Optional["MarketDaySession"]: ...
-    def exists_for_date(self, session_date: date) -> bool: ...
+    pass
 
 
-class InMemoryMarketDaySessionDAL:
+class InMemorySessionDAL:
     def __init__(self):
         self._store = None
 
-    def get_by_date(self, session_date: date) -> Optional["MarketDaySession"]:
-        return self._store.get(session_date)
+    def get_portfolio_snapshot(self, account_id: str) -> "PortfolioSnapshot":
+        as_of = datetime.now(timezone.utc)
 
-    def exists_for_date(self, session_date: date) -> bool:
-        return session_date in self._store
+        base_currency = "USD"
+        cash = Decimal("100000.00")
+
+        positions: Mapping[str, "Position"] = {
+            "AAPL": Position(symbol="AAPL", quantity=Decimal("10"), avg_price=Decimal("175.50")),
+            "MSFT": Position(symbol="MSFT", quantity=Decimal("5"), avg_price=Decimal("410.25")),
+        }
+
+        return PortfolioSnapshot(
+            account_id=account_id,
+            as_of=as_of,
+            base_currency=base_currency,
+            cash=cash,
+            positions=positions,
+            snapshot_version=1,
+        )
+
+
+    def get_risk_snapshot(self, account_id: str) -> "RiskSnapshot":
+        as_of = datetime.now(timezone.utc)
+
+        return RiskSnapshot(
+            account_id=account_id,
+            as_of=as_of,
+            stop_loss_pct_by_symbol={"AAPL": Decimal("0.05")},
+            stop_loss_price_by_symbol={"AAPL": Decimal("175.50")},
+        )

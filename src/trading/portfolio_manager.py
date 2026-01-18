@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import UUID
+
+from src.models.portfolio import PortfolioSnapshot
 
 if TYPE_CHECKING:
     from src.core.system_manager import SystemPorts
     from src.core.session_manager import TradingSessionKey
+
 
 
 class PortfolioManager:
@@ -13,6 +18,8 @@ class PortfolioManager:
         self._session_id: Optional[UUID] = None
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
+
+        self._current_state: Optional[PortfolioSnapshot] = None
 
         self._configured = False
         self._started = False
@@ -32,3 +39,20 @@ class PortfolioManager:
         self._started = False
 
     def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
+
+    def refresh_portfolio_state(self) -> None:
+        if not self._configured:
+            raise RuntimeError("PortfolioManager: refresh_portfolio_state() called before configure()")
+
+        snapshot = self._ports.data_access.get_portfolio_snapshot(self._key.account_id)
+        self._state = snapshot
+
+    @property
+    def portfolio_state(self) -> Optional[PortfolioSnapshot]:
+        return self.current_state
+
+
+
+
+
+

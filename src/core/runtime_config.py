@@ -46,6 +46,7 @@ class TradingSessionConfig:
     payload: dict[str, Any]
 
 
+
 @dataclass(frozen=True, slots=True)
 class SessionConfig:
     sessions: tuple[TradingSessionConfig, ...] = (
