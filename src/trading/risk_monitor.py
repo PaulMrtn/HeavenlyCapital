@@ -3,8 +3,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
-from src.models.risk import RiskSnapshot
-
+from src.models.risk import RiskSnapshot, RiskState
 
 if TYPE_CHECKING:
     from src.core.system_manager import SystemPorts
@@ -17,7 +16,7 @@ class RiskMonitor:
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
 
-        self._state: Optional[RiskSnapshot] = None
+        self._state: Optional["RiskState"] = None
 
         self._configured = False
         self._started = False
@@ -39,14 +38,22 @@ class RiskMonitor:
 
     def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
 
-
-    def refresh_risk_state(self) -> None:
+    def load_risk_state(self) -> None:
         if not self._configured:
-            raise RuntimeError("PortfolioManager: refresh_portfolio_state() called before configure()")
+            raise RuntimeError("RiskMonitor: bootstrap_risk_state() called before configure()")
 
         snapshot = self._ports.data_access.get_risk_snapshot(self._key.account_id)
-        self._state = snapshot
+        self._state = RiskState.from_snapshot(snapshot)
 
     @property
     def risk_state(self) -> Optional[RiskSnapshot]:
         return self._state
+
+    # TODO:MEDIUM : add property for each attribut like stop_loss, etc
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
+
+    def refresh_risk_state(self) -> None : ...

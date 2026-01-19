@@ -1,4 +1,4 @@
-# monitoring/health_checks.py
+# monitoring/health_service.py
 
 from dataclasses import field, dataclass
 from datetime import datetime, timezone

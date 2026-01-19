@@ -6,7 +6,7 @@ from src.data.data_access import InMemorySessionDAL
 from src.data.data_ingestion import InMemorySessionDIL
 
 
-from src.monitoring.health_checks import build_readiness_checks
+from src.monitoring.health_service import build_readiness_checks
 
 
 checks = build_readiness_checks(db_connector=None, ibkr_gateway=None, eodhd_client=None)

@@ -348,7 +348,28 @@ class SessionManager(RuntimeModule):
             # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session
 
 
-    def load_session_state_from_database(self) : ...
+    def load_session_state_from_database(self) -> None:
+
+        for session in self._sessions.values():
+            session.stack.portfolio.load_portfolio_state()
+            session.stack.risk.load_risk_state()
+
+    def health_check_loaded_sessions(self) -> None:
+
+        results: list[dict[str, Any]] = []
+
+        for key, session in self._sessions.items():
+            portfolio_result = session.stack.portfolio.health_check()
+            results.append(portfolio_result)
+
+            risk_result = session.stack.risk.health_check()
+            results.append(risk_result)
+
+        failures = [r for r in results if r.get("is_healthy") is False]
+        if failures:
+            raise HealthCheckError(failures)
+
+        # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session with a new fonction
 
 
 

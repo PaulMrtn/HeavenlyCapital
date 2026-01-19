@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
-from decimal import Decimal
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 
-from src.models.portfolio import PortfolioSnapshot
+from src.models.portfolio import PortfolioSnapshot, Portfolio
 
 if TYPE_CHECKING:
     from src.core.system_manager import SystemPorts
     from src.core.session_manager import TradingSessionKey
-
 
 
 class PortfolioManager:
@@ -19,7 +16,7 @@ class PortfolioManager:
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
 
-        self._current_state: Optional[PortfolioSnapshot] = None
+        self._state: Optional["Portfolio"] = None
 
         self._configured = False
         self._started = False
@@ -40,17 +37,26 @@ class PortfolioManager:
 
     def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
 
-    def refresh_portfolio_state(self) -> None:
+    def load_portfolio_state(self) -> None:
         if not self._configured:
-            raise RuntimeError("PortfolioManager: refresh_portfolio_state() called before configure()")
+            raise RuntimeError("PortfolioManager: bootstrap_portfolio_state() called before configure()")
 
-        snapshot = self._ports.data_access.get_portfolio_snapshot(self._key.account_id)
-        self._state = snapshot
+        snapshot: PortfolioSnapshot = self._ports.data_access.get_portfolio_snapshot(self._key.account_id)
+        self._state = Portfolio.from_snapshot(snapshot)
+
 
     @property
     def portfolio_state(self) -> Optional[PortfolioSnapshot]:
-        return self.current_state
+        return self._state
 
+    # TODO:MEDIUM : add property for each attribut like inventories, etc
+
+    def refresh_portfolio_state(self) -> None: ...
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
 
 
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Protocol, Optional, TYPE_CHECKING, Mapping
-from uuid import UUID
+from typing import Protocol, Mapping
 
 from src.models.portfolio import Position, PortfolioSnapshot
 from src.models.risk import RiskSnapshot
+from src.models.tickers import TickerUniverseSnapshot, AssetType, UniverseSnapshot
 
 
 class DataAccessLayer(Protocol):
@@ -47,3 +47,38 @@ class InMemorySessionDAL:
             stop_loss_pct_by_symbol={"AAPL": Decimal("0.05")},
             stop_loss_price_by_symbol={"AAPL": Decimal("175.50")},
         )
+
+
+    def get_universe_snapshot(self) -> UniverseSnapshot:
+        as_of = datetime.now(timezone.utc)
+
+        return UniverseSnapshot(
+             as_of=as_of,
+             universe_id="SP500",
+             constituents=
+             {
+            "EQ_US_AAPL": TickerUniverseSnapshot(
+                internal_code="EQ_US_AAPL",
+                symbol="AAPL",
+                asset_type=AssetType.STOCK,
+                tickers=["AAPL"],
+                updated_at=as_of,
+            ),
+            "EQ_US_MSFT": TickerUniverseSnapshot(
+                internal_code="EQ_US_MSFT",
+                symbol="MSFT",
+                asset_type=AssetType.STOCK,
+                tickers=["MSFT"],
+                updated_at=as_of,
+            ),
+            "EQ_US_NVDA": TickerUniverseSnapshot(
+                internal_code="EQ_US_NVDA",
+                symbol="NVDA",
+                asset_type=AssetType.STOCK,
+                tickers=["NVDA"],
+                updated_at=as_of,
+            ),
+            }
+        )
+
+

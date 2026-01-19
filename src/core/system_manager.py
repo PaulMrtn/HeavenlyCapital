@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Optional, Iterable, Any, Mapping, Protocol
 
-from enum import Enum, IntEnum
+from enum import IntEnum, StrEnum
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
 from uuid import UUID, uuid4
@@ -27,12 +27,12 @@ from src.monitoring.error_service import NullErrorService, ErrorService, HealthC
 from src.monitoring.log_service import LogService, NullLogService
 from src.monitoring.metric_service import MetricService, NullMetricService
 from src.monitoring.notification_service import NullNotificationService, NotificationService
-from src.monitoring.health_checks import ConnectionStatus, ReadinessCheck
+from src.monitoring.health_service import ConnectionStatus, ReadinessCheck
 
 
 #region System DataClass
 
-class SystemStatus(str, Enum):
+class SystemStatus(StrEnum):
     BOOTING = "BOOTING"
     READY = "READY"
     RUNNING = "RUNNING"
@@ -52,7 +52,7 @@ class ExitCode(IntEnum):
     OK = 0
     MARKET_CLOSED_TODAY = 20
 
-class ShutdownScenario(str, Enum):
+class ShutdownScenario(StrEnum):
     BOOTSTRAP_MARKET_CLOSED = "BOOTSTRAP_MARKET_CLOSED"
     SESSION_END_NORMAL = "SESSION_END_NORMAL"
     FATAL_ERROR = "FATAL_ERROR"
@@ -69,17 +69,17 @@ class ShutdownRequest:
 
 
 #region MarketDaySession DataClass
-class SessionStatus(str, Enum):
+class SessionStatus(StrEnum):
     OPEN = "OPEN"
     CLOSED = "CLOSED"
 
-class SessionPhase(str, Enum):
+class SessionPhase(StrEnum):
     STRATEGIC_SETUP = "STRATEGIC_SETUP"
     PRE_MARKET = "PRE_MARKET"
     IN_MARKET = "IN_MARKET"
     POST_MARKET = "POST_MARKET"
 
-class SessionState(str, Enum):
+class SessionState(StrEnum):
     DONE = "DONE"
     RUNNING = "RUNNING"
 
@@ -96,7 +96,7 @@ class MarketDaySession:
 
 
 #region Boot DataClass
-class BootDecision(str, Enum):
+class BootDecision(StrEnum):
     BOOT_NEW_SESSION = "BOOT_NEW_SESSION"
     START_TRADING_SESSION = "START_TRADING_SESSION"
     REBOOT = "REBOOT"
@@ -586,10 +586,10 @@ class SystemManager:
 
 # region LocalRuntimeLauncher
 
-
     def launch_local_runtime(self) :
         self._modules.session_manager.initialize_sessions_from_config()
-        # self._modules.session_manager.load_session_state_from_database()
+        self._modules.session_manager.load_session_state_from_database()
+        self._modules.session_manager.health_check_loaded_sessions()
 
 
 
