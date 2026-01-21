@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from enum import StrEnum
 
 
-if TYPE_CHECKING:
-    from src.models.tickers import AssetType
+class AssetType(StrEnum):
+    STK = "STK"
+    OPT = "OPT"
+    CASH = "CASH"
+
 
 @dataclass(frozen=True)
 class MarketDataInstrument:
-    internal_code: str
+    asset_id: str
     symbol: str
     asset_type: AssetType
 

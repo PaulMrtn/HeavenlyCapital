@@ -1,26 +1,26 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
-from typing import Mapping
+from typing import Mapping, Optional, TYPE_CHECKING
 
 
-class AssetType(StrEnum):
-    STOCK = "STOCK"
-    OPTION = "OPTION"
-    FOREX = "FOREX"
-
+if TYPE_CHECKING:
+    from src.models.market_data import AssetType
 
 
 @dataclass(frozen=True)
 class TickerUniverseSnapshot:
-    internal_code: str
+    asset_id: str
     symbol: str
     asset_type: AssetType
     tickers: list[str]
     updated_at: datetime
+    con_id: Optional[int] = None
+    exchange: str = "SMART"
+    currency: str = "USD"
+    primary_exchange: Optional[str] = None
+
 
 
 @dataclass(frozen=True)

@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Protocol, Mapping
 
+from src.models.market_data import AssetType
 from src.models.portfolio import Position, PortfolioSnapshot
 from src.models.risk import RiskSnapshot
-from src.models.tickers import TickerUniverseSnapshot, AssetType, UniverseSnapshot
+from src.models.tickers import TickerUniverseSnapshot, UniverseSnapshot
 
 
 class DataAccessLayer(Protocol):
@@ -60,21 +61,21 @@ class InMemorySessionDAL:
             "EQ_US_AAPL": TickerUniverseSnapshot(
                 internal_code="EQ_US_AAPL",
                 symbol="AAPL",
-                asset_type=AssetType.STOCK,
+                asset_type=AssetType.STK,
                 tickers=["AAPL"],
                 updated_at=as_of,
             ),
             "EQ_US_MSFT": TickerUniverseSnapshot(
                 internal_code="EQ_US_MSFT",
                 symbol="MSFT",
-                asset_type=AssetType.STOCK,
+                asset_type=AssetType.STK,
                 tickers=["MSFT"],
                 updated_at=as_of,
             ),
             "EQ_US_NVDA": TickerUniverseSnapshot(
                 internal_code="EQ_US_NVDA",
                 symbol="NVDA",
-                asset_type=AssetType.STOCK,
+                asset_type=AssetType.STK,
                 tickers=["NVDA"],
                 updated_at=as_of,
             ),
