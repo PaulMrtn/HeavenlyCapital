@@ -347,7 +347,7 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if self._market_calendar.is_open_today() :
+        if not not self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -582,16 +582,20 @@ class SystemManager:
 
     # endregion
 
-
-
-# region LocalRuntimeLauncher
-
     def launch_local_runtime(self) :
         self._modules.session_manager.initialize_sessions_from_config()
         self._modules.session_manager.load_session_state_from_database()
         self._modules.session_manager.health_check_loaded_sessions()
 
+    def _wire_gateway_to_hub(self) -> None:
+        tick_sink = self._modules.live_hub.ingest_port
+        self._modules.ibkr_gateway.wire_tick_sink(tick_sink)
 
+    def initialize_market_data_feeds(self):
+        self._modules.ibkr_gateway.load_universe_snapshot()
+        contracts = self._modules.ibkr_gateway.contracts
+        self._modules.live_hub.load_contracts(contracts)
 
+        self._wire_gateway_to_hub()
+        self._modules.live_hub.initialize_pipelines()
 
-# endregion

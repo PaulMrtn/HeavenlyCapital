@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import runtime_checkable, Protocol, Any
 
 
-#TODO : load les config depuis un ficher json
+#TODO : load les config depuis un ficher json ( session only )
 
 @dataclass(frozen=True, slots=True)
 class IBKRConfig:

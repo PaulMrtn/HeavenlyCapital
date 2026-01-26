@@ -279,6 +279,7 @@ class SessionManager(RuntimeModule):
             raise ValueError("SessionManager: init_router() requires a non-null sink")
         if self._router is not None:
             raise RuntimeError("SessionManager: router already initialized")
+
         self._router = GlobalOrderRouter(sink=sink)
 
     @property

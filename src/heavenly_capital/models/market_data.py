@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
+from typing import Optional
 
 
 class AssetType(StrEnum):
@@ -17,11 +18,11 @@ class MarketDataInstrument:
     symbol: str
     asset_type: AssetType
 
-@dataclass(frozen=True)
-class MarketTick:
-    symbol: str
-    ts: datetime
-    last: float
-    bid: float
-    ask: float
 
+@dataclass(frozen=True)
+class TickEvent:
+    req_id: int
+    tick_type: int
+    price: Optional[float] = None
+    size: Optional[int] = None
+    ts_gateway: datetime = datetime.now(tz=timezone.utc)

@@ -1,24 +1,23 @@
 from __future__ import annotations
 
+import queue
 import random
 import threading
 import time
 from dataclasses import dataclass, fields
 from datetime import datetime, timezone
+from enum import IntEnum
 from typing import Optional, Any, Callable, TYPE_CHECKING, Dict
 
 from heavenly_capital.core.runtime_config import IBKRConfig, RuntimeModule
-from heavenly_capital.models.market_data import MarketTick, MarketDataInstrument
-
+from heavenly_capital.models.market_data import TickEvent
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
 
 
-TickCallback = Callable[[MarketTick], None]
 
-
-@dataclass(frozen=True)
+@dataclass
 class IbkrContractSpec:
     symbol: str
     sec_type: str
@@ -26,196 +25,115 @@ class IbkrContractSpec:
     currency: str
     primary_exchange: Optional[str] = None
     con_id: Optional[int] = None
-    md_req_id: Optional[int] = None
+    req_id: Optional[int] = None
+
+
+# region IB Mock
+
+# ---- IB-like enums -------------------------------------------------
+
+class TickType(IntEnum):
+    BID_SIZE = 0
+    BID = 1
+    ASK = 2
+    ASK_SIZE = 3
+    LAST = 4
+    LAST_SIZE = 5
+    VOLUME = 6
 
 
 
-# --- MOCK Subscriber API -------------------------------------------------
-class MockMarketDataSubscriber:
-    """
-    Mock de market data pour tests/démo.
 
-    Modes supportés :
-    1) Streaming (historique du comportement) :
-       - start() lance un thread qui émet périodiquement des ticks via callbacks.
-       - subscribe()/unsubscribe() gèrent les abonnements.
+# ---- EWrapper mock -------------------------------------------------
 
-    2) Snapshots (nouveau / pour polling régulier) :
-       - get_snapshot(contract) renvoie un MarketTick "one-shot".
-       - get_snapshots(contracts_by_asset_id) renvoie un dict de ticks.
+@dataclass
+class TickPrice:
+    reqId: int
+    tickType: TickType
+    price: float
 
-    Notes :
-    - Le prix "last" est la référence, et évolue légèrement entre deux appels.
-    - bid/ask sont remplis seulement si ces champs existent dans MarketTick.
-    """
+@dataclass
+class TickSize:
+    reqId: int
+    tickType: TickType
+    size: int
 
-    def __init__(
-        self,
-        *,
-        interval_s: float = 0.5,
-        seed: int = 123,
-        initial_price: float = 100.0,
-        step_std: float = 0.10,
-        spread_mean: float = 0.02,
-        spread_std: float = 0.01,
-    ) -> None:
-        self._interval_s = interval_s
-        self._rng = random.Random(seed)
 
-        self._initial_price = float(initial_price)
-        self._step_std = float(step_std)
-        self._spread_mean = float(spread_mean)
-        self._spread_std = float(spread_std)
+class MockEWrapper:
+    def tickPrice(self, reqId, tickType, price) -> TickPrice:
+        return TickPrice(reqId=reqId, tickType=tickType, price=price)
 
+    def tickSize(self, reqId, tickType, size) -> TickSize:
+        return TickSize(reqId=reqId, tickType=tickType, size=size)
+
+# ---- EClient mock --------------------------------------------------
+
+class MockEClient:
+    def __init__(self, wrapper, interval_ms=250):
+        self.wrapper = wrapper
+        self.interval = interval_ms / 1000.0
+        self._streams = {}
         self._lock = threading.Lock()
-        self._callbacks: Dict[str, TickCallback] = {}
-        self._specs: Dict[str, IbkrContractSpec] = {}
-        self._last_price: Dict[str, float] = {}
 
-        self._stop_evt = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+    def reqMktData(self, reqId, contract, genericTickList, snapshot, regulatorySnapshot, mktDataOptions):
+        if snapshot:
+            raise ValueError("Snapshot not supported in this mock")
 
-        self._tick_field_names = {f.name for f in fields(MarketTick)}
+        price = random.uniform(50, 300)
+        high = price
+        low = price
 
-    # -----------------------
-    # Streaming API (existant)
-    # -----------------------
-    def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
-        self._stop_evt.clear()
-        self._thread = threading.Thread(target=self._run, name="mock-md-subscriber", daemon=True)
-        self._thread.start()
+        while True:
+            delta = random.uniform(-0.1, 0.1)
+            price = round(max(0.01, price + delta), 2)
+            size = random.randint(1, 500)
 
-    def stop(self, *, timeout_s: float = 2.0) -> None:
-        self._stop_evt.set()
-        t = self._thread
-        if t:
-            t.join(timeout=timeout_s)
+            high = round(max(high, price), 2)
+            low = round(min(low, price), 2)
 
-    def subscribe(self, contract: IbkrContractSpec, callback: TickCallback) -> str:
-        handle = self._make_handle(contract)
+            # LAST
+            yield self.wrapper.tickPrice(reqId, TickType.LAST, price)
+            yield self.wrapper.tickSize(reqId, TickType.LAST_SIZE, size)
+
+            # BID / ASK
+            bid = round(price - random.uniform(0.01, 0.03), 2)
+            ask = round(price + random.uniform(0.01, 0.03), 2)
+            yield self.wrapper.tickPrice(reqId, TickType.BID, bid)
+            yield self.wrapper.tickSize(reqId, TickType.BID_SIZE, random.randint(100, 1000))
+            yield self.wrapper.tickPrice(reqId, TickType.ASK, ask)
+            yield self.wrapper.tickSize(reqId, TickType.ASK_SIZE, random.randint(100, 1000))
+
+            time.sleep(self.interval)
+
+    def cancelMktData(self, reqId):
         with self._lock:
-            self._callbacks[handle] = callback
-            self._specs[handle] = contract
-            self._last_price.setdefault(handle, self._initial_price + self._rng.random() * 10.0)
-        return handle
-
-    def unsubscribe(self, handle: str) -> None:
-        with self._lock:
-            self._callbacks.pop(handle, None)
-            self._specs.pop(handle, None)
-            self._last_price.pop(handle, None)
-
-    # -----------------------
-    # Snapshot API (nouveau)
-    # -----------------------
-    def get_snapshot(self, contract: IbkrContractSpec, *, as_of: Optional[datetime] = None) -> MarketTick:
-        """
-        Renvoie un tick snapshot pour un contrat (sans abonnement).
-        """
-        ts = as_of or datetime.now(timezone.utc)
-        handle = self._make_handle(contract)
-
-        with self._lock:
-            self._specs.setdefault(handle, contract)
-            self._last_price.setdefault(handle, self._initial_price + self._rng.random() * 10.0)
-
-        return self._make_tick(handle, ts)
-
-    def get_snapshots(
-        self,
-        contracts_by_asset_id: Dict[str, IbkrContractSpec],
-        *,
-        as_of: Optional[datetime] = None,
-    ) -> Dict[str, MarketTick]:
-        """
-        Batch snapshot : idéal pour un polling régulier (toutes les X secondes).
-        La clé est un asset_id interne (stable côté appli).
-        """
-        ts = as_of or datetime.now(timezone.utc)
-        out: Dict[str, MarketTick] = {}
-        for asset_id, contract in contracts_by_asset_id.items():
-            out[asset_id] = self.get_snapshot(contract, as_of=ts)
-        return out
-
-    # -----------------------
-    # Internals
-    # -----------------------
-    def _run(self) -> None:
-        while not self._stop_evt.is_set():
-            now = datetime.now(timezone.utc)
-            with self._lock:
-                items = list(self._callbacks.items())
-
-            for handle, cb in items:
-                tick = self._make_tick(handle, now)
-                try:
-                    cb(tick)
-                except Exception:
-                    # Mock : on ignore les erreurs de callback pour ne pas arrêter le thread
-                    pass
-
-            time.sleep(self._interval_s)
-
-    def _make_tick(self, handle: str, ts: datetime) -> MarketTick:
-        with self._lock:
-            contract = self._specs.get(handle)
-            last_prev = self._last_price.get(handle)
-
-        if contract is None:
-            # Handle inconnu : tick minimal "safe"
-            payload: Dict[str, Any] = {"ts": ts, "symbol": "UNKNOWN", "last": float("nan")}
-            return MarketTick(**payload)
-
-        if last_prev is None:
-            last_prev = self._initial_price + self._rng.random() * 10.0
-
-        # Évolution (marche aléatoire)
-        last = max(0.01, last_prev + self._rng.normalvariate(0.0, self._step_std))
-
-        with self._lock:
-            self._last_price[handle] = last
-
-        payload: Dict[str, Any] = {
-            "ts": ts,
-            "symbol": getattr(contract, "symbol", "UNKNOWN"),
-            "last": last,
-        }
-
-        # bid/ask si supportés par MarketTick
-        if "bid" in self._tick_field_names or "ask" in self._tick_field_names:
-            spread = max(0.01, self._rng.normalvariate(self._spread_mean, self._spread_std))
-            if "bid" in self._tick_field_names:
-                payload["bid"] = last - spread / 2
-            if "ask" in self._tick_field_names:
-                payload["ask"] = last + spread / 2
-
-        # Champs additionnels optionnels (uniquement si présents dans MarketTick)
-        for name in ("con_id", "exchange", "currency", "sec_type"):
-            if name in self._tick_field_names and getattr(contract, name, None) is not None:
-                payload[name] = getattr(contract, name)
-
-        return MarketTick(**payload)
-
-    def _make_handle(self, contract: IbkrContractSpec) -> str:
-        """
-        Identifiant stable pour retrouver l’état du mock (dernier prix).
-        Priorité à con_id si présent.
-        """
-        con_id = getattr(contract, "con_id", None)
-        if con_id is not None:
-            return f"conid:{con_id}"
-
-        sec_type = getattr(contract, "sec_type", None) or getattr(contract, "asset_type", None) or "UNK"
-        symbol = getattr(contract, "symbol", None) or "UNK"
-        exchange = getattr(contract, "exchange", None) or "UNK"
-        currency = getattr(contract, "currency", None) or "UNK"
-        primary = getattr(contract, "primary_exchange", None) or ""
-        return f"{sec_type}:{symbol}:{exchange}:{currency}:{primary}".replace(" ", "")
+            stop_event = self._streams.pop(reqId, None)
+            if stop_event:
+                stop_event.set()
 
 
-    # ------------------------------------------------------------------
+# -------------------------------------------------------------------
+
+# endregion
+
+
+class ReqIdRegistry:
+    def __init__(self):
+        self.next_req_id = 1
+        self.asset_id_by_req_id = {}
+
+    def import_universe(self, contracts: dict[str, Any]) -> None:
+        for asset_id, contract in contracts.items():
+            req_id = self._acquire_req_id()
+            contract.req_id = req_id
+            self.asset_id_by_req_id[req_id] = asset_id
+
+    def _acquire_req_id(self):
+        req_id = self.next_req_id
+        self.next_req_id += 1
+        return req_id
+
+
 
 class IBKRGateway(RuntimeModule):
 
@@ -226,11 +144,14 @@ class IBKRGateway(RuntimeModule):
         self._config: Optional[IBKRConfig] = None
         self._ports: Optional["SystemPorts"] = None
 
+
+        self._req_registry = ReqIdRegistry()
         self._contracts: Optional[dict[str, IbkrContractSpec]] = None
-        self.asset_id_by_md_req_id: Dict[int, str] = {}
+        self.asset_id_by_req_id: Dict[int, str] = {}
 
         # TODO : MOCK sent order (update with OrderObject)
         self._mock_sent_orders: list[dict[str, Any]] = list()
+        self._tick_sink: Optional[Callable[[TickEvent], None]] = None
 
     def configure(self, *, config: IBKRConfig, ports: "SystemPorts") -> None:
         self._config = config
@@ -274,7 +195,7 @@ class IBKRGateway(RuntimeModule):
 
     def order_sink(self, session_key, order: dict[str, Any]) -> None:
         # TODO: créer un objet Order contenant toutes les infos de TradingSessionKey et supprimer session-key en input.
-        # Appliquer sysmetriquement la modificatin
+        # Appliquer symétriquement la modification
         if not self._configured or not self._started:
             raise RuntimeError("IBKRGateway: order_sink() called while not started/configured")
 
@@ -283,13 +204,32 @@ class IBKRGateway(RuntimeModule):
     def get_order_sink(self) -> Callable[[dict[str, Any]], None]:
         return self.order_sink
 
+    def wire_tick_sink(self, sink):
+        self._tick_sink = sink
+
+    @property
+    def ingest_tick(self) -> Callable[[TickEvent], None]:
+        return self._tick_sink
+
     # ------------------------------------------------------------------
 
+    def fetch_universe_snapshot(self):
+        return self._ports.data_access.get_universe_snapshot()
+
+    def assign_req_ids(self, contracts: dict):
+        self._req_registry.import_universe(contracts=contracts)
+        self.asset_id_by_req_id = self._req_registry.asset_id_by_req_id
 
     def load_universe_snapshot(self) -> None:
-        snapshot = self._ports.data_access.get_universe_snapshot()
+        snapshot = self.fetch_universe_snapshot()
         self._contracts = self._build_ibkr_contract_specs(snapshot)
 
+        self.assign_req_ids(self._contracts)
+
+
+    @property
+    def contracts(self) -> dict[str, IbkrContractSpec] :
+        return self._contracts
 
 
     @staticmethod
@@ -304,13 +244,22 @@ class IBKRGateway(RuntimeModule):
                 currency=getattr(t, "currency", "USD") or "USD",
                 primary_exchange=getattr(t, "primary_exchange", None),
                 con_id=getattr(t, "con_id", None),
+                req_id=getattr(t, "req_id", None),
             )
 
         return contracts
 
+    def on_tick_event(self, tick):
+        tick = TickEvent(
+            req_id=getattr(tick, 'reqId', None),
+            tick_type=getattr(tick, 'tickType', None),
+            price=getattr(tick, 'price', None),
+            size=getattr(tick, 'size', None),
+            ts_gateway=datetime.now()
+        )
+        self.ingest_tick(tick)
+
     def start_market_data_stream(self) -> None: ...
-
-
 
 
 
@@ -325,3 +274,7 @@ def get_ibkr_gateway() -> IBKRGateway:
     if _instance is None:
         _instance = IBKRGateway()
     return _instance
+
+
+
+
