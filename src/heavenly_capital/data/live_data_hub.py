@@ -14,7 +14,7 @@ from heavenly_capital.models.market_data import TickEvent
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
-    from heavenly_capital.trading.ibkr_gateway import IbkrContractSpec, TickType
+    from heavenly_capital.ibkr.gateway import IbkrContractSpec, TickType
 
 
 # temporary

@@ -17,7 +17,7 @@ from heavenly_capital.core.thread_manager import ThreadManager
 from heavenly_capital.strategy.forecast_manager import ForecastManager
 from heavenly_capital.data.live_data_hub import LiveDataHub
 from heavenly_capital.data.historic_data_hub import HistoricDataHub
-from heavenly_capital.trading.ibkr_gateway import IBKRGateway
+from heavenly_capital.ibkr.gateway import IBKRGateway
 from heavenly_capital.core.session_manager import SessionManager
 
 from heavenly_capital.data.data_access import DataAccessLayer
@@ -557,7 +557,7 @@ class SystemManager:
         from heavenly_capital.strategy.forecast_manager import get_forecast_manager
         from heavenly_capital.data.live_data_hub import get_live_data_hub
         from heavenly_capital.data.historic_data_hub import get_historic_data_hub
-        from heavenly_capital.trading.ibkr_gateway import get_ibkr_gateway
+        from heavenly_capital.ibkr.gateway import get_ibkr_gateway
         from heavenly_capital.core.thread_manager import get_thread_manager
         from heavenly_capital.core.session_manager import get_session_manager
 
