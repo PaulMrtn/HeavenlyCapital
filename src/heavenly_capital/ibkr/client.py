@@ -1,36 +1,16 @@
 import asyncio
-import math
 from dataclasses import dataclass
-import time
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Iterable
+from typing import Optional, Dict, Iterable, Callable
 
-from ib_async import IB, Stock, Ticker  #from ibpai Stock ?
-from ibapi.contract import Contract
+from ib_async import IB, Stock, Ticker, Contract  #from ibpai Stock ?
 
 
-CLIENTS_CONFIG = [
-    {
-        "session_name": "SESSION_1",
-        "host": "127.0.0.1",
-        "port": 4002,
-        "enable": True,
-        "account_type": "PAPER",         # LIVE ou PAPER
-        "permission_level": "MASTER"    # MASTER ou STANDARD
-    },
-    {
-        "session_name": "SESSION_2",
-        "host": "127.0.0.1",
-        "port": 4003,
-        "enable": True,
-        "account_type": "PAPER",
-        "permission_level": "STANDARD"
-    },
 
-]
 
 # open -n '/Users/paul/Applications/IB Gateway 10.37/IB Gateway 10.37.app'
+
 
 class PermissionLevel(Enum):
     MASTER = "MASTER"
@@ -210,64 +190,15 @@ class IBKRClient:
             pass
 
 
-    # ---------------------
-    # Market Data
-    # ---------------------
-
-    # async def subscribe_ticks(self, contract: "Contract") -> int:
-    #     if self.permission_level != PermissionLevel.MASTER:
-    #         raise PermissionError("Only MASTER sessions can subscribe to market data")
-    #
-    #     sub_id = self._req_id_counter
-    #     self._req_id_counter += 1
-    #     self._subscriptions[sub_id] = contract
-    #     await self._ib_client.reqMktDataAsync(sub_id, contract)
-    #     return sub_id
-    #
-    # async def unsubscribe_ticks(self, subscription_id: int):
-    #     if self.permission_level != PermissionLevel.MASTER:
-    #         raise PermissionError("Only MASTER sessions can unsubscribe market data")
-    #
-    #     contract = self._subscriptions.pop(subscription_id, None)
-    #     if contract:
-    #         await self._ib_client.cancelMktData(subscription_id)
-
-
-    # async def request_historical(self, contract: "Contract", spec: dict):
-    #     if self.permission_level != PermissionLevel.MASTER:
-    #         raise PermissionError("Only MASTER sessions can request historical data")
-    #
-    #     req_id = self._req_id_counter
-    #     self._req_id_counter += 1
-    #     await self._ib_client.reqHistoricalDataAsync(req_id, contract, **spec)
-
-
-@dataclass(slots=True, frozen=True)
-class RawTick:
-    symbol: str
-    conId: int
-
-    last: float
-    last_size: float
-    bid: float
-    bid_size: float
-    ask: float
-    ask_size: float
-
-    volume: float
-
-    timestamp: datetime
-    server_time: datetime
 
 class ClientManager:
     def __init__(self, configs: list[dict]):
         self._registry = self._load_configs(configs)
+        self._heartbeat_task: Optional[asyncio.Task] = None
+        self.on_tick: Optional[Callable[[Ticker], None]] = None
 
-        self.contracts: dict[int, "Stock"] = {}
         self.tickers: dict[int, "Ticker"] = {}
 
-        self.raw_buffer = asyncio.Queue()
-        self._heartbeat_task: Optional[asyncio.Task] = None
 
     @staticmethod
     def _load_configs(configs: list[dict]) -> IBKRSessionRegistry:
@@ -289,6 +220,7 @@ class ClientManager:
     def _setup_master_session(self):
         self.master: "IBKRClient" = self._registry.get_master()
         self.master._ib_client.reqMarketDataType(1)
+
 
     async def _broadcast(self, method_name: str):
         tasks = [getattr(c, method_name)() for c in self._registry.all]
@@ -321,8 +253,6 @@ class ClientManager:
 
         await self._broadcast("resume")
 
-
-
     @property
     def all(self) -> list["IBKRClient"]:
         return self._registry.all
@@ -331,13 +261,18 @@ class ClientManager:
     def paper_sessions(self) -> list["IBKRClient"]:
         return self._registry.get_by_account_type(AccountType.PAPER)
 
-    async def load_contracts(self, stocks: list[Stock]) -> None:
-        await asyncio.gather(*(self.master._ib_client.qualifyContractsAsync(s) for s in stocks))
-        self.contracts = {s.conId: s for s in stocks}
+    async def qualify_contracts(self, contracts: list[Contract]) -> list[Contract]:
+        return await self.master._ib_client.qualifyContractsAsync(*contracts)
 
-    async def start_streaming(self):
-        for con_id, contract in self.contracts.items():
+    def set_tick_handler(self, on_tick: Callable):
+        self.on_tick = on_tick
 
+    def _on_ticker_update(self, ticker: Ticker):
+        if self.on_tick:
+            self.on_tick(ticker)
+
+    async def start_streaming(self, contracts: list[Contract]):
+        for contract in contracts:
             ticker = self.master._ib_client.reqMktData(
                 contract=contract,
                 genericTickList='',
@@ -346,29 +281,7 @@ class ClientManager:
             )
 
             ticker.updateEvent += self._on_ticker_update
-
-            self.tickers[con_id] = ticker
-
-    def _handle_raw_tick(self, tick: RawTick):
-        self.raw_buffer.put_nowait(tick)
-
-    def _on_ticker_update(self, ticker: Ticker):
-
-        tick = RawTick(
-            symbol=ticker.contract.symbol,
-            conId=ticker.contract.conId,
-            last=ticker.last,
-            last_size=ticker.lastSize,
-            bid=ticker.bid,
-            bid_size=ticker.bidSize,
-            ask=ticker.ask,
-            ask_size=ticker.askSize,
-            volume=ticker.volume,
-            timestamp=datetime.now(),
-            server_time=ticker.time
-        )
-
-        self._handle_raw_tick(tick)
+            self.tickers[contract.conId] = ticker
 
     async def stop_streaming(self):
         for ticker in self.tickers.values():
@@ -380,13 +293,13 @@ class ClientManager:
 
         self.tickers.clear()
 
+
     async def _heartbeat(self):
         try :
             while True :
                 await asyncio.sleep(5)
                 try:
                     server_time = await self.master._ib_client.reqCurrentTimeAsync()
-                    print(server_time)
 
                 except Exception:
                 # TODO:MEDIUM Handle this shutdown (RESTART), if server_time = None
@@ -394,89 +307,3 @@ class ClientManager:
 
         except asyncio.CancelledError:
             raise
-
-
-async def main():
-
-    manager = ClientManager(CLIENTS_CONFIG)
-
-    await manager.start()
-    await asyncio.sleep(3)
-
-    contracts = [
-        Stock("TSLA", "SMART", "USD"),
-        Stock("AAPL", "SMART", "USD"),
-        Stock("NVDA", "SMART", "USD")
-    ]
-    await manager.load_contracts(contracts)
-    await manager.start_streaming()
-    await manager.stop_streaming()
-
-    await manager.pause()
-
-    await asyncio.sleep(30)
-
-    await manager.resume()
-
-    await manager.wait()
-
-
-
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-
-
-# TODO:MEDIUM : HealthCheck Calibration entre l aggregation 5 sec official et la mienne
-
-# region ReqRealTimesBars
-
-#
-# async def main():
-#     manager = ClientManager(CLIENTS_CONFIG)
-#     await manager.start()
-#     await asyncio.sleep(3)
-#
-#     master_client = manager.master
-#     master_client._ib_client.reqMarketDataType(1)  # live / frozen
-#
-#     contracts = [
-#         Stock("TSLA", "SMART", "USD"),
-#         Stock("AAPL", "SMART", "USD"),
-#         Stock("NVDA", "SMART", "USD")
-#     ]
-#
-#     id_to_symbol = {}
-#     bars_list = []
-#
-#     for c in contracts:
-#         await master_client._ib_client.qualifyContractsAsync(c)
-#         bars = master_client._ib_client.reqRealTimeBars(
-#             contract=c,
-#             barSize=5,
-#             whatToShow='TRADES',
-#             useRTH=True
-#         )
-#
-#         id_to_symbol[bars.reqId] = c.symbol
-#         bars_list.append(bars)
-#
-#
-#     async def monitor_bars():
-#         while True:
-#             for bars in bars_list:
-#                 while bars:
-#                     bar = bars.pop(0)
-#                     symbol = id_to_symbol.get(bars.reqId, f"ID_{bars.reqId}")
-#                     print(f"{symbol} | Time: {bar.time} | O:{bar.open_} H:{bar.high} L:{bar.low} C:{bar.close} V:{bar.volume}")
-#
-#
-#             await asyncio.sleep(0.001)
-#
-#     await monitor_bars()
-#
-#     await manager.wait()
-
-# end region

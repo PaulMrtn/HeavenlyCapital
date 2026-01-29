@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
 from uuid import UUID, uuid4
 
-from heavenly_capital.core.runtime_config import RuntimeConfig, RuntimeModule
+from heavenly_capital.core.runtime_config import RuntimeConfig, RuntimeModule, AsyncRuntimeModule
 from heavenly_capital.core.market_clock import MarketStateChangeEvent
 from heavenly_capital.core.runtime_config import get_global_runtime_config
 from heavenly_capital.core.thread_manager import ThreadManager
@@ -20,8 +20,8 @@ from heavenly_capital.data.historic_data_hub import HistoricDataHub
 from heavenly_capital.ibkr.gateway import IBKRGateway
 from heavenly_capital.core.session_manager import SessionManager
 
-from heavenly_capital.data.data_access import DataAccessLayer
-from heavenly_capital.data.data_ingestion import DataIngestionLayer
+from heavenly_capital.data.db_access import DataAccessLayer
+from heavenly_capital.data.db_ingestion import DataIngestionLayer
 
 from heavenly_capital.monitoring.error_service import NullErrorService, ErrorService, HealthCheckError
 from heavenly_capital.monitoring.log_service import LogService, NullLogService
@@ -305,7 +305,7 @@ class SystemManager:
                 )
 
 
-    def _execute_boot_plan(self, plan: "BootPlan") -> None:
+    async def _execute_boot_plan(self, plan: "BootPlan") -> None:
         proc = plan.procedure
 
         if proc == "STRATEGIC_SETUP":
@@ -313,7 +313,7 @@ class SystemManager:
             return
 
         if proc == "PRE_MARKET":
-            self._proc_pre_market(plan)
+            await self._proc_pre_market(plan)
             return
 
         if proc.startswith("RESTART_AFTER_STOP:"):
@@ -328,9 +328,9 @@ class SystemManager:
         return
 
 
-    def _proc_pre_market(self, plan: "BootPlan") -> None:
+    async def _proc_pre_market(self, plan: "BootPlan") -> None:
         # TODO: to continue
-        self.launch_global_runtime()
+        await self.launch_global_runtime()
         # self.launch_local_runtime()
         return
 
@@ -343,11 +343,11 @@ class SystemManager:
         return
 
 
-    def _prepare_bootstrap(self, checks):
+    async def _prepare_bootstrap(self, checks):
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if not not self._market_calendar.is_open_today() :
+        if not self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -359,7 +359,7 @@ class SystemManager:
         boot_plan = self._build_boot_plan(today_session=today_session)
         # self.persist_session(session=boot_plan.session)
 
-        self._execute_boot_plan(boot_plan)
+        await self._execute_boot_plan(boot_plan)
         return None
 
 #endregion
@@ -508,7 +508,7 @@ class SystemManager:
 
         self._modules_configured = True
 
-    def _start_runtime_modules(self) -> None:
+    async def _start_runtime_modules(self) -> None:
         if self._modules_started:
             return
 
@@ -523,7 +523,10 @@ class SystemManager:
 
         for module in modules_to_start:
             if module is not None:
-                module.start()
+                if isinstance(module, AsyncRuntimeModule):
+                    await module.start()
+                else:
+                    module.start()
 
         self._modules_started = True
 
@@ -552,7 +555,7 @@ class SystemManager:
         if failed_results:
             raise HealthCheckError(results)
 
-    def launch_global_runtime(self) -> None:
+    async def launch_global_runtime(self) -> None:
         # TODO : handle this import
         from heavenly_capital.strategy.forecast_manager import get_forecast_manager
         from heavenly_capital.data.live_data_hub import get_live_data_hub
@@ -575,7 +578,7 @@ class SystemManager:
         )
 
         self._configure_runtime_modules()
-        self._start_runtime_modules()
+        await self._start_runtime_modules()
         self._health_checks_runtime_modules()
         #before or after the health check
         self._wire_runtime_modules()
@@ -587,15 +590,17 @@ class SystemManager:
         self._modules.session_manager.load_session_state_from_database()
         self._modules.session_manager.health_check_loaded_sessions()
 
-    def _wire_gateway_to_hub(self) -> None:
+    def _wire_gateway_sink_to_data_hub(self) -> None:
         tick_sink = self._modules.live_hub.ingest_port
         self._modules.ibkr_gateway.wire_tick_sink(tick_sink)
 
-    def initialize_market_data_feeds(self):
-        self._modules.ibkr_gateway.load_universe_snapshot()
-        contracts = self._modules.ibkr_gateway.contracts
-        self._modules.live_hub.load_contracts(contracts)
+    async def initialize_market_data_feeds(self):
+        await self._modules.ibkr_gateway.load_universe_snapshot()
 
-        self._wire_gateway_to_hub()
-        self._modules.live_hub.initialize_pipelines()
+        self._wire_gateway_sink_to_data_hub()
+
+        contracts = self._modules.ibkr_gateway.contracts
+        self._modules.live_hub.initialize_pipelines(contracts)
+
+
 

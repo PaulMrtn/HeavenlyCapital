@@ -1,17 +1,31 @@
 from __future__ import annotations
 
-
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import runtime_checkable, Protocol, Any
 
 
 #TODO : load les config depuis un ficher json ( session only )
 
+# @dataclass(frozen=True, slots=True)
+# class IBKRSessionConfig:
+#     session_name: str
+#     host: str
+#     port: int
+#     account_type: str        # "LIVE" ou "PAPER"
+#     permission_level: str    # "MASTER" ou "STANDARD"
+#     enable: bool = True
+#
+# @dataclass(frozen=True, slots=True)
+# class IBKRConfig:
+#     sessions: list[SessionConfig]
+
 @dataclass(frozen=True, slots=True)
 class IBKRConfig:
     host: str = "127.0.0.1"
     port: int = 4002
     client_id: int = 1
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,11 +114,11 @@ def get_global_runtime_config() -> RuntimeConfig:
 @runtime_checkable
 class RuntimeModule(Protocol):
 
-    def configure(self, *, config: Any, ports: Any) -> None: ...
+    def configure(self, *, config: Any, ports: Any) -> Any: ...
 
-    def start(self) -> None: ...
+    def start(self) -> Any: ...
 
-    def stop(self) -> None: ...
+    def stop(self) -> Any: ...
 
     @property
     def is_configured(self) -> bool: ...
@@ -114,3 +128,13 @@ class RuntimeModule(Protocol):
 
     def health_check(self) -> dict[str, Any]: ...
 
+
+class AsyncRuntimeModule(RuntimeModule):
+
+    @abstractmethod
+    async def start(self) -> Any:
+        pass
+
+    @abstractmethod
+    async def stop(self) -> Any:
+        pass

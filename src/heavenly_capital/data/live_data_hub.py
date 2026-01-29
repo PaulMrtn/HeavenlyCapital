@@ -9,12 +9,14 @@ from threading import Thread
 
 from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
 
+from ib_async import Contract
+
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
 from heavenly_capital.models.market_data import TickEvent
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
-    from heavenly_capital.ibkr.gateway import IbkrContractSpec, TickType
+    from heavenly_capital.ibkr.gateway import Contract
 
 
 # temporary
@@ -35,14 +37,13 @@ class LastKnownState:
     last_ts_gateway: Optional[datetime] = None
 
 
-OHLC = namedtuple("OHLC", ["open", "high", "low", "close", "volume", "len_tick", "ts_start", "ts_end"])
+OHLC = namedtuple("OHLC",
+                  ["open", "high", "low", "close", "volume", "len_tick", "ts_start", "ts_end"])
 
 
 class InstrumentPipeline:
 
-    #TODO:HIGHEST : One thread only (per instrument ?)
-    def __init__(self, contract: IbkrContractSpec) -> None:
-        self.req_id = contract.req_id
+    def __init__(self, contract: "Contract") -> None:
         self._contract = contract
 
         self.tick_buffer = []
@@ -96,7 +97,6 @@ class LiveDataHub(RuntimeModule):
         self._configured: bool = False
         self._started: bool = False
 
-        self._contracts: Optional[dict[str, "IbkrContractSpec"]] = None
         self._pipelines: Dict[int, "InstrumentPipeline"] = {}
 
         self._queue = Queue()
@@ -147,16 +147,10 @@ class LiveDataHub(RuntimeModule):
             "is_healthy": True,
         }
 
-    def load_contracts(self, contracts: Any) -> None:
-        self._contracts = contracts
-
-    def initialize_pipelines(self):
-        self._pipelines = {}
-
-        for asset_id, contract in self._contracts.items():
-            if contract.req_id is None:
-                continue
-            self._pipelines[contract.req_id] = InstrumentPipeline(contract)
+    def initialize_pipelines(self, contracts: dict[str, Contract]):
+        self._pipelines = {
+            c.conId: InstrumentPipeline(c) for c in contracts.values()
+        }
 
 
     def _ingest(self, tick):
@@ -167,15 +161,19 @@ class LiveDataHub(RuntimeModule):
         return self._ingest
 
     def _process_ticks(self):
+
         while self._started:
-            tick = self._queue.get()
-            pipeline = self._pipelines.get(tick.req_id)
-            if pipeline is None:
+            try:
+                tick: TickEvent = self._queue.get(timeout=1)
+
+                pipeline = self._pipelines.get(tick.conId)
+                if pipeline:
+                    print(tick)
+                    # pipeline.on_tick(tick)
+                self._queue.task_done()
+
+            except Exception:
                 continue
-
-            pipeline.on_tick(tick)
-            self._queue.task_done()
-
 
 
 
@@ -183,7 +181,6 @@ class LiveDataHub(RuntimeModule):
 
 
 _instance: Optional[LiveDataHub] = None
-
 
 def get_live_data_hub() -> LiveDataHub:
     global _instance

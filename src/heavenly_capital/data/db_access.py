@@ -56,8 +56,9 @@ class InMemorySessionDAL:
 
         return UniverseSnapshot(
             as_of=as_of,
-            universe_id="SP500_TOP50",
+            universe_id="SP500_SAMPLE",
             constituents={
+
                 "EQ_US_AAPL": TickerUniverseSnapshot(
                     asset_id="EQ_US_AAPL", symbol="AAPL", asset_type=AssetType.STK, tickers=["AAPL"], updated_at=as_of,
                 ),
@@ -71,8 +72,7 @@ class InMemorySessionDAL:
                     asset_id="EQ_US_AMZN", symbol="AMZN", asset_type=AssetType.STK, tickers=["AMZN"], updated_at=as_of,
                 ),
                 "EQ_US_GOOGL": TickerUniverseSnapshot(
-                    asset_id="EQ_US_GOOGL", symbol="GOOGL", asset_type=AssetType.STK, tickers=["GOOGL"],
-                    updated_at=as_of,
+                    asset_id="EQ_US_GOOGL", symbol="GOOGL", asset_type=AssetType.STK, tickers=["GOOGL"], updated_at=as_of,
                 ),
                 "EQ_US_GOOG": TickerUniverseSnapshot(
                     asset_id="EQ_US_GOOG", symbol="GOOG", asset_type=AssetType.STK, tickers=["GOOG"], updated_at=as_of,
@@ -82,10 +82,6 @@ class InMemorySessionDAL:
                 ),
                 "EQ_US_META": TickerUniverseSnapshot(
                     asset_id="EQ_US_META", symbol="META", asset_type=AssetType.STK, tickers=["META"], updated_at=as_of,
-                ),
-                "EQ_US_BRK_B": TickerUniverseSnapshot(
-                    asset_id="EQ_US_BRK_B", symbol="BRK.B", asset_type=AssetType.STK, tickers=["BRK.B"],
-                    updated_at=as_of,
                 ),
                 "EQ_US_JPM": TickerUniverseSnapshot(
                     asset_id="EQ_US_JPM", symbol="JPM", asset_type=AssetType.STK, tickers=["JPM"], updated_at=as_of,
@@ -123,7 +119,6 @@ class InMemorySessionDAL:
                 "EQ_US_KO": TickerUniverseSnapshot(
                     asset_id="EQ_US_KO", symbol="KO", asset_type=AssetType.STK, tickers=["KO"], updated_at=as_of,
                 ),
-                # autres ~30 titres représentatifs
                 "EQ_US_NFLX": TickerUniverseSnapshot(
                     asset_id="EQ_US_NFLX", symbol="NFLX", asset_type=AssetType.STK, tickers=["NFLX"], updated_at=as_of),
 
@@ -131,20 +126,7 @@ class InMemorySessionDAL:
                     asset_id="EQ_US_MA", symbol="MA", asset_type=AssetType.STK, tickers=["MA"], updated_at=as_of),
 
                 "EQ_US_UNH": TickerUniverseSnapshot(
-                    asset_id="EQ_US_UNH", symbol="UNH", asset_type=AssetType.STK,
-                                                    tickers=["UNH"], updated_at=as_of),
-                "EQ_US_PFE": TickerUniverseSnapshot(asset_id="EQ_US_PFE", symbol="PFE", asset_type=AssetType.STK,
-                                                    tickers=["PFE"], updated_at=as_of),
-                "EQ_US_DIS": TickerUniverseSnapshot(asset_id="EQ_US_DIS", symbol="DIS", asset_type=AssetType.STK,
-                                                    tickers=["DIS"], updated_at=as_of),
-                "EQ_US_ORCL": TickerUniverseSnapshot(asset_id="EQ_US_ORCL", symbol="ORCL", asset_type=AssetType.STK,
-                                                     tickers=["ORCL"], updated_at=as_of),
-                "EQ_US_CISCO": TickerUniverseSnapshot(asset_id="EQ_US_CISCO", symbol="CSCO", asset_type=AssetType.STK,
-                                                      tickers=["CSCO"], updated_at=as_of),
-                "EQ_US_NKE": TickerUniverseSnapshot(asset_id="EQ_US_NKE", symbol="NKE", asset_type=AssetType.STK,
-                                                    tickers=["NKE"], updated_at=as_of),
-                "EQ_US_PEPE": TickerUniverseSnapshot(asset_id="EQ_US_PEPE", symbol="PEP", asset_type=AssetType.STK,
-                                                     tickers=["PEP"], updated_at=as_of),
-                # ajoute d'autres si nécessaire…
+                    asset_id="EQ_US_UNH", symbol="UNH", asset_type=AssetType.STK, tickers=["UNH"], updated_at=as_of)
+
             }
         )
