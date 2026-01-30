@@ -1,10 +1,9 @@
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Iterable, Callable
 
-from ib_async import IB, Stock, Ticker, Contract  #from ibpai Stock ?
+from ib_async import IB, Ticker, Contract
 
 
 

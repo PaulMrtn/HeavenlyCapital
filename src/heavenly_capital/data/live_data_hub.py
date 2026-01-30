@@ -1,13 +1,11 @@
 from __future__ import annotations
 
+import time
 from collections import namedtuple
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import IntEnum
-from queue import Queue
-from threading import Thread
+from queue import Queue, Empty
+from threading import Thread, Lock
 
-from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
+from typing import Optional, Any, TYPE_CHECKING, Callable, Dict, List
 
 from ib_async import Contract
 
@@ -19,75 +17,109 @@ if TYPE_CHECKING:
     from heavenly_capital.ibkr.gateway import Contract
 
 
-# temporary
-class TickType(IntEnum):
-    BID_SIZE = 0
-    BID = 1
-    ASK = 2
-    ASK_SIZE = 3
-    LAST = 4
-    LAST_SIZE = 5
-    VOLUME = 6
 
 
-@dataclass
-class LastKnownState:
-    # TODO:MEDIUM : this object should be replaced by a more efficient data structure
-    ticks: Dict["TickType", float] = field(default_factory=dict)
-    last_ts_gateway: Optional[datetime] = None
+class DataBus:
+
+    def __init__(self, name: str):
+        self.name = name
+        self._lock = Lock()
+        self._snapshots: Dict[int, Any] = {}
+        self._subscribers: Dict[int, List[Callable]] = {}
+
+    def subscribe(self, conId: int, callback: Callable[[int, Any], None]):
+        with self._lock:
+            if conId not in self._subscribers:
+                self._subscribers[conId] = []
+            self._subscribers[conId].append(callback)
+
+    def publish(self, conId: int, data: Any):
+        with self._lock:
+            self._snapshots[conId] = data
+
+            callbacks = self._subscribers.get(conId, [])
+            if not callbacks:
+                return
+            target_callbacks = list(callbacks)
+
+        for cb in target_callbacks:
+            try:
+                cb(conId, data)
+            except Exception as e:
+                print(f"[{self.name}] Erreur Callback pour {conId}: {e}")
+
+    def get_last(self, conId: int) -> Optional[Any]:
+        with self._lock:
+            return self._snapshots.get(conId)
+
+
 
 
 OHLC = namedtuple("OHLC",
-                  ["open", "high", "low", "close", "volume", "len_tick", "ts_start", "ts_end"])
+                  ["open", "high", "low", "close", "volume", "tick_count", "ts_start", "ts_end"])
+
+
+class OHLCAggregator:
+    def __init__(self):
+        self.prices: list[float] = []
+        self.volumes: list[float] = []
+        self.timestamps: list[float] = []
+
+    def add(self, price: float, size: float, ts: float):
+        self.prices.append(price)
+        self.volumes.append(size)
+        self.timestamps.append(ts)
+
+    def flush(self, ts_start: float, ts_end: float) -> "OHLC":
+        p_snapshot, self.prices = self.prices, []
+        v_snapshot, self.volumes = self.volumes, []
+        t_snapshot, self.timestamps = self.timestamps, []
+
+        if not p_snapshot:
+            return OHLC(
+                open=0.0, high=0.0, low=0.0, close=0.0,
+                volume=0.0, tick_count=0,
+                ts_start=ts_start, ts_end=ts_end
+            )
+
+        return OHLC(
+            open=p_snapshot[0],
+            high=max(p_snapshot),
+            low=min(p_snapshot),
+            close=p_snapshot[-1],
+            volume=sum(v_snapshot),
+            tick_count=len(p_snapshot),
+            ts_start=ts_start,
+            ts_end=ts_end
+        )
+
 
 
 class InstrumentPipeline:
+    def __init__(self, contract: "Contract"):
+        self.contract = contract
+        self.conId = contract.conId
 
-    def __init__(self, contract: "Contract") -> None:
-        self._contract = contract
-
-        self.tick_buffer = []
-        self.state: Optional["LastKnownState"] = LastKnownState()
+        self.last_agg = OHLCAggregator()
+        self.bid_agg = OHLCAggregator()
+        self.ask_agg = OHLCAggregator()
 
     def on_tick(self, tick: "TickEvent"):
-        if tick.tick_type is not None:
-            value = tick.price if tick.price is not None else tick.size
-            if value is not None:
-                self.state.ticks[tick.tick_type] = value
-
-        self.state.last_ts_gateway = tick.ts_gateway
-
-        if tick.tick_type in (TickType.LAST, TickType.LAST_SIZE):
-            self.tick_buffer.append(tick)
+        if tick.last > 0:
+            self.last_agg.add(tick.last, tick.last_size, tick.timestamp)
+        if tick.bid > 0:
+            self.bid_agg.add(tick.bid, tick.bid_size, tick.timestamp)
+        if tick.ask > 0:
+            self.ask_agg.add(tick.ask, tick.ask_size, tick.timestamp)
 
 
-    def aggregate_ohlc(self) -> Optional[OHLC]:
-        if not self.tick_buffer:
-            return None
+    def aggregate_all(self, ts_start: float, ts_end: float) -> dict[str, Optional["OHLC"]]:
+        return {
+            "last": self.last_agg.flush(ts_start, ts_end),
+            "bid": self.bid_agg.flush(ts_start, ts_end),
+            "ask": self.ask_agg.flush(ts_start, ts_end)
+        }
 
-        buffer = self.tick_buffer
-        self.tick_buffer = []
-
-        prices = [t.price for t in buffer if t.price is not None]
-        if not prices:
-            return None
-
-        # TODO:HIGHEST : Verify the volume calculation
-        volume = sum(t.size for t in buffer if t.size is not None)
-
-        ts_start = buffer[0].ts_gateway
-        ts_end = buffer[-1].ts_gateway
-
-        return OHLC(
-            open=prices[0],
-            high=max(prices),
-            low=min(prices),
-            close=prices[-1],
-            volume=volume,
-            len_tick=len(prices),
-            ts_start=ts_start,
-            ts_end=ts_end,
-        )
 
 
 
@@ -101,6 +133,10 @@ class LiveDataHub(RuntimeModule):
 
         self._queue = Queue()
         self._worker = Thread(target=self._process_ticks, daemon=True)
+        self._sweeper = Thread(target=self._run_sweeper, daemon=True)
+
+        self.tick_bus = DataBus(name="TickBus")
+        self.ohlc_bus = DataBus(name="OHLCBus")
 
         self._config: Optional["LiveHubConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -116,7 +152,7 @@ class LiveDataHub(RuntimeModule):
 
         self._started = True
         self._worker.start()
-
+        self._sweeper.start()
 
     def stop(self) -> None:
         self._started = False
@@ -152,7 +188,6 @@ class LiveDataHub(RuntimeModule):
             c.conId: InstrumentPipeline(c) for c in contracts.values()
         }
 
-
     def _ingest(self, tick):
         self._queue.put(tick)
 
@@ -161,20 +196,36 @@ class LiveDataHub(RuntimeModule):
         return self._ingest
 
     def _process_ticks(self):
+        # TODO:HIGHEST get(timeout=1), check this parameter
 
         while self._started:
             try:
-                tick: TickEvent = self._queue.get(timeout=1)
+                tick = self._queue.get(timeout=1)
 
                 pipeline = self._pipelines.get(tick.conId)
                 if pipeline:
-                    print(tick)
-                    # pipeline.on_tick(tick)
+                    pipeline.on_tick(tick)
+
+                self.tick_bus.publish(tick.conId, tick)
                 self._queue.task_done()
 
-            except Exception:
+            except Empty:
                 continue
 
+
+    def _run_sweeper(self):
+
+        while self._started:
+            now = time.time()
+            time.sleep(5 - (now % 5))
+
+            ts_end = time.time()
+            ts_end = ts_end - (ts_end % 5)
+            ts_start = ts_end - 5
+
+            for conId, pipeline in self._pipelines.items():
+                bars = pipeline.aggregate_all(ts_start, ts_end)
+                self.ohlc_bus.publish(conId, bars)
 
 
 
@@ -187,3 +238,7 @@ def get_live_data_hub() -> LiveDataHub:
     if _instance is None:
         _instance = LiveDataHub()
     return _instance
+
+
+
+

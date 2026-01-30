@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional, Any, Callable, TYPE_CHECKING, Dict
+from datetime import timezone
+from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ib_async import Contract, Ticker
 
 from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
 from heavenly_capital.ibkr.client import ClientManager
-from heavenly_capital.models.market_data import TickEvent, AssetType
+from heavenly_capital.models.market_data import TickEvent
 from heavenly_capital.models.tickers import UniverseSnapshot
 
 if TYPE_CHECKING:
@@ -36,20 +34,7 @@ CLIENTS_CONFIG = [
 
 ]
 
-
-@dataclass(slots=True, frozen=True)
-class TickEvent:
-    symbol: str
-    conId: int
-    last: float
-    last_size: float
-    bid: float
-    bid_size: float
-    ask: float
-    ask_size: float
-    volume: float
-    timestamp: datetime
-    server_time: datetime
+UTC_ZONE = timezone.utc
 
 
 class TickFeeder:
@@ -70,12 +55,12 @@ class TickFeeder:
             ask=ticker.ask,
             ask_size=ticker.askSize,
             volume=ticker.volume,
-            timestamp=datetime.now(),
-            server_time=ticker.time
+            timestamp=ticker.timestamp
         )
 
         if self.sink:
             self.sink(event)
+
 
 class IBKRGateway(AsyncRuntimeModule):
 

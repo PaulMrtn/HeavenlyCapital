@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import StrEnum
-from typing import Optional
+
 
 
 class AssetType(StrEnum):
@@ -19,10 +19,16 @@ class MarketDataInstrument:
     asset_type: AssetType
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True, frozen=True)
 class TickEvent:
-    req_id: int
-    tick_type: int
-    price: Optional[float] = None
-    size: Optional[int] = None
-    ts_gateway: datetime = datetime.now(tz=timezone.utc)
+    symbol: str
+    conId: int
+    last: float
+    last_size: float
+    bid: float
+    bid_size: float
+    ask: float
+    ask_size: float
+    volume: float
+    timestamp: float
+
