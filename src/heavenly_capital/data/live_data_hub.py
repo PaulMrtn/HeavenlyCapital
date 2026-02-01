@@ -1,62 +1,22 @@
 from __future__ import annotations
 
 import time
-from collections import namedtuple
 from queue import Queue, Empty
-from threading import Thread, Lock
+from threading import Thread
 
-from typing import Optional, Any, TYPE_CHECKING, Callable, Dict, List
+from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
 
 from ib_async import Contract
 
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
-from heavenly_capital.models.market_data import TickEvent
+from heavenly_capital.data.bus import EventBus
+from heavenly_capital.models.market_data import TickEvent, OHLC
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
     from heavenly_capital.ibkr.gateway import Contract
 
 
-
-
-class DataBus:
-
-    def __init__(self, name: str):
-        self.name = name
-        self._lock = Lock()
-        self._snapshots: Dict[int, Any] = {}
-        self._subscribers: Dict[int, List[Callable]] = {}
-
-    def subscribe(self, conId: int, callback: Callable[[int, Any], None]):
-        with self._lock:
-            if conId not in self._subscribers:
-                self._subscribers[conId] = []
-            self._subscribers[conId].append(callback)
-
-    def publish(self, conId: int, data: Any):
-        with self._lock:
-            self._snapshots[conId] = data
-
-            callbacks = self._subscribers.get(conId, [])
-            if not callbacks:
-                return
-            target_callbacks = list(callbacks)
-
-        for cb in target_callbacks:
-            try:
-                cb(conId, data)
-            except Exception as e:
-                print(f"[{self.name}] Erreur Callback pour {conId}: {e}")
-
-    def get_last(self, conId: int) -> Optional[Any]:
-        with self._lock:
-            return self._snapshots.get(conId)
-
-
-
-
-OHLC = namedtuple("OHLC",
-                  ["open", "high", "low", "close", "volume", "tick_count", "ts_start", "ts_end"])
 
 
 class OHLCAggregator:
@@ -135,8 +95,8 @@ class LiveDataHub(RuntimeModule):
         self._worker = Thread(target=self._process_ticks, daemon=True)
         self._sweeper = Thread(target=self._run_sweeper, daemon=True)
 
-        self.tick_bus = DataBus(name="TickBus")
-        self.ohlc_bus = DataBus(name="OHLCBus")
+        self.tick_bus = EventBus(name="TickBus")
+        self.ohlc_bus = EventBus(name="OHLCBus")
 
         self._config: Optional["LiveHubConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -226,8 +186,6 @@ class LiveDataHub(RuntimeModule):
             for conId, pipeline in self._pipelines.items():
                 bars = pipeline.aggregate_all(ts_start, ts_end)
                 self.ohlc_bus.publish(conId, bars)
-
-
 
 
 

@@ -86,7 +86,7 @@ class SessionConfig:
 class RuntimeConfig:
     ibkr: IBKRConfig = IBKRConfig()
     live_hub: LiveHubConfig = LiveHubConfig()
-    historic: HistoricHubConfig = HistoricHubConfig()
+    historic_hub: HistoricHubConfig = HistoricHubConfig()
     forecast: ForecastConfig = ForecastConfig()
     thread: ThreadConfig = ThreadConfig()
     session_manager: SessionConfig = SessionConfig()
@@ -101,7 +101,7 @@ def get_global_runtime_config() -> RuntimeConfig:
     if _runtime_config is None:
         _runtime_config = RuntimeConfig(
             ibkr=IBKRConfig(),
-            historic=HistoricHubConfig(),
+            historic_hub=HistoricHubConfig(),
             live_hub=LiveHubConfig(),
             forecast=ForecastConfig(),
             thread=ThreadConfig(),

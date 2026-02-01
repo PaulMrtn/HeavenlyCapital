@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections import namedtuple
 from dataclasses import dataclass
-from datetime import datetime
 from enum import StrEnum
 
 
@@ -12,11 +12,8 @@ class AssetType(StrEnum):
     CASH = "CASH"
 
 
-@dataclass(frozen=True)
-class MarketDataInstrument:
-    asset_id: str
-    symbol: str
-    asset_type: AssetType
+OHLC = namedtuple("OHLC",
+                  ["open", "high", "low", "close", "volume", "tick_count", "ts_start", "ts_end"])
 
 
 @dataclass(slots=True, frozen=True)
@@ -31,4 +28,6 @@ class TickEvent:
     ask_size: float
     volume: float
     timestamp: float
+
+
 

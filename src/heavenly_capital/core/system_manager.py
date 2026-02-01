@@ -149,10 +149,10 @@ class SystemPorts:
     notification_service: Any
 
 
-@dataclass(slots=True)
+@dataclass
 class RuntimeRegistry:
     ibkr_gateway: Optional[RuntimeModule | IBKRGateway] = None
-    historic: Optional[RuntimeModule | HistoricDataHub] = None
+    historic_hub: Optional[RuntimeModule | HistoricDataHub] = None
     live_hub: Optional[RuntimeModule | LiveDataHub] = None
     forecast_manager: Optional[RuntimeModule | ForecastManager] = None
     thread_manager: Optional[RuntimeModule | ThreadManager] = None
@@ -347,7 +347,7 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if not self._market_calendar.is_open_today() :
+        if self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -468,7 +468,7 @@ class SystemManager:
     ) -> None:
 
         self._modules.ibkr_gateway = ibkr_gateway
-        self._modules.historic = historic_data_hub
+        self._modules.historic_hub = historic_data_hub
         self._modules.live_hub = live_data_hub
         self._modules.forecast_manager = forecast_manager
         self._modules.thread_manager = thread_manager
@@ -495,7 +495,7 @@ class SystemManager:
 
         modules_to_configure = (
             (self._modules.ibkr_gateway, self._runtime_config.ibkr),
-            (self._modules.historic, self._runtime_config.historic),
+            (self._modules.historic_hub, self._runtime_config.historic_hub),
             (self._modules.live_hub, self._runtime_config.live_hub),
             (self._modules.forecast_manager, self._runtime_config.forecast),
             (self._modules.thread_manager, self._runtime_config.thread),
@@ -514,7 +514,7 @@ class SystemManager:
 
         modules_to_start = (
             self._modules.ibkr_gateway,
-            self._modules.historic,
+            self._modules.historic_hub,
             self._modules.live_hub,
             self._modules.forecast_manager,
             self._modules.thread_manager,
@@ -541,7 +541,7 @@ class SystemManager:
     def _health_checks_runtime_modules(self) -> None:
         modules_to_check = (
             self._modules.ibkr_gateway,
-            self._modules.historic,
+            self._modules.historic_hub,
             self._modules.live_hub,
             self._modules.forecast_manager,
             self._modules.thread_manager,
@@ -601,6 +601,7 @@ class SystemManager:
 
         contracts = self._modules.ibkr_gateway.contracts
         self._modules.live_hub.initialize_pipelines(contracts)
+        self._modules.historic_hub.initialize_universe(contracts)
 
 
 
