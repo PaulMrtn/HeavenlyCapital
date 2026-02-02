@@ -37,6 +37,9 @@ class LiveHubConfig:
 class HistoricHubConfig:
     pass
 
+@dataclass(frozen=True, slots=True)
+class FeatureConfig:
+    pass
 
 @dataclass(frozen=True, slots=True)
 class ForecastConfig:
@@ -87,6 +90,7 @@ class RuntimeConfig:
     ibkr: IBKRConfig = IBKRConfig()
     live_hub: LiveHubConfig = LiveHubConfig()
     historic_hub: HistoricHubConfig = HistoricHubConfig()
+    feature: FeatureConfig = FeatureConfig()
     forecast: ForecastConfig = ForecastConfig()
     thread: ThreadConfig = ThreadConfig()
     session_manager: SessionConfig = SessionConfig()
@@ -103,6 +107,7 @@ def get_global_runtime_config() -> RuntimeConfig:
             ibkr=IBKRConfig(),
             historic_hub=HistoricHubConfig(),
             live_hub=LiveHubConfig(),
+            feature=FeatureConfig(),
             forecast=ForecastConfig(),
             thread=ThreadConfig(),
             session_manager=SessionConfig(),
@@ -110,6 +115,7 @@ def get_global_runtime_config() -> RuntimeConfig:
     return _runtime_config
 
 
+# TODO:LOW - Handle this dumb heritage with async interface
 
 @runtime_checkable
 class RuntimeModule(Protocol):

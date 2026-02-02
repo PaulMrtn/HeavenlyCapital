@@ -14,6 +14,7 @@ from heavenly_capital.core.runtime_config import RuntimeConfig, RuntimeModule, A
 from heavenly_capital.core.market_clock import MarketStateChangeEvent
 from heavenly_capital.core.runtime_config import get_global_runtime_config
 from heavenly_capital.core.thread_manager import ThreadManager
+from heavenly_capital.strategy.feature_manager import FeatureManager, get_feature_manager
 from heavenly_capital.strategy.forecast_manager import ForecastManager
 from heavenly_capital.data.live_data_hub import LiveDataHub
 from heavenly_capital.data.historic_data_hub import HistoricDataHub
@@ -154,6 +155,7 @@ class RuntimeRegistry:
     ibkr_gateway: Optional[RuntimeModule | IBKRGateway] = None
     historic_hub: Optional[RuntimeModule | HistoricDataHub] = None
     live_hub: Optional[RuntimeModule | LiveDataHub] = None
+    feature_manager: Optional[RuntimeModule | FeatureManager] = None
     forecast_manager: Optional[RuntimeModule | ForecastManager] = None
     thread_manager: Optional[RuntimeModule | ThreadManager] = None
     session_manager: Optional[RuntimeModule | SessionManager] = None
@@ -347,7 +349,7 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if self._market_calendar.is_open_today() :
+        if not self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -462,6 +464,7 @@ class SystemManager:
             ibkr_gateway: Optional[RuntimeModule | IBKRGateway],
             historic_data_hub: Optional[RuntimeModule | HistoricDataHub],
             live_data_hub: Optional[RuntimeModule | LiveDataHub],
+            feature_manager: Optional[RuntimeModule | FeatureManager],
             forecast_manager: Optional[RuntimeModule | ForecastManager],
             thread_manager: Optional[RuntimeModule | ThreadManager],
             session_manager: Optional[RuntimeModule | SessionManager],
@@ -470,6 +473,7 @@ class SystemManager:
         self._modules.ibkr_gateway = ibkr_gateway
         self._modules.historic_hub = historic_data_hub
         self._modules.live_hub = live_data_hub
+        self._modules.feature_manager = feature_manager
         self._modules.forecast_manager = forecast_manager
         self._modules.thread_manager = thread_manager
         self._modules.session_manager = session_manager
@@ -497,6 +501,7 @@ class SystemManager:
             (self._modules.ibkr_gateway, self._runtime_config.ibkr),
             (self._modules.historic_hub, self._runtime_config.historic_hub),
             (self._modules.live_hub, self._runtime_config.live_hub),
+            (self._modules.feature_manager, self._runtime_config.feature),
             (self._modules.forecast_manager, self._runtime_config.forecast),
             (self._modules.thread_manager, self._runtime_config.thread),
             (self._modules.session_manager, self._runtime_config.session_manager)
@@ -517,6 +522,7 @@ class SystemManager:
             self._modules.historic_hub,
             self._modules.live_hub,
             self._modules.forecast_manager,
+            self._modules.feature_manager,
             self._modules.thread_manager,
             self._modules.session_manager
         )
@@ -543,6 +549,7 @@ class SystemManager:
             self._modules.ibkr_gateway,
             self._modules.historic_hub,
             self._modules.live_hub,
+            self._modules.feature_manager,
             self._modules.forecast_manager,
             self._modules.thread_manager,
             self._modules.session_manager
@@ -558,6 +565,7 @@ class SystemManager:
     async def launch_global_runtime(self) -> None:
         # TODO : handle this import
         from heavenly_capital.strategy.forecast_manager import get_forecast_manager
+        from heavenly_capital.strategy.feature_manager import get_feature_manager
         from heavenly_capital.data.live_data_hub import get_live_data_hub
         from heavenly_capital.data.historic_data_hub import get_historic_data_hub
         from heavenly_capital.ibkr.gateway import get_ibkr_gateway
@@ -572,6 +580,7 @@ class SystemManager:
             ibkr_gateway=get_ibkr_gateway(),
             historic_data_hub=get_historic_data_hub(),
             live_data_hub=get_live_data_hub(),
+            feature_manager=get_feature_manager(),
             forecast_manager=get_forecast_manager(),
             thread_manager=get_thread_manager(),
             session_manager=get_session_manager()
@@ -594,14 +603,25 @@ class SystemManager:
         tick_sink = self._modules.live_hub.ingest_port
         self._modules.ibkr_gateway.wire_tick_sink(tick_sink)
 
+    def _wire_live_hub_to_historic_hub(self) -> None:
+        candle_bus = self._modules.live_hub.candle_bus
+        self._modules.historic_hub.wire_live_ohlc_bus(candle_bus)
+
+    def _sync_hubs_with_contracts(self) -> None:
+        contracts = self._modules.ibkr_gateway.contracts
+        self._modules.live_hub.initialize_pipelines(contracts)
+        self._modules.historic_hub.initialize_universe(contracts)
+
     async def initialize_market_data_feeds(self):
         await self._modules.ibkr_gateway.load_universe_snapshot()
 
         self._wire_gateway_sink_to_data_hub()
+        self._wire_live_hub_to_historic_hub()
+        self._sync_hubs_with_contracts()
 
-        contracts = self._modules.ibkr_gateway.contracts
-        self._modules.live_hub.initialize_pipelines(contracts)
-        self._modules.historic_hub.initialize_universe(contracts)
+        self._modules.historic_hub.subscribe_to_live_candle()
+
+
 
 
 

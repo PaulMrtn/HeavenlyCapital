@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections import deque
+
+import time
+from queue import Queue
+from threading import Thread
 from typing import Optional, Any, TYPE_CHECKING, Tuple, Dict, List, Deque
 from ib_async import Contract
 
 from heavenly_capital.core.runtime_config import HistoricHubConfig, RuntimeModule
+from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import OHLC
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
-
 
 
 
@@ -160,6 +164,7 @@ class CandleManager:
         self.resamplers[conId] = {k: ResampleCascade(self.freq_seconds) for k in self.kinds}
 
     def push_5s(self, conId: int, bar5s: Dict[str, OHLC]) -> Dict[str, Dict[str, OHLC]]:
+        # TODO MEDIUM : check register at every 5s is dumb
         self.register_conid(conId)
 
         out_all: Dict[str, Dict[str, OHLC]] = {}
@@ -174,10 +179,10 @@ class CandleManager:
             cascade = self.resamplers[conId][kind]
             new_bars = cascade.push_5s(bar)
 
-            for freq, ohlc in new_bars.items():
-                self.stores[conId][kind].add(freq, ohlc)
-
             if new_bars:
+                for freq, ohlc in new_bars.items():
+                    self.stores[conId][kind].add(freq, ohlc)
+
                 out_all[kind] = new_bars
 
         return out_all
@@ -185,10 +190,21 @@ class CandleManager:
     def get_bars(self, conId: int, *, kind: str, freq: str, n: Optional[int] = None) -> list[OHLC]:
         return self.stores[conId][kind].get_bars(freq, n)
 
-
 # endregion
 
+@dataclass(frozen=True, slots=True)
+class CandleEvent:
+    conId: int
+    kind: str
+    freq: str
+    ohlc: OHLC
+    emitted_at: float
+    context: dict[str, Any] | None = None #
 
+
+
+
+# TODO MEDIUM : If conID is not used, then remove all functions and variables related to it.
 
 class HistoricDataHub(RuntimeModule):
 
@@ -196,12 +212,20 @@ class HistoricDataHub(RuntimeModule):
         self._configured: bool = False
         self._started: bool = False
 
+        self._conids: set[int] = set()
         self._candle_manager = CandleManager(
             maxlen_map={},
             kinds=("last", "bid", "ask")
             )
 
-        self._contracts = None
+        self._in_queue = Queue()
+        self._in_bus: Optional["EventBus"] = None
+        self._in_token: Optional[int] = None
+        self._in_worker = Thread(target=self._ingest_candle_5s, daemon=True)
+
+        self._out_queue = Queue()
+        self._out_bus = EventBus(name="HistoricCandleBus")
+        self._out_worker = Thread(target=self._dispatch_candle_events, daemon=True)
 
         self._config: Optional[HistoricHubConfig] = None
         self._ports: Optional["SystemPorts"] = None
@@ -214,10 +238,25 @@ class HistoricDataHub(RuntimeModule):
     def start(self) -> None:
         if not self._configured:
             raise RuntimeError("HistoricDataHub: start() called before configure()")
+
         self._started = True
+        if not self._in_worker.is_alive():
+            self._in_worker.start()
+        if not self._out_worker.is_alive():
+            self._out_worker.start()
 
     def stop(self) -> None:
         self._started = False
+
+        if self._in_token is not None:
+            try:
+                self._in_queue.put_nowait(None)
+                self._in_bus.unsubscribe(self._in_token)
+            except Exception:
+                pass
+            finally:
+                self._in_token = None
+                self._in_bus = None
 
     @property
     def is_configured(self) -> bool:
@@ -244,7 +283,77 @@ class HistoricDataHub(RuntimeModule):
             "is_healthy": True,
         }
 
-    def initialize_universe(self, contracts: dict[str, "Contract"]) -> None: ...
+    def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
+        conids: set[int] = set()
+        for c in contracts.values():
+            conid = getattr(c, "conId", 0) or 0
+            if conid > 0:
+                conids.add(int(conid))
+
+        self._conids = conids
+
+    def wire_live_ohlc_bus(self, candle_bus: "EventBus") -> None:
+        self._in_bus = candle_bus
+
+    def _on_live_candle_5s(self, conId: int, bars_5s: dict[str, OHLC]) -> None:
+        if conId not in self._conids:
+            return
+
+        self._in_queue.put((conId, bars_5s))
+
+    def subscribe_to_live_candle(self) -> None:
+        if self._in_token is None and self._in_bus is None:
+            raise RuntimeError("HistoricDataHub: input bus not set (call set_live_ohlc_bus() first)")
+
+        self._in_token =  self._in_bus.subscribe_all(self._on_live_candle_5s)
+
+
+    def _enqueue_candle_event(self, *, conId: int, kind: str, freq: str, ohlc: OHLC) -> None:
+        event = CandleEvent(
+            conId=int(conId),
+            kind=str(kind),
+            freq=str(freq),
+            ohlc=ohlc,
+            emitted_at=time.time(),
+            context=None,
+        )
+        self._out_queue.put(event)
+
+
+    def _dispatch_candle_events(self) -> None:
+        while True:
+            event = self._out_queue.get()
+            if event is None:
+                break
+            try:
+                self._out_bus.publish(event.conId, event)
+            finally:
+                self._out_queue.task_done()
+
+
+    def _ingest_candle_5s(self) -> None:
+        while True:
+            item = self._in_queue.get()
+            if item is None:
+                break
+
+            con_id, bars_5s = item
+            try:
+                new_candles = self._candle_manager.push_5s(con_id, bars_5s)
+
+                # TODO:LOW del this loop to avoid 5s
+                for kind, ohlc in bars_5s.items():
+                    if ohlc is None:
+                        continue
+                    self._enqueue_candle_event(conId=con_id, kind=kind, freq="5s", ohlc=ohlc)
+
+                for kind, new_bars in new_candles.items():
+                    for freq, ohlc in new_bars.items():
+                        self._enqueue_candle_event(conId=con_id, kind=kind, freq=freq, ohlc=ohlc)
+
+            finally:
+                self._in_queue.task_done()
+
 
 
 

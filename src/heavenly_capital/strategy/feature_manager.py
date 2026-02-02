@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Optional, Dict
+from typing import Optional, Dict, Any, TYPE_CHECKING
+
+from heavenly_capital.core.runtime_config import FeatureConfig, RuntimeModule
+
+if TYPE_CHECKING:
+    from heavenly_capital.core.system_manager import SystemPorts
 
 
+
+# region dataclasses
 @dataclass(frozen=True, slots=True)
 class InstrumentFeatureSnapshot:
     conId: int
@@ -81,3 +88,66 @@ class CrossFeatureStore:
             snap = CrossFeatureSnapshot(features=merged, updated_at=float(updated_at))
             self._snapshot = snap
             return snap
+
+# endregion
+
+
+
+class FeatureManager(RuntimeModule):
+
+    def __init__(self) -> None:
+        self._configured: bool = False
+        self._started: bool = False
+
+        self._config: Optional["FeatureConfig"] = None
+        self._ports: Optional["SystemPorts"] = None
+
+    def configure(self, *, config: "FeatureConfig", ports: "SystemPorts") -> None:
+        self._config = config
+        self._ports = ports
+        self._configured = True
+
+    def start(self) -> None:
+        if not self._configured:
+            raise RuntimeError("ForecastManager: start() called before configure()")
+        self._started = True
+
+    def stop(self) -> None:
+        self._started = False
+
+    @property
+    def is_configured(self) -> bool:
+        return self._configured
+
+    @property
+    def is_started(self) -> bool:
+        return self._started
+
+    @property
+    def config(self) -> FeatureConfig:
+        if self._config is None:
+            raise RuntimeError("ForecastManager: config not set (configure() not called)")
+        return self._config
+
+    @property
+    def ports(self) -> "SystemPorts":
+        if self._ports is None:
+            raise RuntimeError("ForecastManager: ports not set (configure() not called)")
+        return self._ports
+
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
+
+
+
+
+_instance: Optional["FeatureManager"] = None
+
+def get_feature_manager() -> "FeatureManager":
+    global _instance
+    if _instance is None:
+        _instance = FeatureManager()
+    return _instance

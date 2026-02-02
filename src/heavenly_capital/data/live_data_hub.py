@@ -96,7 +96,7 @@ class LiveDataHub(RuntimeModule):
         self._sweeper = Thread(target=self._run_sweeper, daemon=True)
 
         self.tick_bus = EventBus(name="TickBus")
-        self.ohlc_bus = EventBus(name="OHLCBus")
+        self.candle_bus = EventBus(name="CandleBus")
 
         self._config: Optional["LiveHubConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -115,7 +115,9 @@ class LiveDataHub(RuntimeModule):
         self._sweeper.start()
 
     def stop(self) -> None:
+        #TODO:MEDIUM handle worker and sweeper with stop fn
         self._started = False
+
 
     @property
     def is_configured(self) -> bool:
@@ -185,7 +187,7 @@ class LiveDataHub(RuntimeModule):
 
             for conId, pipeline in self._pipelines.items():
                 bars = pipeline.aggregate_all(ts_start, ts_end)
-                self.ohlc_bus.publish(conId, bars)
+                self.candle_bus.publish(conId, bars)
 
 
 
