@@ -11,12 +11,14 @@ from ib_async import Contract
 
 from heavenly_capital.core.runtime_config import HistoricHubConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
+from heavenly_capital.models.market_data import CandleEvent
 from heavenly_capital.models.market_data import OHLC
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
 
 
+# TODO:LOW add this cst
 
 BASE_SEC = 5
 
@@ -192,17 +194,6 @@ class CandleManager:
 
 # endregion
 
-@dataclass(frozen=True, slots=True)
-class CandleEvent:
-    conId: int
-    kind: str
-    freq: str
-    ohlc: OHLC
-    emitted_at: float
-    context: dict[str, Any] | None = None #
-
-
-
 
 # TODO MEDIUM : If conID is not used, then remove all functions and variables related to it.
 
@@ -224,7 +215,7 @@ class HistoricDataHub(RuntimeModule):
         self._in_worker = Thread(target=self._ingest_candle_5s, daemon=True)
 
         self._out_queue = Queue()
-        self._out_bus = EventBus(name="HistoricCandleBus")
+        self.out_bus = EventBus(name="HistoricCandleBus")
         self._out_worker = Thread(target=self._dispatch_candle_events, daemon=True)
 
         self._config: Optional[HistoricHubConfig] = None
@@ -303,7 +294,7 @@ class HistoricDataHub(RuntimeModule):
 
     def subscribe_to_live_candle(self) -> None:
         if self._in_token is None and self._in_bus is None:
-            raise RuntimeError("HistoricDataHub: input bus not set (call set_live_ohlc_bus() first)")
+            raise RuntimeError("HistoricDataHub: input bus not set (call wire_live_ohlc_bus() first)")
 
         self._in_token =  self._in_bus.subscribe_all(self._on_live_candle_5s)
 
@@ -326,7 +317,7 @@ class HistoricDataHub(RuntimeModule):
             if event is None:
                 break
             try:
-                self._out_bus.publish(event.conId, event)
+                self.out_bus.publish(event.conId, event)
             finally:
                 self._out_queue.task_done()
 

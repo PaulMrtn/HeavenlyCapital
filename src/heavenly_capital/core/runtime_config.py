@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import dataclass
-from typing import runtime_checkable, Protocol, Any
+from dataclasses import dataclass, field
+from typing import runtime_checkable, Protocol, Any, Optional, Literal
 
 
 #TODO : load les config depuis un ficher json ( session only )
@@ -37,9 +37,52 @@ class LiveHubConfig:
 class HistoricHubConfig:
     pass
 
+
+
+
+
+
+
+
+@dataclass(frozen=True, slots=True)
+class FeatureSpec:
+    """
+    - name: stable identifier (key in the store)
+    - plugin: plugin identifier (e.g. "sma", "corr", "spread")
+    - params: hyperparameters (window size, asset pairs, method, etc.)
+    """
+    name: str
+    plugin: str
+    freq: str | list[str]
+    kind: str | list[str]
+    scope: Literal["per_asset", "cross_asset"]
+    fields: str = "close"
+    params: dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass(frozen=True, slots=True)
 class FeatureConfig:
-    pass
+    maxlen_by_freq: dict[str, Optional[int]] = field(
+        default_factory=lambda: {
+        "5s": 10,
+        "30s": 10,
+        "1m": 10,
+        "5m": 10,
+        "10m": 10,
+        "30m": 10,
+        "1h": 10,
+    })
+
+    specs: tuple[FeatureSpec, ...] = (
+        FeatureSpec(
+            name="return_1__close__last__5s",
+            plugin="return_1",
+            freq="1m",
+            kind="last",
+            scope="per_asset"
+        ),
+    )
+
 
 @dataclass(frozen=True, slots=True)
 class ForecastConfig:

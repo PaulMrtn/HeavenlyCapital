@@ -607,19 +607,30 @@ class SystemManager:
         candle_bus = self._modules.live_hub.candle_bus
         self._modules.historic_hub.wire_live_ohlc_bus(candle_bus)
 
+    def _wire_historic_hub_to_feature_manager(self) -> None:
+        candle_bus = self._modules.historic_hub.out_bus
+        self._modules.feature_manager.wire_historic_candle_bus(candle_bus)
+
+
     def _sync_hubs_with_contracts(self) -> None:
         contracts = self._modules.ibkr_gateway.contracts
         self._modules.live_hub.initialize_pipelines(contracts)
         self._modules.historic_hub.initialize_universe(contracts)
+        self._modules.feature_manager.initialize_universe(contracts)
 
     async def initialize_market_data_feeds(self):
         await self._modules.ibkr_gateway.load_universe_snapshot()
 
         self._wire_gateway_sink_to_data_hub()
         self._wire_live_hub_to_historic_hub()
+        self._wire_historic_hub_to_feature_manager()
+
         self._sync_hubs_with_contracts()
 
+        self._modules.feature_manager.build_market_data_banks()
+        self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
+
 
 
 
