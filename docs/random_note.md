@@ -22,4 +22,5 @@
 
 - https://eodhd.com
 - https://firstratedata.com/stock-data
+- - https://kibot.com
     
