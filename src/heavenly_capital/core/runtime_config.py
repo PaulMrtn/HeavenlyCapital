@@ -20,6 +20,8 @@ from typing import runtime_checkable, Protocol, Any, Optional, Literal
 # class IBKRConfig:
 #     sessions: list[SessionConfig]
 
+
+
 @dataclass(frozen=True, slots=True)
 class IBKRConfig:
     host: str = "127.0.0.1"
@@ -39,25 +41,19 @@ class HistoricHubConfig:
 
 
 
-
-
-
-
-
 @dataclass(frozen=True, slots=True)
 class FeatureSpec:
-    """
-    - name: stable identifier (key in the store)
-    - plugin: plugin identifier (e.g. "sma", "corr", "spread")
-    - params: hyperparameters (window size, asset pairs, method, etc.)
-    """
-    name: str
+    id: str
     plugin: str
     freq: str | list[str]
     kind: str | list[str]
-    scope: Literal["per_asset", "cross_asset"]
+    name: str = ""
     fields: str = "close"
+    order: int = None
+    scope: str = "per_asset"
+    cache: bool = False
     params: dict[str, Any] = field(default_factory=dict)
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,11 +71,72 @@ class FeatureConfig:
 
     specs: tuple[FeatureSpec, ...] = (
         FeatureSpec(
-            name="return_1__close__last__5s",
-            plugin="return_1",
-            freq="1m",
+            id="return",
+            name="",
+            plugin="return",
+            fields="close",
+            freq=["5s", "30s", "1m", "5m", "10m", "30m", "1h"],
             kind="last",
-            scope="per_asset"
+            order=1,
+            scope="per_asset",
+            cache=True,
+
+        ),
+
+        FeatureSpec(
+            id="volatility",
+            name="",
+            plugin="volatility",
+            fields="close",
+            freq=["5s", "30s", "1m", "5m", "10m", "30m", "1h"],
+            kind="last",
+            order=2,
+            scope="per_asset",
+            cache=True,
+            params={"window":5}
+        ),
+
+        FeatureSpec(
+            id="correlation",
+            name="",
+            plugin="correlation",
+            fields="close",
+            freq=["5s", "30s", "1m", "5m", "10m", "30m", "1h"],
+            kind="last",
+            order=3,
+            scope="cross_asset",
+            cache=True,
+            params={"window": 5}
+        ),
+        FeatureSpec(
+            id="rel_return",
+            fields="return",          # intra feature
+            cross_field="avg_return", # cross feature
+            scope="fusion",
+            plugin="relative_spread",
+            kind="last",
+            freq="5s",
+            order=0
+        ),
+        FeatureSpec(
+            id="rel_vol",
+            fields="volatility",      # intra feature
+            cross_field="avg_vol",    # cross feature
+            scope="fusion",
+            plugin="relative_volatility",
+            kind="last",
+            freq="5s",
+            order=1
+        ),
+        FeatureSpec(
+            id="rel_corr",
+            fields="corr",            # intra feature ou corr intra-asset
+            cross_field="avg_corr",   # cross feature
+            scope="fusion",
+            plugin="relative_correlation",
+            kind="last",
+            freq="5s",
+            order=2
         ),
     )
 
@@ -117,6 +174,7 @@ class SessionConfig:
             mode="LIVE",
             payload={},
         ),
+
         TradingSessionConfig(
             name="paper_account_0_strategy_0",
             account_id="account_0",
@@ -158,6 +216,8 @@ def get_global_runtime_config() -> RuntimeConfig:
     return _runtime_config
 
 
+
+
 # TODO:LOW - Handle this dumb heritage with async interface
 
 @runtime_checkable
@@ -176,6 +236,7 @@ class RuntimeModule(Protocol):
     def is_started(self) -> bool: ...
 
     def health_check(self) -> dict[str, Any]: ...
+
 
 
 class AsyncRuntimeModule(RuntimeModule):

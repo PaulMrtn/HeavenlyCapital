@@ -32,7 +32,6 @@ class TickEvent:
     timestamp: float
 
 
-
 @dataclass(frozen=True, slots=True)
 class CandleEvent:
     conId: int
@@ -64,6 +63,7 @@ class MarketDataBank:
 
         self.freq = str(freq)
         self.lookback = int(lookback)
+        self._row_fill_count = np.zeros((self.lookback,), dtype=np.int32)
 
         self.conIds = [int(c) for c in conIds]
         self.conid_to_col: dict[int, int] = {c: i for i, c in enumerate(self.conIds)}
@@ -100,6 +100,9 @@ class MarketDataBank:
             for kind in self._kinds:
                 self._data[fields][kind][self._row_head, :] = np.nan
 
+        # Reset row count
+        self._row_fill_count[self._row_head] = 0
+
         # Update row head
         self._row_head = (self._row_head + 1) % self.lookback
         if self._row_head == 0:
@@ -115,17 +118,16 @@ class MarketDataBank:
             return mat[: self._row_head, :]
         return np.vstack((mat[self._row_head :, :], mat[: self._row_head, :]))
 
-    def update(self, event: CandleEvent) -> None:
+    def update(self, event: CandleEvent) -> Optional[bool]:
         if str(event.freq) != self.freq:
             return
-
         kind = str(event.kind)
         if kind not in self._kinds:
             return
-
         col = self.conid_to_col.get(int(event.conId))
         if col is None:
             return
+
 
         ts_end = float(event.ohlc.ts_end)
         if self._current_ts_end is not None and ts_end < self._current_ts_end:
@@ -143,6 +145,10 @@ class MarketDataBank:
         self._data["close"][kind][r, col] = float(o.close)
         self._data["volume"][kind][r, col] = float(o.volume)
         self._data["tick_count"][kind][r, col] = float(o.tick_count)
+
+        self._row_fill_count[r] += 1
+        updated = (self._row_fill_count[r] // len(self._kinds)) == self.n_assets
+        return updated
 
     def ts_end(self) -> np.ndarray:
         return self._logical_view_1d(self._ts_end)

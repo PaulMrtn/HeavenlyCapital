@@ -1,120 +1,50 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
-from threading import Lock, Thread
+from threading import Thread
 from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple
 from ib_async import Contract
+import numpy as np
 
 from heavenly_capital.core.runtime_config import FeatureConfig, RuntimeModule, FeatureSpec
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import CandleEvent, MarketDataBank
-from heavenly_capital.strategy.features import FEATURE_REGISTRY
+from heavenly_capital.strategy.features import FEATURE_REGISTRY, FeatureCache
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
 
 
 
-# region dataclasses
-@dataclass(frozen=True, slots=True)
-class InstrumentFeatureSnapshot:
-    conId: int
-    features: Dict[str, float]
+@dataclass
+class FeatureVector:
+    data: np.ndarray
+    feature_names: tuple[str, ...]
     updated_at: float
+    conId: int | None = None
+    _name_to_idx: dict[str, int] = field(init=False, repr=False)
 
-
-@dataclass(frozen=True, slots=True)
-class CrossFeatureSnapshot:
-    """
-    Features globales inter-instruments (ex: corrélations).
-    """
-    features: Dict[str, float]
-    updated_at: float
-
-
-class InstrumentFeatureStore:
-    """
-    Swap-buffer par instrument: conId -> snapshot immuable.
-    """
-    def __init__(self) -> None:
-        self._lock = Lock()
-        self._snapshots: Dict[int, InstrumentFeatureSnapshot] = {}
-
-    def get_snapshot(self, conId: int) -> Optional[InstrumentFeatureSnapshot]:
-        return self._snapshots.get(conId)
-
-    def set_features(self, *, conId: int, features: Dict[str, float], updated_at: float) -> InstrumentFeatureSnapshot:
-        """
-        Remplace complètement le set de features d'un instrument.
-        """
-        snap = InstrumentFeatureSnapshot(conId=conId, features=dict(features), updated_at=float(updated_at))
-        with self._lock:
-            self._snapshots[conId] = snap
-        return snap
-
-    def upsert_features(self, *, conId: int, patch: Dict[str, float], updated_at: float) -> InstrumentFeatureSnapshot:
-        """
-        Merge partiel: ajoute / remplace uniquement les clés du patch.
-        """
-        with self._lock:
-            prev = self._snapshots.get(conId)
-            merged = dict(prev.features) if prev is not None else {}
-            merged.update(patch)
-
-            snap = InstrumentFeatureSnapshot(conId=conId, features=merged, updated_at=float(updated_at))
-            self._snapshots[conId] = snap
-            return snap
-
-
-class CrossFeatureStore:
-    """
-    Swap-buffer global: 1 snapshot immuable inter-instruments.
-    """
-    def __init__(self) -> None:
-        self._lock = Lock()
-        self._snapshot: Optional[CrossFeatureSnapshot] = None
-
-    def get_snapshot(self) -> Optional[CrossFeatureSnapshot]:
-        return self._snapshot
-
-    def set_features(self, *, features: Dict[str, float], updated_at: float) -> CrossFeatureSnapshot:
-        snap = CrossFeatureSnapshot(features=dict(features), updated_at=float(updated_at))
-        with self._lock:
-            self._snapshot = snap
-        return snap
-
-    def upsert_features(self, *, patch: Dict[str, float], updated_at: float) -> CrossFeatureSnapshot:
-        with self._lock:
-            prev = self._snapshot.features if self._snapshot is not None else {}
-            merged = dict(prev)
-            merged.update(patch)
-
-            snap = CrossFeatureSnapshot(features=merged, updated_at=float(updated_at))
-            self._snapshot = snap
-            return snap
-
-# endregion
-
-
-@dataclass(slots=True)
-class EngineResult:
-    instrument_patch: dict[str, float]
-    cross_patch: dict[str, float]
+    def __post_init__(self):
+        self._name_to_idx = {n: i for i, n in enumerate(self.feature_names)}
+    def get_value(self, name: str) -> float:
+        idx = self._name_to_idx.get(name)
+        return float(self.data[idx]) if idx is not None else np.nan
+    def to_numpy(self):
+        return self.data
 
 
 
+class FeatureRegistry:
 
-class FeatureEngine:
-    def __init__(self, *, specs: tuple[FeatureSpec, ...]) -> None:
+    def __init__(self, specs: tuple[FeatureSpec, ...]):
         self._specs = self._expand_specs(specs)
+        self._build_index()
 
-        self._by_route: dict[tuple[str, str], list[FeatureSpec]] = {}
-        for s in self._specs:
-            self._by_route.setdefault((s.freq, s.kind), []).append(s)
-
-    def _expand_specs(self, specs: tuple[FeatureSpec, ...]) -> list[FeatureSpec]:
+    @staticmethod
+    def _expand_specs(specs: tuple[FeatureSpec, ...]) -> list[FeatureSpec]:
         expanded: list[FeatureSpec] = []
 
         for s in specs:
@@ -122,52 +52,72 @@ class FeatureEngine:
             kinds = s.kind if isinstance(s.kind, list) else [s.kind]
 
             for f, k in product(freqs, kinds):
-                expanded.append(
-                    FeatureSpec(
-                        name=s.name,
-                        plugin=s.plugin,
-                        freq=f,
-                        kind=k,
-                        scope=s.scope,
-                        fields=s.fields,
-                        params=s.params,
-                    )
+                unique_name = f"{s.id}_{s.fields}_{k}_{f}"
+
+                new_spec = replace(
+                    s,
+                    name=unique_name,
+                    freq=f,
+                    kind=k
                 )
+                expanded.append(new_spec)
+
         return expanded
 
-    def on_event(
-        self,
-        *,
-        event: CandleEvent,
-        banks: dict[str, MarketDataBank],
-    ) -> EngineResult:
+    def _build_index(self):
+        by_sfk: dict[tuple[str, str, str], list[FeatureSpec]] = defaultdict(list)
 
-        bank = banks.get(str(event.freq))
-        if bank is None:
-            return EngineResult({}, {})
+        for spec in self._specs:
+            key = (spec.scope, str(spec.freq), str(spec.kind))
+            by_sfk[key].append(spec)
 
-        specs = self._by_route.get((str(event.freq), str(event.kind)), [])
-        if not specs:
-            return EngineResult({}, {})
+        for key in by_sfk:
+            by_sfk[key].sort(key=lambda s: s.order)
 
-        instrument_patch: dict[str, float] = {}
-        cross_patch: dict[str, float] = {}
+        self._specs_by_sfk = dict(by_sfk)
+        self._feature_names_by_sfk = {
+            k: tuple(s.name for s in v)
+            for k, v in by_sfk.items()
+        }
+        self._n_features_by_sfk = {
+            k: len(v)
+            for k, v in by_sfk.items()
+        }
 
-        for spec in specs:
-            plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
-            if plugin_fn is None:
-                continue
+    def get_specs(self, *, scope: str, freq: str, kind: str) -> list[FeatureSpec]:
+        return self._specs_by_sfk.get((scope, str(freq), str(kind)), [])
 
-            patch = plugin_fn(spec=spec, bank=bank, event=event)
-            if not patch:
-                continue
+    def get_feature_names(self, *, scope: str, freq: str, kind: str) -> tuple[str, ...]:
+        return self._feature_names_by_sfk.get((scope, str(freq), str(kind)), ())
 
-            if spec.scope == "cross_asset":
-                cross_patch.update(patch)
-            else:
-                instrument_patch.update(patch)
+    def get_n_features(self, *, scope: str, freq: str, kind: str) -> int:
+        return self._n_features_by_sfk.get((scope, str(freq), str(kind)), 0)
 
-        return EngineResult(instrument_patch, cross_patch)
+
+
+@dataclass(frozen=True)
+class CacheKey:
+    freq: str
+    scope: str
+    conId: int | None
+    feature_name: str
+
+class FeatureStore:
+    def __init__(self):
+        # store[freq][scope][conId][feature_name] = float
+        self._store: dict[CacheKey, float] = {}
+
+    def commit_intra(self, fv: FeatureVector):
+        freq = fv.freq if hasattr(fv, "freq") else "unknown"
+
+        for i, name in enumerate(fv.feature_names):
+            key = CacheKey(
+                freq=freq,
+                scope="per_asset",
+                conId=fv.conId,
+                feature_name=name,
+            )
+            self._store[key] = fv.data[i]
 
 
 
@@ -179,15 +129,12 @@ class FeatureManager(RuntimeModule):
         self._configured: bool = False
         self._started: bool = False
 
-        # temporary
-        self.instrument_store = InstrumentFeatureStore()
-        self.cross_store = CrossFeatureStore()
-
-        self._engine: Optional[FeatureEngine] = None
-
         self._conids: list[int] = []
         self._banks: dict[str, "MarketDataBank"] = {}
         self._last_seen: Dict[Tuple[int, str, str], float] = {}
+
+        self._registry: Optional["FeatureRegistry"] = None
+        self._store: Optional["FeatureStore"] = None
 
         self._in_queue = Queue()
         self._in_bus: Optional["EventBus"] = None
@@ -201,7 +148,8 @@ class FeatureManager(RuntimeModule):
         self._config = config
         self._ports = ports
 
-        self._engine = FeatureEngine(specs=self._config.specs)
+        self._registry = FeatureRegistry(specs=config.specs)
+        self._store: FeatureStore = FeatureStore()
 
         self._configured = True
 
@@ -252,6 +200,8 @@ class FeatureManager(RuntimeModule):
             "is_healthy": True,
         }
 
+# region Input
+
 
 # ---- Beginning of API --------
 
@@ -296,33 +246,40 @@ class FeatureManager(RuntimeModule):
         self._last_seen[key] = float(event.ohlc.ts_end)
         return True
 
-    def _update_bank(self, event: "CandleEvent") -> None:
+    def _update_bank(self, event: "CandleEvent") -> bool | None:
         bank = self._banks.get(str(event.freq))
         if bank is None:
-            return
-        bank.update(event)
+            return None
+        return bank.update(event)
+# endregion
 
-    # -----------------------------------------------------------
-    def _compute_and_commit(self, event: "CandleEvent") -> None:
-        if self._engine is None:
-            return
 
-        result = self._engine.on_event(event=event, banks=self._banks)
+    def _event_to_features(self, event: "CandleEvent", scope: str) -> "FeatureVector":
+        bank = self._banks.get(str(event.freq))
+        cache = FeatureCache(bank, event, scope)
 
-        if result.instrument_patch:
-            self.instrument_store.upsert_features(
-                conId=int(event.conId),
-                patch=result.instrument_patch,
-                updated_at=float(event.ohlc.ts_end),
-            )
+        specs = self._registry.get_specs(scope=scope, freq=event.freq, kind=event.kind)
+        names = self._registry.get_feature_names(scope=scope, freq=event.freq, kind=event.kind)
 
-        if result.cross_patch:
-            self.cross_store.upsert_features(
-                patch=result.cross_patch,
-                updated_at=float(event.ohlc.ts_end),
-            )
+        buffer = np.zeros(len(specs), dtype=np.float64)
+        for i, spec in enumerate(specs):
+            plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
+            if not plugin_fn:
+                feature_value = np.nan
+            else:
+                feature_value = plugin_fn(spec=spec, cache=cache)
 
-    # -----------------------------------------------------------
+            buffer[i] = feature_value
+            if spec.cache:
+                cache.store_feature(spec.name, feature_value)
+
+        return FeatureVector(
+            data=buffer,
+            feature_names=names,
+            conId=event.conId if scope == "per_asset" else None,
+            updated_at=float(event.ohlc.ts_end)
+        )
+
 
     def _process_candle_event(self) -> None:
         while True:
@@ -333,13 +290,19 @@ class FeatureManager(RuntimeModule):
             try:
                 if not self._started:
                     continue
-
                 if not self._bool_process_event(event):
                     continue
 
-                self._update_bank(event)
+                updated = self._update_bank(event)
 
-                self._compute_and_commit(event)
+                vector = self._event_to_features(event, scope="per_asset")
+                if updated:
+                    vector = self._event_to_features(event, scope="cross_asset")
+
+
+
+
+
 
             finally:
                 self._in_queue.task_done()
