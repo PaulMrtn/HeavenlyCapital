@@ -611,6 +611,10 @@ class SystemManager:
         candle_bus = self._modules.historic_hub.out_bus
         self._modules.feature_manager.wire_historic_candle_bus(candle_bus)
 
+    def _wire_feature_store_to_forecast_manager(self) -> None:
+        store = self._modules.feature_manager.store
+        self._modules.forecast_manager.wire_feature_store(store)
+
 
     def _sync_hubs_with_contracts(self) -> None:
         contracts = self._modules.ibkr_gateway.contracts
@@ -618,18 +622,28 @@ class SystemManager:
         self._modules.historic_hub.initialize_universe(contracts)
         self._modules.feature_manager.initialize_universe(contracts)
 
+    def _subscribe_to_feature_snapshot(self) -> None:
+        cb = self._modules.forecast_manager.on_feature_snapshot
+        self._modules.feature_manager.notifier.register(cb)
+
     async def initialize_market_data_feeds(self):
         await self._modules.ibkr_gateway.load_universe_snapshot()
+
+        # TODO:HIGH Review the optimal order
 
         self._wire_gateway_sink_to_data_hub()
         self._wire_live_hub_to_historic_hub()
         self._wire_historic_hub_to_feature_manager()
+
+        self._wire_feature_store_to_forecast_manager()
+        self._subscribe_to_feature_snapshot()
 
         self._sync_hubs_with_contracts()
 
         self._modules.feature_manager.build_market_data_banks()
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
+
 
 
 

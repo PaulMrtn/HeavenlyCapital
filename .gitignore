@@ -208,3 +208,7 @@ __marimo__/
 
 # Personnal folder
 /sandbox/
+
+
+#ML Model Picle (artifacts)
+src/heavenly_capital/ml_artifacts/

@@ -176,7 +176,7 @@ class LiveDataHub(RuntimeModule):
 
 
     def _run_sweeper(self):
-
+        # TODO:LOW - Fixe 5 sec with a variable
         while self._started:
             now = time.time()
             time.sleep(5 - (now % 5))

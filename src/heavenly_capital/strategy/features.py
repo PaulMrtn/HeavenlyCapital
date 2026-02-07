@@ -19,10 +19,10 @@ def feature_plugin(plugin_id: str):
 def plugin_return(*, spec, cache: IntraFeatureCache):
     all_returns = cache.get_returns(n=1, fields=spec.fields)
     if all_returns is None:
-        return None
+        return np.nan
 
     if all_returns.size == 0 or np.isnan(all_returns[-1]):
-        return None
+        return np.nan
 
     return float(all_returns[-1])
 
@@ -50,15 +50,15 @@ def plugin_correlation(*, spec, cache: "CrossFeatureCache"):
 
     matrix = cache.get_cross_returns(n=n, fields=fields, kind=spec.kind)
     if matrix is None or matrix.shape[0] < 2:
-        return {}
+        return np.nan
 
     with np.errstate(invalid='ignore'):
         corr_matrix = np.corrcoef(matrix.T)
 
     mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
-    mean_corr = np.nanmean(corr_matrix[mask])
+    max_corr = np.nanmax(corr_matrix[mask])
 
-    return mean_corr
+    return max_corr
 
 
 
@@ -77,10 +77,10 @@ class FeatureCache:
             raise RuntimeError("get_returns is only valid for intra-asset features")
         return self._cache.get_returns(n, fields)
 
-    def get_cross_returns(self, n: int, fields: str) -> Optional[np.ndarray]:
+    def get_cross_returns(self, n: int, fields: str, kind: str = "last") -> Optional[np.ndarray]:
         if self.scope != "cross_asset":
             raise RuntimeError("get_cross_returns is only valid for cross-asset features")
-        return self._cache.get_cross_returns(n, fields)
+        return self._cache.get_cross_returns(n, fields, kind)
 
     def store_feature(self, name: str, value: float):
         self._cache.store_feature(name, value)

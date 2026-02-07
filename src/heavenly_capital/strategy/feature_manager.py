@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
 from threading import Thread
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, Generator
 from ib_async import Contract
 import numpy as np
 
@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 class FeatureVector:
     data: np.ndarray
     feature_names: tuple[str, ...]
+    freq: str
+    scope: str
     updated_at: float
     conId: int | None = None
     _name_to_idx: dict[str, int] = field(init=False, repr=False)
@@ -38,7 +40,6 @@ class FeatureVector:
 
 
 class FeatureRegistry:
-
     def __init__(self, specs: tuple[FeatureSpec, ...]):
         self._specs = self._expand_specs(specs)
         self._build_index()
@@ -102,23 +103,47 @@ class CacheKey:
     conId: int | None
     feature_name: str
 
-class FeatureStore:
-    def __init__(self):
-        # store[freq][scope][conId][feature_name] = float
-        self._store: dict[CacheKey, float] = {}
 
-    def commit_intra(self, fv: FeatureVector):
-        freq = fv.freq if hasattr(fv, "freq") else "unknown"
+class FeatureStore:
+    #TODO: HIGHEST Revoir cette class (swap buffer etc)
+    def __init__(self):
+        self.store: dict[CacheKey, float] = {}
+        self._ts_index: dict[int, list[CacheKey]] = defaultdict(list)
+
+    def commit(self, fv: FeatureVector):
+        ts_bucket = int(fv.updated_at)
 
         for i, name in enumerate(fv.feature_names):
             key = CacheKey(
-                freq=freq,
-                scope="per_asset",
+                freq=fv.freq,
+                scope=fv.scope,
                 conId=fv.conId,
                 feature_name=name,
             )
-            self._store[key] = fv.data[i]
+            self.store[key] = fv.data[i]
+            self._ts_index[ts_bucket].append(key)
 
+    def get_latest_snapshot(self) -> dict[CacheKey, float]:
+        if not self._ts_index:
+            return {}
+
+        last_ts = max(self._ts_index.keys())
+        keys = self._ts_index[last_ts]
+
+        return {k: self.store[k] for k in keys}
+
+
+
+class FeatureNotifier:
+    def __init__(self):
+        self._listeners = []
+
+    def register(self, listener):
+        self._listeners.append(listener)
+
+    def notify_snapshot_ready(self):
+        for listener in self._listeners:
+            listener()
 
 
 
@@ -134,7 +159,8 @@ class FeatureManager(RuntimeModule):
         self._last_seen: Dict[Tuple[int, str, str], float] = {}
 
         self._registry: Optional["FeatureRegistry"] = None
-        self._store: Optional["FeatureStore"] = None
+        self.store: Optional["FeatureStore"] = None
+        self.notifier: Optional["FeatureNotifier"] = None
 
         self._in_queue = Queue()
         self._in_bus: Optional["EventBus"] = None
@@ -149,7 +175,8 @@ class FeatureManager(RuntimeModule):
         self._ports = ports
 
         self._registry = FeatureRegistry(specs=config.specs)
-        self._store: FeatureStore = FeatureStore()
+        self.store: FeatureStore = FeatureStore()
+        self.notifier: FeatureNotifier = FeatureNotifier()
 
         self._configured = True
 
@@ -200,11 +227,6 @@ class FeatureManager(RuntimeModule):
             "is_healthy": True,
         }
 
-# region Input
-
-
-# ---- Beginning of API --------
-
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
         for c in contracts.values():
@@ -251,17 +273,18 @@ class FeatureManager(RuntimeModule):
         if bank is None:
             return None
         return bank.update(event)
-# endregion
 
-
-    def _event_to_features(self, event: "CandleEvent", scope: str) -> "FeatureVector":
+    def _build_vector(self, event: "CandleEvent", scope: str) -> Optional["FeatureVector"]:
         bank = self._banks.get(str(event.freq))
         cache = FeatureCache(bank, event, scope)
 
         specs = self._registry.get_specs(scope=scope, freq=event.freq, kind=event.kind)
+        if not specs:
+            return None
         names = self._registry.get_feature_names(scope=scope, freq=event.freq, kind=event.kind)
 
         buffer = np.zeros(len(specs), dtype=np.float64)
+
         for i, spec in enumerate(specs):
             plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
             if not plugin_fn:
@@ -277,9 +300,25 @@ class FeatureManager(RuntimeModule):
             data=buffer,
             feature_names=names,
             conId=event.conId if scope == "per_asset" else None,
+            freq=event.freq,
+            scope=scope,
             updated_at=float(event.ohlc.ts_end)
         )
 
+    def event_to_features(self, event) -> list[Any]:
+        updated = self._update_bank(event)
+
+        vectors = []
+        fv = self._build_vector(event, scope="per_asset")
+        if fv:
+            vectors.append(fv)
+
+        if updated:
+            fv = self._build_vector(event, scope="cross_asset")
+            if fv:
+                vectors.append(fv)
+
+        return vectors
 
     def _process_candle_event(self) -> None:
         while True:
@@ -293,21 +332,15 @@ class FeatureManager(RuntimeModule):
                 if not self._bool_process_event(event):
                     continue
 
-                updated = self._update_bank(event)
-
-                vector = self._event_to_features(event, scope="per_asset")
-                if updated:
-                    vector = self._event_to_features(event, scope="cross_asset")
-
-
-
-
-
+                for vector in self.event_to_features(event):
+                    self.store.commit(vector)
 
             finally:
                 self._in_queue.task_done()
 
-
+            #TODO:HIGH Make test to be sure this condition is enough
+            if self._in_queue.qsize() == 0 :
+                self.notifier.notify_snapshot_ready()
 
 
 _instance: Optional["FeatureManager"] = None

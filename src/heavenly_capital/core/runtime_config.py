@@ -3,6 +3,9 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import runtime_checkable, Protocol, Any, Optional, Literal
+from pathlib import Path
+
+from heavenly_capital.strategy.artifacts import ModelKind
 
 
 #TODO : load les config depuis un ficher json ( session only )
@@ -60,7 +63,7 @@ class FeatureSpec:
 class FeatureConfig:
     maxlen_by_freq: dict[str, Optional[int]] = field(
         default_factory=lambda: {
-        "5s": 10,
+        "5s": 10, # or max(window)
         "30s": 10,
         "1m": 10,
         "5m": 10,
@@ -82,7 +85,6 @@ class FeatureConfig:
             cache=True,
 
         ),
-
         FeatureSpec(
             id="volatility",
             name="",
@@ -108,42 +110,59 @@ class FeatureConfig:
             cache=True,
             params={"window": 5}
         ),
-        FeatureSpec(
-            id="rel_return",
-            fields="return",          # intra feature
-            cross_field="avg_return", # cross feature
-            scope="fusion",
-            plugin="relative_spread",
-            kind="last",
-            freq="5s",
-            order=0
-        ),
-        FeatureSpec(
-            id="rel_vol",
-            fields="volatility",      # intra feature
-            cross_field="avg_vol",    # cross feature
-            scope="fusion",
-            plugin="relative_volatility",
-            kind="last",
-            freq="5s",
-            order=1
-        ),
-        FeatureSpec(
-            id="rel_corr",
-            fields="corr",            # intra feature ou corr intra-asset
-            cross_field="avg_corr",   # cross feature
-            scope="fusion",
-            plugin="relative_correlation",
-            kind="last",
-            freq="5s",
-            order=2
-        ),
+        #
+        # FeatureSpec(
+        #     id="rel_return",
+        #     fields="return",          # intra feature
+        #     cross_field="avg_return", # cross feature
+        #     scope="fusion",
+        #     plugin="relative_spread",
+        #     kind="last",
+        #     freq="5s",
+        #     order=4
+        # ),
     )
+
+
+
+class ModelSpec:
+    model_id: str
+    kind: ModelKind
+    instrument: str
+    path: Path
+    input_dim: int
+    version: str
 
 
 @dataclass(frozen=True, slots=True)
 class ForecastConfig:
-    pass
+    specs: tuple[ModelSpec, ...] = (
+        ModelSpec(
+            model_id="",
+            kind=ModelKind.BUY,
+            path=Path(),
+            input_dim=10,
+            version="1.0"
+        )
+
+
+
+
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @dataclass(frozen=True, slots=True)

@@ -63,7 +63,6 @@ class MarketDataBank:
 
         self.freq = str(freq)
         self.lookback = int(lookback)
-        self._row_fill_count = np.zeros((self.lookback,), dtype=np.int32)
 
         self.conIds = [int(c) for c in conIds]
         self.conid_to_col: dict[int, int] = {c: i for i, c in enumerate(self.conIds)}
@@ -76,6 +75,8 @@ class MarketDataBank:
 
         self._kinds: tuple[str, ...] = ("last", "bid", "ask")
         self._fields: tuple[str, ...] = ("open", "high", "low", "close", "volume", "tick_count")
+
+        self._row_fill_count = {kind : np.zeros((self.lookback,), dtype=np.int32) for kind in self._kinds }
 
         self._data: dict[str, dict[str, np.ndarray]] = {
             col: {kind: np.zeros((self.lookback, self.n_assets), dtype=dtype) for kind in self._kinds}
@@ -91,7 +92,7 @@ class MarketDataBank:
     def size(self) -> int:
         return self.lookback if self._full else self._row_head
 
-    def _next_row(self, ts_end: float) -> None:
+    def _next_row(self, ts_end: float, event: CandleEvent) -> None:
         self._current_ts_end = float(ts_end)
         self._ts_end[self._row_head] = float(ts_end)
 
@@ -101,7 +102,7 @@ class MarketDataBank:
                 self._data[fields][kind][self._row_head, :] = np.nan
 
         # Reset row count
-        self._row_fill_count[self._row_head] = 0
+        self._row_fill_count[event.kind][self._row_head] = 0
 
         # Update row head
         self._row_head = (self._row_head + 1) % self.lookback
@@ -133,7 +134,7 @@ class MarketDataBank:
         if self._current_ts_end is not None and ts_end < self._current_ts_end:
             return
         if self._current_ts_end is None or ts_end > self._current_ts_end:
-            self._next_row(ts_end)
+            self._next_row(ts_end, event)
 
 
         r = (self._row_head - 1) % self.lookback  # current logical row index in the ring
@@ -146,8 +147,8 @@ class MarketDataBank:
         self._data["volume"][kind][r, col] = float(o.volume)
         self._data["tick_count"][kind][r, col] = float(o.tick_count)
 
-        self._row_fill_count[r] += 1
-        updated = (self._row_fill_count[r] // len(self._kinds)) == self.n_assets
+        self._row_fill_count[event.kind][r] += 1
+        updated = (self._row_fill_count[event.kind][r] == self.n_assets)
         return updated
 
     def ts_end(self) -> np.ndarray:
