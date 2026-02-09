@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from collections import deque
 
 import time
-from queue import Queue
-from threading import Thread
+from queue import Queue, Empty
 from typing import Optional, Any, TYPE_CHECKING, Tuple, Dict, List, Deque
 from ib_async import Contract
 
@@ -211,11 +210,9 @@ class HistoricDataHub(RuntimeModule):
         self._in_queue = Queue()
         self._in_bus: Optional["EventBus"] = None
         self._in_token: Optional[int] = None
-        self._in_worker = Thread(target=self._ingest_candle_5s, daemon=True)
 
         self._out_queue = Queue()
         self.out_bus = EventBus(name="HistoricCandleBus")
-        self._out_worker = Thread(target=self._dispatch_candle_events, daemon=True)
 
         self._config: Optional[HistoricHubConfig] = None
         self._ports: Optional["SystemPorts"] = None
@@ -230,10 +227,6 @@ class HistoricDataHub(RuntimeModule):
             raise RuntimeError("HistoricDataHub: start() called before configure()")
 
         self._started = True
-        if not self._in_worker.is_alive():
-            self._in_worker.start()
-        if not self._out_worker.is_alive():
-            self._out_worker.start()
 
     def stop(self) -> None:
         self._started = False
@@ -310,40 +303,36 @@ class HistoricDataHub(RuntimeModule):
         self._out_queue.put(event)
 
 
-    def _dispatch_candle_events(self) -> None:
+    def ingest_candle_5s(self) -> None:
         while True:
-            event = self._out_queue.get()
-            if event is None:
-                break
             try:
-                self.out_bus.publish(event.conId, event)
-            finally:
-                self._out_queue.task_done()
-
-
-    def _ingest_candle_5s(self) -> None:
-        while True:
-            item = self._in_queue.get()
-            if item is None:
+                con_id, bars_5s = self._in_queue.get_nowait()
+            except Empty:
                 break
 
-            con_id, bars_5s = item
+            new_candles = self._candle_manager.push_5s(con_id, bars_5s)
+
+            for kind, ohlc in bars_5s.items():
+                if ohlc is None:
+                    continue
+                self._enqueue_candle_event(conId=con_id, kind=kind, freq="5s", ohlc=ohlc)
+
+            for kind, new_bars in new_candles.items():
+                for freq, ohlc in new_bars.items():
+                    self._enqueue_candle_event(conId=con_id, kind=kind, freq=freq, ohlc=ohlc)
+
+            self._in_queue.task_done()
+
+
+    def dispatch_candle_events(self) -> None:
+        while True:
             try:
-                new_candles = self._candle_manager.push_5s(con_id, bars_5s)
+                event = self._out_queue.get_nowait()
+            except Empty:
+                break
 
-                # TODO:LOW del this loop to avoid 5s
-                for kind, ohlc in bars_5s.items():
-                    if ohlc is None:
-                        continue
-                    self._enqueue_candle_event(conId=con_id, kind=kind, freq="5s", ohlc=ohlc)
-
-                for kind, new_bars in new_candles.items():
-                    for freq, ohlc in new_bars.items():
-                        self._enqueue_candle_event(conId=con_id, kind=kind, freq=freq, ohlc=ohlc)
-
-            finally:
-                self._in_queue.task_done()
-
+            self.out_bus.publish(event.conId, event)
+            self._out_queue.task_done()
 
 
 

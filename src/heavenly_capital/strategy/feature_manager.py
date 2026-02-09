@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import queue
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
 from threading import Thread, Lock
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List
 from ib_async import Contract
 import numpy as np
 
@@ -41,7 +41,6 @@ class FeatureVector:
         return self.data
 
 
-
 class FeatureRegistry:
     def __init__(self, specs: tuple[FeatureSpec, ...]):
         self._specs = self._expand_specs(specs)
@@ -67,6 +66,7 @@ class FeatureRegistry:
                 expanded.append(new_spec)
 
         return expanded
+
 
     def _build_index(self):
         by_sfk: dict[tuple[str, str, str], list[FeatureSpec]] = defaultdict(list)
@@ -99,42 +99,32 @@ class FeatureRegistry:
 
 
 
-@dataclass(frozen=True)
-class CacheKey:
-    freq: str
-    scope: str
-    conId: int | None
-    feature_name: str
+@dataclass(slots=True)
+class FeatureSnapshot:
+    by_conid: Dict[int, Dict[str, float]]
+
+    def get(self, conid: int, feature_names: list[str]) -> Dict[str, float]:
+        data = self.by_conid.get(conid, {})
+        return {name: data[name] for name in feature_names}
 
 
 class FeatureStore:
-    #TODO: HIGHEST Revoir cette class (swap buffer etc)
-    def __init__(self):
-        self.store: dict[CacheKey, float] = {}
-        self._ts_index: dict[int, list[CacheKey]] = defaultdict(list)
+    def __init__(self, history_size: int = 20):
+        self._latest: Dict[int, Dict[str, float]] = defaultdict(dict)
+        self._history: Dict[int, Dict[str, deque]] = defaultdict(
+            lambda: defaultdict(lambda: deque(maxlen=history_size))
+        )
 
-    def commit(self, fv: FeatureVector):
-        ts_bucket = int(fv.updated_at)
+    def commit(self, fv: FeatureVector) -> None:
+        conId = fv.conId
+        ts = fv.updated_at
 
-        for i, name in enumerate(fv.feature_names):
-            key = CacheKey(
-                freq=fv.freq,
-                scope=fv.scope,
-                conId=fv.conId,
-                feature_name=name,
-            )
-            self.store[key] = fv.data[i]
-            self._ts_index[ts_bucket].append(key)
+        for name, value in zip(fv.feature_names, fv.data):
+            self._latest[conId][name] = value
+            self._history[conId][name].append((ts, value))
 
-
-    def get_latest_snapshot(self) -> dict[CacheKey, float]:
-        if not self._ts_index:
-            return {}
-
-        last_ts = max(self._ts_index.keys())
-        keys = self._ts_index[last_ts]
-
-        return {k: self.store[k] for k in keys}
+    def build_snapshot(self) -> FeatureSnapshot:
+        return FeatureSnapshot(by_conid=dict(self._latest))
 
 
 
@@ -155,7 +145,6 @@ class FeatureManager(RuntimeModule):
         self._in_queue = Queue()
         self._in_bus: Optional["EventBus"] = None
         self._in_token: Optional[int] = None
-        self._in_worker = Thread(target=self._process_candle_event, daemon=True)
 
         self._out_queue = Queue() # TODO:HIGH - Add Bus Event
 
@@ -176,8 +165,6 @@ class FeatureManager(RuntimeModule):
             raise RuntimeError("FeatureManager: start() called before configure()")
 
         self._started = True
-        if not self._in_worker.is_alive():
-            self._in_worker.start()
 
     def stop(self) -> None:
         self._started = False
@@ -311,36 +298,34 @@ class FeatureManager(RuntimeModule):
 
         return vectors
 
+    def process_candle_events(self) -> None:
+        processed = False
 
-    def _process_candle_event(self) -> None:
         while True:
             try:
-                # TODO:LOW - Find the best prams value(timeout)
-                event = self._in_queue.get(timeout=0.1)
-
+                event = self._in_queue.get_nowait()
             except queue.Empty:
-                if self._pending_snapshot:
-                    snapshot = self.store.get_latest_snapshot()
-                    self._out_queue.put(snapshot)
-                    self._pending_snapshot = False
-
-                continue
-
-            if event is None:
                 break
 
-            try:
-                if not self._started:
-                    continue
-                if not self._bool_process_event(event):
-                    continue
-
-                for vector in self.event_to_features(event):
-                    self.store.commit(vector)
-                self._pending_snapshot = True
-
-            finally:
+            if not self._started:
                 self._in_queue.task_done()
+                continue
+
+            if not self._bool_process_event(event):
+                self._in_queue.task_done()
+                continue
+
+            for vector in self.event_to_features(event):
+                self.store.commit(vector)
+
+            processed = True
+            self._in_queue.task_done()
+
+        if processed or self._pending_snapshot:
+            snapshot = self.store.build_snapshot()
+            self._out_queue.put(snapshot)
+            self._pending_snapshot = False
+
 
 
 

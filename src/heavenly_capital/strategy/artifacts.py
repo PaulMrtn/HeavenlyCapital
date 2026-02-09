@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Any, Optional, Dict
-import numpy as np
+from time import time
+from typing import Optional, Dict
 
 from enum import Enum
 
@@ -30,8 +30,6 @@ class ModelOutput:
     penalty: Optional[float] = None
 
 
-
-
 @dataclass
 class ModelState:
     dummy: Optional[float] = None
@@ -42,7 +40,7 @@ class ModelState:
 
 
 
-@dataclass(slots=True)
+@dataclass
 class DecisionRecord:
     model_id: str
     conid: int
@@ -51,8 +49,25 @@ class DecisionRecord:
     decision: bool
     forced: bool
     score: float
+    penalty: Optional[float]
     output_at: float
-    penalty: Optional[float] = None
 
-
-
+    @classmethod
+    def from_model_output(
+        cls,
+        *,
+        model_id: str,
+        conid: int,
+        output: "ModelOutput",
+    ) -> "DecisionRecord":
+        return cls(
+            model_id=model_id,
+            conid=conid,
+            timestamp=output.timestamp,
+            step=output.step,
+            decision=output.decision,
+            forced=output.forced,
+            score=output.score,
+            penalty=output.penalty,
+            output_at=time(),
+        )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Optional, Iterable, Any, Mapping, Protocol
 
 from enum import IntEnum, StrEnum
@@ -214,15 +215,15 @@ class SystemManager:
         self.trading_session: MarketDaySession | None = None
         self._active_trading_day = None
 
-
         self._modules = RuntimeRegistry()
         self._runtime_config = RuntimeConfig()
         self._modules_configured = False
         self._modules_started = False
 
+        # TODO:WARNING : temporary fix
+        self._thread: Optional[threading.Thread] = None
 
         self._initialized = True
-
 
     def _set_status(self, status: SystemStatus, detail: str = "") -> None:
         self.state.status = status
@@ -536,6 +537,7 @@ class SystemManager:
 
         self._modules_started = True
 
+
     def _wire_runtime_modules(self) -> None:
         self._wire_routing()
 
@@ -599,6 +601,8 @@ class SystemManager:
         self._modules.session_manager.load_session_state_from_database()
         self._modules.session_manager.health_check_loaded_sessions()
 
+
+# region wire and sync function
     def _wire_gateway_sink_to_data_hub(self) -> None:
         tick_sink = self._modules.live_hub.ingest_port
         self._modules.ibkr_gateway.wire_tick_sink(tick_sink)
@@ -624,6 +628,7 @@ class SystemManager:
         self._modules.feature_manager.initialize_universe(contracts)
         self._modules.forecast_manager.initialize_universe(contracts)
 
+# endregion
 
     async def initialize_market_data_feeds(self):
         await self._modules.ibkr_gateway.load_universe_snapshot()
@@ -638,12 +643,29 @@ class SystemManager:
         self._sync_hubs_with_contracts()
 
         self._modules.feature_manager.build_market_data_banks()
+        # TODO:WARNING I dont understand this duplicated function call
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
 
+        self._modules.forecast_manager.setup_models_and_store()
 
 
 
 
+    def start_runtime_thread(self) -> None:
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._runtime_loop, daemon=True)
+            self._thread.start()
 
 
+    def _runtime_loop(self) -> None:
+        while True:
+            now = time.time()
+            self._modules.live_hub.process_ticks(timeout=0.1)
+            self._modules.live_hub.aggregate_and_publish_candles(current_time=now)
+
+            self._modules.historic_hub.ingest_candle_5s()
+            self._modules.historic_hub.dispatch_candle_events()
+
+            self._modules.feature_manager.process_candle_events()
+            self._modules.forecast_manager.run_predictions()

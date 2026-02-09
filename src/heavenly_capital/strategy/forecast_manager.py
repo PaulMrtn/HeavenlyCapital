@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from queue import Queue
-from time import time
-
+from queue import Queue, Empty
 import joblib
-from threading import Thread
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING, List, Dict
 from ib_async import Contract
 
 from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule, ModelSpec
@@ -14,7 +11,6 @@ from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, Mod
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
-    from heavenly_capital.strategy.feature_manager import FeatureStore
 
 
 
@@ -34,17 +30,18 @@ class ModelRegistry:
 
 
 class ModelStore:
-    def __init__(self, registry: ModelRegistry, conids: list[int]) -> None:
-        self._records: dict[str, dict[int, list["DecisionRecord"]]] = {
-            spec.model_id: {conid: [] for conid in conids} for spec in registry.all()
-        }
+    def __init__(self) -> None:
+        self._records = {}
+
+    def initialize_records(self, registry: "ModelRegistry", conids: List[int]) -> None:
+        self._records = {spec.model_id: {conid: [] for conid in conids} for spec in registry.all()}
 
     def record(
         self,
         *,
         model_id: str,
         conid: int,
-        record: DecisionRecord,
+        record: "DecisionRecord",
     ) -> None:
 
         if model_id not in self._records:
@@ -54,10 +51,10 @@ class ModelStore:
 
         self._records[model_id][conid].append(record)
 
-    def get_by_model(self, model_id: str) -> dict[int, list["DecisionRecord"]]:
+    def get_by_model(self, model_id: str) -> Dict[int, list["DecisionRecord"]]:
         return self._records[model_id]
 
-    def get_all(self) -> dict[str, dict[int, list["DecisionRecord"]]]:
+    def get_all(self) -> Dict[str, Dict[int, list["DecisionRecord"]]]:
         return self._records
 
 
@@ -71,15 +68,22 @@ class ForecastModel:
         if self._model is None:
             self._model = self._load_model(self.spec.path)
 
+    @property
+    def input_names(self) -> List[str]:
+        return self._model._input_names
+
     @staticmethod
     def _load_model(path: Path):
         return joblib.load(path)
 
-    def predict(self, features: dict[str, float]) -> float:
+    def predict(
+        self,
+        features: dict[str, float],
+        state: Optional[ModelState] = None
+    ) -> tuple[ModelOutput, ModelState]:
         if self._model is None:
             raise RuntimeError(f"Model {self.spec.model_id} not loaded")
-        return self._model.predict([features])[0]
-
+        return self._model.predict(features, state)
 
 
 
@@ -90,12 +94,19 @@ class ModelPool:
             for spec in registry.all()
         }
 
+    @property
+    def items(self):
+        return self._models.items()
+
     def get(self, model_id: str) -> "ForecastModel":
         return self._models[model_id]
 
     def all(self) -> list["ForecastModel"]:
         return list(self._models.values())
 
+    def load(self) -> None:
+        for model in self.all():
+            model.load()
 
 
 
@@ -109,11 +120,10 @@ class ForecastManager(RuntimeModule):
 
         self._registry: Optional["ModelRegistry"] = None
         self._store: Optional["ModelStore"] = None
-        self._states: dict[tuple[str, int], "ModelState"] = None
+        self._states: dict[tuple[str, int], Optional[ModelState]] = {}
         self._pool: Optional["ModelPool"] = None
 
         self._in_queue = Queue(maxsize=1)
-        self._in_worker = Thread(target=self._run, daemon=True)
 
         self._config: Optional[ForecastConfig] = None
         self._ports: Optional["SystemPorts"] = None
@@ -123,8 +133,14 @@ class ForecastManager(RuntimeModule):
         self._ports = ports
 
         self._registry = ModelRegistry(specs=config.specs)
-        self._store = ModelStore(registry=self._registry, conids=self._conids)
         self._pool = ModelPool(registry=self._registry)
+        self._store = ModelStore()
+
+        self._states = {
+            (spec.model_id, conid): None
+            for spec in config.specs
+            for conid in self._conids
+        }
 
         self._configured = True
 
@@ -133,8 +149,6 @@ class ForecastManager(RuntimeModule):
             raise RuntimeError("FeatureManager: start() called before configure()")
 
         self._started = True
-        if not self._in_worker.is_alive():
-            self._in_worker.start()
 
     def stop(self) -> None:
         self._started = False
@@ -164,7 +178,6 @@ class ForecastManager(RuntimeModule):
             "is_healthy": True,
         }
 
-    # ---- API ------------------------------------
 
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
@@ -178,47 +191,48 @@ class ForecastManager(RuntimeModule):
     def wire_feature_store(self, queue: Queue) -> None:
         self._in_queue = queue
 
-    def load_pretrained_models(self) -> None:
+    def setup_models_and_store(self) -> None:
         if self._pool is None:
             raise RuntimeError("ModelPool not initialized")
 
-        for model in self._pool.all():
-            model.load()
+        self._pool.load()
+        self._store.initialize_records(self._registry, self._conids)
 
-    def _build_record(self, *, output: "ModelOutput", model_id, conid) -> DecisionRecord:
-        return DecisionRecord(
+
+    def _make_prediction(self, model_id, model, conid, snapshot):
+        key = (model_id, conid)
+        state = self._states.get(key)
+
+        features = snapshot.get(conid, model.input_names)
+
+        output, new_state = model.predict(features, state)
+        self._states[key] = new_state
+
+        record = DecisionRecord.from_model_output(
             model_id=model_id,
             conid=conid,
-            timestamp=output.timestamp,
-            step=output.step,
-            decision=output.decision,
-            forced=output.forced,
-            score=output.score,
-            penalty=output.penalty,
-            output_at=time(),
+            output=output,
         )
+        self._store.record(record=record, model_id=model_id, conid=conid)
 
 
-    def _run(self) -> None:
+    def run_predictions(self) -> None:
+        try:
+            feature = self._in_queue.get_nowait()
+        except Empty:
+            return
 
-        while True:
-            features = self._in_queue.get()
-            if features is None:
-                break
+        if feature is None:
+            return
 
-            for model_id, model in self._models.items():
-                for conid in self._conids:
-                    key = (model_id, conid)
-                    state = self._states.get(key)
-
-                    output, new_state = model.predict(features, state)
-                    self._states[key] = new_state
-
-                    record = self._build_record(output=output, model_id=model_id, conid=conid)
-                    self._store.record(record=record, model_id=model_id, conid=conid)
-
-
-# ---------------------------------------------
+        for model_id, model in self._pool.items:
+            for conid in self._conids:
+                self._make_prediction(
+                    model_id=model_id,
+                    model=model,
+                    conid=conid,
+                    snapshot=feature
+                )
 
 
 
