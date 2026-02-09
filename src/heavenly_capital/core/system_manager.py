@@ -612,7 +612,8 @@ class SystemManager:
         self._modules.feature_manager.wire_historic_candle_bus(candle_bus)
 
     def _wire_feature_store_to_forecast_manager(self) -> None:
-        store = self._modules.feature_manager.store
+        # TODO: Bus event, where PM / RM can subscribe
+        store = self._modules.feature_manager._out_queue
         self._modules.forecast_manager.wire_feature_store(store)
 
 
@@ -621,22 +622,18 @@ class SystemManager:
         self._modules.live_hub.initialize_pipelines(contracts)
         self._modules.historic_hub.initialize_universe(contracts)
         self._modules.feature_manager.initialize_universe(contracts)
+        self._modules.forecast_manager.initialize_universe(contracts)
 
-    def _subscribe_to_feature_snapshot(self) -> None:
-        cb = self._modules.forecast_manager.on_feature_snapshot
-        self._modules.feature_manager.notifier.register(cb)
 
     async def initialize_market_data_feeds(self):
         await self._modules.ibkr_gateway.load_universe_snapshot()
 
-        # TODO:HIGH Review the optimal order
+        # TODO:HIGH Review the optimal order, be aware when you start() module, while True -> while self.started
 
         self._wire_gateway_sink_to_data_hub()
         self._wire_live_hub_to_historic_hub()
         self._wire_historic_hub_to_feature_manager()
-
         self._wire_feature_store_to_forecast_manager()
-        self._subscribe_to_feature_snapshot()
 
         self._sync_hubs_with_contracts()
 

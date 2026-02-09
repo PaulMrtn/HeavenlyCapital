@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, asdict
-from datetime import date, datetime
+from datetime import date
 from enum import Enum
 from threading import Condition, RLock, Thread
-from typing import Any, Callable, Deque, Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Callable, Deque, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
 
 from heavenly_capital.core.runtime_config import SessionConfig
@@ -128,7 +128,7 @@ class GlobalOrderRouter:
             return None
 
     def _run(self) -> None:
-
+        #TODO:LOW - Rename this thread function
         while True:
             with self._cv:
                 while not self._closed and not self._live and not self._paper:
@@ -395,7 +395,7 @@ class SessionManager(RuntimeModule):
         session = self.get_session(key)
         session.stop()
 
-    def list_sessions(self) -> Tuple[TradingSession, ...]:
+    def list_sessions(self) -> tuple[TradingSessionKey, ...]:
         with self._lock:
             return tuple(self._sessions.values())
 

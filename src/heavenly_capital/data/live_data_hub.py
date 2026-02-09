@@ -159,7 +159,6 @@ class LiveDataHub(RuntimeModule):
 
     def _process_ticks(self):
         # TODO:HIGHEST get(timeout=1), check this parameter
-
         while self._started:
             try:
                 tick = self._queue.get(timeout=1)
@@ -176,7 +175,7 @@ class LiveDataHub(RuntimeModule):
 
 
     def _run_sweeper(self):
-        # TODO:LOW - Fixe 5 sec with a variable
+        # TODO:LOW - Fixe 5 sec with a variable, rename this function
         while self._started:
             now = time.time()
             time.sleep(5 - (now % 5))

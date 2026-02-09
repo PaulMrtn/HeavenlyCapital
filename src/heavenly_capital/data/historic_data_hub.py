@@ -155,7 +155,6 @@ class CandleManager:
         self.kinds = kinds
 
         self.stores: Dict[int, Dict[str, CandleStore]] = {}
-
         self.resamplers: Dict[int, Dict[str, ResampleCascade]] = {}
 
     def register_conid(self, conId: int) -> None:

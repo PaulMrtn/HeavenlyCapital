@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import queue
 from collections import defaultdict
 from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
-from threading import Thread
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, Generator
+from threading import Thread, Lock
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple
 from ib_async import Contract
 import numpy as np
 
@@ -31,9 +32,11 @@ class FeatureVector:
 
     def __post_init__(self):
         self._name_to_idx = {n: i for i, n in enumerate(self.feature_names)}
+
     def get_value(self, name: str) -> float:
         idx = self._name_to_idx.get(name)
         return float(self.data[idx]) if idx is not None else np.nan
+
     def to_numpy(self):
         return self.data
 
@@ -123,6 +126,7 @@ class FeatureStore:
             self.store[key] = fv.data[i]
             self._ts_index[ts_bucket].append(key)
 
+
     def get_latest_snapshot(self) -> dict[CacheKey, float]:
         if not self._ts_index:
             return {}
@@ -131,20 +135,6 @@ class FeatureStore:
         keys = self._ts_index[last_ts]
 
         return {k: self.store[k] for k in keys}
-
-
-
-class FeatureNotifier:
-    def __init__(self):
-        self._listeners = []
-
-    def register(self, listener):
-        self._listeners.append(listener)
-
-    def notify_snapshot_ready(self):
-        for listener in self._listeners:
-            listener()
-
 
 
 
@@ -157,15 +147,17 @@ class FeatureManager(RuntimeModule):
         self._conids: list[int] = []
         self._banks: dict[str, "MarketDataBank"] = {}
         self._last_seen: Dict[Tuple[int, str, str], float] = {}
+        self._pending_snapshot = False
 
         self._registry: Optional["FeatureRegistry"] = None
         self.store: Optional["FeatureStore"] = None
-        self.notifier: Optional["FeatureNotifier"] = None
 
         self._in_queue = Queue()
         self._in_bus: Optional["EventBus"] = None
         self._in_token: Optional[int] = None
         self._in_worker = Thread(target=self._process_candle_event, daemon=True)
+
+        self._out_queue = Queue() # TODO:HIGH - Add Bus Event
 
         self._config: Optional["FeatureConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -176,7 +168,6 @@ class FeatureManager(RuntimeModule):
 
         self._registry = FeatureRegistry(specs=config.specs)
         self.store: FeatureStore = FeatureStore()
-        self.notifier: FeatureNotifier = FeatureNotifier()
 
         self._configured = True
 
@@ -230,7 +221,7 @@ class FeatureManager(RuntimeModule):
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
         for c in contracts.values():
-            conid = getattr(c, "conId", 0) or 0
+            conid = getattr(c, "conId") or 0
             if conid > 0:
                 conids.append(int(conid))
 
@@ -320,9 +311,21 @@ class FeatureManager(RuntimeModule):
 
         return vectors
 
+
     def _process_candle_event(self) -> None:
         while True:
-            event = self._in_queue.get()
+            try:
+                # TODO:LOW - Find the best prams value(timeout)
+                event = self._in_queue.get(timeout=0.1)
+
+            except queue.Empty:
+                if self._pending_snapshot:
+                    snapshot = self.store.get_latest_snapshot()
+                    self._out_queue.put(snapshot)
+                    self._pending_snapshot = False
+
+                continue
+
             if event is None:
                 break
 
@@ -334,13 +337,12 @@ class FeatureManager(RuntimeModule):
 
                 for vector in self.event_to_features(event):
                     self.store.commit(vector)
+                self._pending_snapshot = True
 
             finally:
                 self._in_queue.task_done()
 
-            #TODO:HIGH Make test to be sure this condition is enough
-            if self._in_queue.qsize() == 0 :
-                self.notifier.notify_snapshot_ready()
+
 
 
 _instance: Optional["FeatureManager"] = None
