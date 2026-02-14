@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import runtime_checkable, Protocol, Any, Optional, Literal
+from typing import runtime_checkable, Protocol, Any, Optional
 from pathlib import Path
 
+from heavenly_capital.data.db_mock import TradingSessionDB
+from heavenly_capital.models.session import TradingSessionConfig
 from heavenly_capital.strategy.artifacts import ModelKind
 
 
@@ -115,7 +117,7 @@ class FeatureConfig:
         #     id="rel_return",
         #     fields="return",          # intra feature
         #     cross_field="avg_return", # cross feature
-        #     scope="fusion",
+        #     scope="derived",
         #     plugin="relative_spread",
         #     kind="last",
         #     freq="5s",
@@ -172,65 +174,47 @@ class ThreadConfig:
     audit: int = 1
 
 
-@dataclass(frozen=True, slots=True)
-class TradingSessionConfig:
-    name: str
-    account_id: str
-    strategy_id: str
-    mode: str
-    payload: dict[str, Any]
-
-
 
 @dataclass(frozen=True, slots=True)
 class SessionConfig:
-    sessions: tuple[TradingSessionConfig, ...] = (
-        TradingSessionConfig(
-            name="live_account_0_strategy_0",
-            account_id="account_0",
-            strategy_id="strategy_0",
-            mode="LIVE",
-            payload={},
-        ),
+    sessions: tuple[TradingSessionConfig, ...]
 
-        TradingSessionConfig(
-            name="paper_account_0_strategy_0",
-            account_id="account_0",
-            strategy_id="strategy_0",
-            mode="PAPER",
-            payload={},
-        ),
-    )
+
+def load_session_config(db: "TradingSessionDB") -> SessionConfig:
+    rows = db.fetch_all()
+    sessions = [TradingSessionConfig.from_persistence(row, db) for row in rows]
+    return SessionConfig(sessions=tuple(sessions))
 
 
 
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
-    ibkr: IBKRConfig = IBKRConfig()
-    live_hub: LiveHubConfig = LiveHubConfig()
-    historic_hub: HistoricHubConfig = HistoricHubConfig()
-    feature: FeatureConfig = FeatureConfig()
-    forecast: ForecastConfig = ForecastConfig()
-    thread: ThreadConfig = ThreadConfig()
-    session_manager: SessionConfig = SessionConfig()
+    ibkr: IBKRConfig
+    live_hub: LiveHubConfig
+    historic_hub: HistoricHubConfig
+    feature: FeatureConfig
+    forecast: ForecastConfig
+    thread: ThreadConfig
+    session_manager: SessionConfig
 
-
+def build_runtime_config(db: TradingSessionDB) -> RuntimeConfig:
+    return RuntimeConfig(
+        ibkr=IBKRConfig(),
+        live_hub=LiveHubConfig(),
+        historic_hub=HistoricHubConfig(),
+        feature=FeatureConfig(),
+        forecast=ForecastConfig(),
+        thread=ThreadConfig(),
+        session_manager=load_session_config(db),
+    )
 
 _runtime_config: RuntimeConfig | None = None
 
-def get_global_runtime_config() -> RuntimeConfig:
-    # TODO : update runtime_config keys name
+def get_global_runtime_config(db: TradingSessionDB) -> RuntimeConfig:
     global _runtime_config
+
     if _runtime_config is None:
-        _runtime_config = RuntimeConfig(
-            ibkr=IBKRConfig(),
-            historic_hub=HistoricHubConfig(),
-            live_hub=LiveHubConfig(),
-            feature=FeatureConfig(),
-            forecast=ForecastConfig(),
-            thread=ThreadConfig(),
-            session_manager=SessionConfig(),
-        )
+        _runtime_config = build_runtime_config(db)
     return _runtime_config
 
 

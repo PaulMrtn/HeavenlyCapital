@@ -23,23 +23,37 @@ class InMemorySessionDAL:
     def get_portfolio_snapshot(self, account_id: str) -> "PortfolioSnapshot":
         as_of = datetime.now(timezone.utc)
 
-        base_currency = "USD"
-        cash = Decimal("100000.00")
+        if account_id == "account_0":
+            return PortfolioSnapshot(
+                account_id=account_id,
+                as_of=as_of,
+                base_currency="USD",
+                cash=Decimal("100000.00"),
+                positions={
+                    "AAPL": Position(symbol="AAPL", quantity=Decimal("10"), avg_price=Decimal("175.50")),
+                    "MSFT": Position(symbol="MSFT", quantity=Decimal("5"), avg_price=Decimal("410.25")),
+                },
+                snapshot_version=1,
+            )
 
-        positions: Mapping[str, "Position"] = {
-            "AAPL": Position(symbol="AAPL", quantity=Decimal("10"), avg_price=Decimal("175.50")),
-            "MSFT": Position(symbol="MSFT", quantity=Decimal("5"), avg_price=Decimal("410.25")),
-        }
+        if account_id == "account_1":
+            return PortfolioSnapshot(
+                account_id=account_id,
+                as_of=as_of,
+                base_currency="USD",
+                cash=Decimal("100000.00"),
+                positions={},
+                snapshot_version=1,
+            )
 
         return PortfolioSnapshot(
             account_id=account_id,
             as_of=as_of,
-            base_currency=base_currency,
-            cash=cash,
-            positions=positions,
+            base_currency="USD",
+            cash=Decimal("0.00"),
+            positions={},
             snapshot_version=1,
         )
-
 
     def get_risk_snapshot(self, account_id: str) -> "RiskSnapshot":
         as_of = datetime.now(timezone.utc)
@@ -50,6 +64,8 @@ class InMemorySessionDAL:
             stop_loss_pct_by_symbol={"AAPL": Decimal("0.05")},
             stop_loss_price_by_symbol={"AAPL": Decimal("175.50")},
         )
+
+
 
     def get_universe_snapshot(self) -> UniverseSnapshot:
         as_of = datetime.now(timezone.utc)
@@ -120,11 +136,11 @@ class InMemorySessionDAL:
                     asset_id="EQ_US_KO", symbol="KO", asset_type=AssetType.STK, tickers=["KO"], updated_at=as_of,
                 ),
                 "EQ_US_NFLX": TickerUniverseSnapshot(
-                    asset_id="EQ_US_NFLX", symbol="NFLX", asset_type=AssetType.STK, tickers=["NFLX"], updated_at=as_of),
-
+                    asset_id="EQ_US_NFLX", symbol="NFLX", asset_type=AssetType.STK, tickers=["NFLX"], updated_at=as_of
+                ),
                 "EQ_US_MA": TickerUniverseSnapshot(
-                    asset_id="EQ_US_MA", symbol="MA", asset_type=AssetType.STK, tickers=["MA"], updated_at=as_of),
-
+                    asset_id="EQ_US_MA", symbol="MA", asset_type=AssetType.STK, tickers=["MA"], updated_at=as_of
+                ),
                 "EQ_US_UNH": TickerUniverseSnapshot(
                     asset_id="EQ_US_UNH", symbol="UNH", asset_type=AssetType.STK, tickers=["UNH"], updated_at=as_of)
 

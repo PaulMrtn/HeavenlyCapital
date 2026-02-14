@@ -213,7 +213,12 @@ class ForecastManager(RuntimeModule):
             conid=conid,
             output=output,
         )
-        self._store.record(record=record, model_id=model_id, conid=conid)
+
+        self._store.record(
+            record=record,
+            model_id=model_id,
+            conid=conid
+        )
 
 
     def run_predictions(self) -> None:

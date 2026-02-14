@@ -62,6 +62,7 @@ def plugin_correlation(*, spec, cache: "CrossFeatureCache"):
 
 
 
+
 class FeatureCache:
     def __init__(self, bank, event, scope):
         self.scope = scope
@@ -157,3 +158,55 @@ class CrossFeatureCache:
     def get_feature(self, name: str) -> float:
         return self._cache_features.get(name, np.nan)
 
+
+# -------------------------------------------
+#
+# @feature_plugin("relative_spread")
+# def plugin_relative_spread(*, spec, store, freq):
+#     basket = spec.params.get("basket")  # optionnel
+#     cache = DerivedFeatureCache(store, freq, basket)
+#
+#     # features per_asset
+#     intra = store.get_feature_map(spec.fields)
+#     # feature cross (globale ou panier)
+#     cross_value = cache.get_cross_feature(spec.cross_field)
+#
+#     result = {}
+#     for conId, r in intra.items():
+#         result[conId] = r - cross_value if not np.isnan(r) else np.nan
+#
+#     return result  # dict[conId, float]
+#
+#
+#
+# class DerivedFeatureCache:
+#     def __init__(self, store: FeatureStore, freq: str, basket: list[int] | None = None):
+#         self.store = store
+#         self.freq = freq
+#         self.basket = basket  # optionnel, si tu veux limiter le cross à un panier
+#         self._cache_features: dict[str, float] = {}
+#
+#     def get_feature(self, name: str, conId: int) -> float:
+#         # Si la feature est déjà calculée dans le cache local
+#         if name in self._cache_features:
+#             return self._cache_features[name]
+#
+#         # Sinon on lit dans le store
+#         value = self.store.get_latest(conId, name)
+#         return value if value is not None else np.nan
+#
+#     def get_cross_feature(self, name: str) -> float:
+#         # cross_feature globale ou panier
+#         if self.basket:
+#             values = [self.store.get_latest(c, name) for c in self.basket]
+#             return float(np.nanmean([v for v in values if v is not None]))
+#         return self.store.get_global(name)
+#
+#     def store_feature(self, name: str, value: float, conId: int):
+#         # On stocke dans le cache local
+#         self._cache_features[f"{conId}_{name}"] = value
+#         # On commitera ensuite dans le store avec conId
+#
+#
+
+# -------------------------------------------

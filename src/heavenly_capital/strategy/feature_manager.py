@@ -127,6 +127,24 @@ class FeatureStore:
         return FeatureSnapshot(by_conid=dict(self._latest))
 
 
+    # ------ API -----------------------
+
+    def get_history(self, conId: int, name: str) -> list[tuple[float, float]]:
+        return list(self._history.get(conId, {}).get(name, []))
+
+    def get_feature_map(self, name: str) -> dict[int, float]:
+        result = {}
+        for conId, feats in self._latest.items():
+            if name in feats:
+                result[conId] = feats[name]
+        return result
+
+    def get_latest(self, conId: int, name: str) -> float | None:
+        return self._latest.get(conId, {}).get(name)
+
+
+    # -----------------------------------
+
 
 class FeatureManager(RuntimeModule):
 
@@ -146,7 +164,7 @@ class FeatureManager(RuntimeModule):
         self._in_bus: Optional["EventBus"] = None
         self._in_token: Optional[int] = None
 
-        self._out_queue = Queue() # TODO:HIGH - Add Bus Event
+        self.out_queue = Queue() # TODO:HIGH - Add Bus Event
 
         self._config: Optional["FeatureConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -252,6 +270,7 @@ class FeatureManager(RuntimeModule):
             return None
         return bank.update(event)
 
+
     def _build_vector(self, event: "CandleEvent", scope: str) -> Optional["FeatureVector"]:
         bank = self._banks.get(str(event.freq))
         cache = FeatureCache(bank, event, scope)
@@ -283,7 +302,7 @@ class FeatureManager(RuntimeModule):
             updated_at=float(event.ohlc.ts_end)
         )
 
-    def event_to_features(self, event) -> list[Any]:
+    def _event_to_features(self, event) -> list[Any]:
         updated = self._update_bank(event)
 
         vectors = []
@@ -297,6 +316,35 @@ class FeatureManager(RuntimeModule):
                 vectors.append(fv)
 
         return vectors
+
+
+
+# ------------------- WARNING --------------
+#     def _build_fusion_vectors(self, freq: str) -> list[FeatureVector]:
+#         vectors: list[FeatureVector] = []
+# 
+#         specs = self._registry.get_specs(scope="derived", freq=freq, kind="last")
+#         for spec in specs:
+#             plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
+#             if plugin_fn is None:
+#                 continue
+# 
+#             result = plugin_fn(spec=spec, store=self.store, freq=freq)
+#             for conId, value in result.items():
+#                 fv = FeatureVector(
+#                     data=np.array([value]),
+#                     feature_names=[spec.name],
+#                     conId=conId,
+#                     freq=freq,
+#                     scope="derived",
+#                     updated_at=time.time()
+#                 )
+#                 vectors.append(fv)
+# 
+#         return vectors
+
+    # -------------------------------------------
+    
 
     def process_candle_events(self) -> None:
         processed = False
@@ -315,15 +363,19 @@ class FeatureManager(RuntimeModule):
                 self._in_queue.task_done()
                 continue
 
-            for vector in self.event_to_features(event):
+            for vector in self._event_to_features(event):
                 self.store.commit(vector)
+
+            for vector in self._build_fusion_vectors(event.freq):
+                self.store.commit(vector)
+
 
             processed = True
             self._in_queue.task_done()
 
         if processed or self._pending_snapshot:
             snapshot = self.store.build_snapshot()
-            self._out_queue.put(snapshot)
+            self.out_queue.put(snapshot)
             self._pending_snapshot = False
 
 

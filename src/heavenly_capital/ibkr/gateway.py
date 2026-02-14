@@ -209,6 +209,9 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # ---------------------------------
 
+    async def get_account_summary(self) -> None:
+        await self.manager.get_account_state()
+
 
 
 _instance: Optional[IBKRGateway] = None

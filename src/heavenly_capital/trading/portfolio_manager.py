@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from asyncio import Queue
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 
@@ -18,6 +19,10 @@ class PortfolioManager:
 
         self._state: Optional["Portfolio"] = None
 
+        self._in_queue = Queue()
+        self._in_bus: Optional["EventBus"] = None
+        self._in_token: Optional[int] = None
+
         self._configured = False
         self._started = False
 
@@ -30,10 +35,22 @@ class PortfolioManager:
     def start(self) -> None:
         if not self._configured:
             raise RuntimeError("PortfolioManager: start() called before configure()")
+
         self._started = True
 
     def stop(self) -> None:
         self._started = False
+
+        if self._in_token is not None:
+            try:
+                self._in_queue.put_nowait(None)
+                self._in_bus.unsubscribe(self._in_token)
+            except Exception:
+                pass
+            finally:
+                self._in_token = None
+                self._in_bus = None
+
 
     def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
 
@@ -43,7 +60,6 @@ class PortfolioManager:
 
         snapshot: PortfolioSnapshot = self._ports.data_access.get_portfolio_snapshot(self._key.account_id)
         self._state = Portfolio.from_snapshot(snapshot)
-
 
     @property
     def portfolio_state(self) -> Optional[PortfolioSnapshot]:
@@ -57,6 +73,21 @@ class PortfolioManager:
         return {
             "is_healthy": True,
         }
+
+    def wire_live_tick_bus(self, tick_bus: "EventBus") -> None:
+        self._in_bus = tick_bus
+
+    def on_tick(self, conId: int, data: Any):
+        print(f"TICK {conId} -> {data}")
+
+
+    def wire_live_tick_bus(self, tick_bus: "EventBus") -> None:
+        self._in_bus = tick_bus
+    def subscribe_to_live_tick(self) -> None:
+        if self._in_token is None and self._in_bus is None:
+            raise RuntimeError("HistoricDataHub: input bus not set (call wire_live_ohlc_bus() first)")
+
+        self._in_token =  self._in_bus.subscribe_all(self.on_tick)
 
 
 
