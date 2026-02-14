@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
+import queue
+from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
-from threading import Thread
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, Generator
+from threading import Thread, Lock
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List
 from ib_async import Contract
 import numpy as np
 
@@ -31,12 +32,13 @@ class FeatureVector:
 
     def __post_init__(self):
         self._name_to_idx = {n: i for i, n in enumerate(self.feature_names)}
+
     def get_value(self, name: str) -> float:
         idx = self._name_to_idx.get(name)
         return float(self.data[idx]) if idx is not None else np.nan
+
     def to_numpy(self):
         return self.data
-
 
 
 class FeatureRegistry:
@@ -64,6 +66,7 @@ class FeatureRegistry:
                 expanded.append(new_spec)
 
         return expanded
+
 
     def _build_index(self):
         by_sfk: dict[tuple[str, str, str], list[FeatureSpec]] = defaultdict(list)
@@ -96,56 +99,51 @@ class FeatureRegistry:
 
 
 
-@dataclass(frozen=True)
-class CacheKey:
-    freq: str
-    scope: str
-    conId: int | None
-    feature_name: str
+@dataclass(slots=True)
+class FeatureSnapshot:
+    by_conid: Dict[int, Dict[str, float]]
+
+    def get(self, conid: int, feature_names: list[str]) -> Dict[str, float]:
+        data = self.by_conid.get(conid, {})
+        return {name: data[name] for name in feature_names}
 
 
 class FeatureStore:
-    #TODO: HIGHEST Revoir cette class (swap buffer etc)
-    def __init__(self):
-        self.store: dict[CacheKey, float] = {}
-        self._ts_index: dict[int, list[CacheKey]] = defaultdict(list)
+    def __init__(self, history_size: int = 20):
+        self._latest: Dict[int, Dict[str, float]] = defaultdict(dict)
+        self._history: Dict[int, Dict[str, deque]] = defaultdict(
+            lambda: defaultdict(lambda: deque(maxlen=history_size))
+        )
 
-    def commit(self, fv: FeatureVector):
-        ts_bucket = int(fv.updated_at)
+    def commit(self, fv: FeatureVector) -> None:
+        conId = fv.conId
+        ts = fv.updated_at
 
-        for i, name in enumerate(fv.feature_names):
-            key = CacheKey(
-                freq=fv.freq,
-                scope=fv.scope,
-                conId=fv.conId,
-                feature_name=name,
-            )
-            self.store[key] = fv.data[i]
-            self._ts_index[ts_bucket].append(key)
+        for name, value in zip(fv.feature_names, fv.data):
+            self._latest[conId][name] = value
+            self._history[conId][name].append((ts, value))
 
-    def get_latest_snapshot(self) -> dict[CacheKey, float]:
-        if not self._ts_index:
-            return {}
-
-        last_ts = max(self._ts_index.keys())
-        keys = self._ts_index[last_ts]
-
-        return {k: self.store[k] for k in keys}
+    def build_snapshot(self) -> FeatureSnapshot:
+        return FeatureSnapshot(by_conid=dict(self._latest))
 
 
+    # ------ API -----------------------
 
-class FeatureNotifier:
-    def __init__(self):
-        self._listeners = []
+    def get_history(self, conId: int, name: str) -> list[tuple[float, float]]:
+        return list(self._history.get(conId, {}).get(name, []))
 
-    def register(self, listener):
-        self._listeners.append(listener)
+    def get_feature_map(self, name: str) -> dict[int, float]:
+        result = {}
+        for conId, feats in self._latest.items():
+            if name in feats:
+                result[conId] = feats[name]
+        return result
 
-    def notify_snapshot_ready(self):
-        for listener in self._listeners:
-            listener()
+    def get_latest(self, conId: int, name: str) -> float | None:
+        return self._latest.get(conId, {}).get(name)
 
 
+    # -----------------------------------
 
 
 class FeatureManager(RuntimeModule):
@@ -157,15 +155,16 @@ class FeatureManager(RuntimeModule):
         self._conids: list[int] = []
         self._banks: dict[str, "MarketDataBank"] = {}
         self._last_seen: Dict[Tuple[int, str, str], float] = {}
+        self._pending_snapshot = False
 
         self._registry: Optional["FeatureRegistry"] = None
         self.store: Optional["FeatureStore"] = None
-        self.notifier: Optional["FeatureNotifier"] = None
 
         self._in_queue = Queue()
         self._in_bus: Optional["EventBus"] = None
         self._in_token: Optional[int] = None
-        self._in_worker = Thread(target=self._process_candle_event, daemon=True)
+
+        self.out_queue = Queue() # TODO:HIGH - Add Bus Event
 
         self._config: Optional["FeatureConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -176,7 +175,6 @@ class FeatureManager(RuntimeModule):
 
         self._registry = FeatureRegistry(specs=config.specs)
         self.store: FeatureStore = FeatureStore()
-        self.notifier: FeatureNotifier = FeatureNotifier()
 
         self._configured = True
 
@@ -185,8 +183,6 @@ class FeatureManager(RuntimeModule):
             raise RuntimeError("FeatureManager: start() called before configure()")
 
         self._started = True
-        if not self._in_worker.is_alive():
-            self._in_worker.start()
 
     def stop(self) -> None:
         self._started = False
@@ -230,7 +226,7 @@ class FeatureManager(RuntimeModule):
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
         for c in contracts.values():
-            conid = getattr(c, "conId", 0) or 0
+            conid = getattr(c, "conId") or 0
             if conid > 0:
                 conids.append(int(conid))
 
@@ -274,6 +270,7 @@ class FeatureManager(RuntimeModule):
             return None
         return bank.update(event)
 
+
     def _build_vector(self, event: "CandleEvent", scope: str) -> Optional["FeatureVector"]:
         bank = self._banks.get(str(event.freq))
         cache = FeatureCache(bank, event, scope)
@@ -305,7 +302,7 @@ class FeatureManager(RuntimeModule):
             updated_at=float(event.ohlc.ts_end)
         )
 
-    def event_to_features(self, event) -> list[Any]:
+    def _event_to_features(self, event) -> list[Any]:
         updated = self._update_bank(event)
 
         vectors = []
@@ -320,27 +317,69 @@ class FeatureManager(RuntimeModule):
 
         return vectors
 
-    def _process_candle_event(self) -> None:
+
+
+# ------------------- WARNING --------------
+#     def _build_fusion_vectors(self, freq: str) -> list[FeatureVector]:
+#         vectors: list[FeatureVector] = []
+# 
+#         specs = self._registry.get_specs(scope="derived", freq=freq, kind="last")
+#         for spec in specs:
+#             plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
+#             if plugin_fn is None:
+#                 continue
+# 
+#             result = plugin_fn(spec=spec, store=self.store, freq=freq)
+#             for conId, value in result.items():
+#                 fv = FeatureVector(
+#                     data=np.array([value]),
+#                     feature_names=[spec.name],
+#                     conId=conId,
+#                     freq=freq,
+#                     scope="derived",
+#                     updated_at=time.time()
+#                 )
+#                 vectors.append(fv)
+# 
+#         return vectors
+
+    # -------------------------------------------
+    
+
+    def process_candle_events(self) -> None:
+        processed = False
+
         while True:
-            event = self._in_queue.get()
-            if event is None:
+            try:
+                event = self._in_queue.get_nowait()
+            except queue.Empty:
                 break
 
-            try:
-                if not self._started:
-                    continue
-                if not self._bool_process_event(event):
-                    continue
-
-                for vector in self.event_to_features(event):
-                    self.store.commit(vector)
-
-            finally:
+            if not self._started:
                 self._in_queue.task_done()
+                continue
 
-            #TODO:HIGH Make test to be sure this condition is enough
-            if self._in_queue.qsize() == 0 :
-                self.notifier.notify_snapshot_ready()
+            if not self._bool_process_event(event):
+                self._in_queue.task_done()
+                continue
+
+            for vector in self._event_to_features(event):
+                self.store.commit(vector)
+
+            for vector in self._build_fusion_vectors(event.freq):
+                self.store.commit(vector)
+
+
+            processed = True
+            self._in_queue.task_done()
+
+        if processed or self._pending_snapshot:
+            snapshot = self.store.build_snapshot()
+            self.out_queue.put(snapshot)
+            self._pending_snapshot = False
+
+
+
 
 
 _instance: Optional["FeatureManager"] = None

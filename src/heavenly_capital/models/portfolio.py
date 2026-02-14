@@ -1,10 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Mapping
+from typing import Dict, Mapping, Optional, Union
 
-
-# TODO: inherit with SQLModule ?
 
 @dataclass(frozen=True, slots=True)
 class Position:
@@ -51,3 +49,13 @@ class Portfolio:
             positions=dict(self.positions),
             snapshot_version=self.snapshot_version,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioLedger:
+    account_id: str
+    strategy_id: str
+    portfolio_id: str
+    portfolio_name: str
+    enabled: bool
+    cash: Dict[str, Optional[Union[Decimal, float]]] = field(default_factory=dict)

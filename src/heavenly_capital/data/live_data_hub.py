@@ -92,8 +92,7 @@ class LiveDataHub(RuntimeModule):
         self._pipelines: Dict[int, "InstrumentPipeline"] = {}
 
         self._queue = Queue()
-        self._worker = Thread(target=self._process_ticks, daemon=True)
-        self._sweeper = Thread(target=self._run_sweeper, daemon=True)
+        self._last_agg_time: Optional[float] = None
 
         self.tick_bus = EventBus(name="TickBus")
         self.candle_bus = EventBus(name="CandleBus")
@@ -111,8 +110,6 @@ class LiveDataHub(RuntimeModule):
             raise RuntimeError("LiveDataHub: start() called before configure()")
 
         self._started = True
-        self._worker.start()
-        self._sweeper.start()
 
     def stop(self) -> None:
         #TODO:MEDIUM handle worker and sweeper with stop fn
@@ -157,37 +154,32 @@ class LiveDataHub(RuntimeModule):
     def ingest_port(self) -> Callable:
         return self._ingest
 
-    def _process_ticks(self):
-        # TODO:HIGHEST get(timeout=1), check this parameter
+    def process_ticks(self, timeout: float = 0.1):
+        try:
+            tick = self._queue.get(timeout=timeout)
+            pipeline = self._pipelines.get(tick.conId)
+            if pipeline:
+                pipeline.on_tick(tick)
 
-        while self._started:
-            try:
-                tick = self._queue.get(timeout=1)
+            self.tick_bus.publish(tick.conId, tick)
+            self._queue.task_done()
+        except Empty:
+            pass
 
-                pipeline = self._pipelines.get(tick.conId)
-                if pipeline:
-                    pipeline.on_tick(tick)
+    def aggregate_and_publish_candles(self, current_time: float):
+        if self._last_agg_time is None:
+            self._last_agg_time = current_time
+            return
 
-                self.tick_bus.publish(tick.conId, tick)
-                self._queue.task_done()
-
-            except Empty:
-                continue
-
-
-    def _run_sweeper(self):
-        # TODO:LOW - Fixe 5 sec with a variable
-        while self._started:
-            now = time.time()
-            time.sleep(5 - (now % 5))
-
-            ts_end = time.time()
-            ts_end = ts_end - (ts_end % 5)
+        if current_time - self._last_agg_time >= 5:
+            ts_end = current_time - (current_time % 5)
             ts_start = ts_end - 5
 
             for conId, pipeline in self._pipelines.items():
                 bars = pipeline.aggregate_all(ts_start, ts_end)
                 self.candle_bus.publish(conId, bars)
+
+            self._last_agg_time = current_time
 
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Optional, Iterable, Any, Mapping, Protocol
 
 from enum import IntEnum, StrEnum
@@ -14,7 +15,7 @@ from heavenly_capital.core.runtime_config import RuntimeConfig, RuntimeModule, A
 from heavenly_capital.core.market_clock import MarketStateChangeEvent
 from heavenly_capital.core.runtime_config import get_global_runtime_config
 from heavenly_capital.core.thread_manager import ThreadManager
-from heavenly_capital.strategy.feature_manager import FeatureManager, get_feature_manager
+from heavenly_capital.strategy.feature_manager import FeatureManager
 from heavenly_capital.strategy.forecast_manager import ForecastManager
 from heavenly_capital.data.live_data_hub import LiveDataHub
 from heavenly_capital.data.historic_data_hub import HistoricDataHub
@@ -23,6 +24,7 @@ from heavenly_capital.core.session_manager import SessionManager
 
 from heavenly_capital.data.db_access import DataAccessLayer
 from heavenly_capital.data.db_ingestion import DataIngestionLayer
+from heavenly_capital.data.db_mock import TradingSessionDB
 
 from heavenly_capital.monitoring.error_service import NullErrorService, ErrorService, HealthCheckError
 from heavenly_capital.monitoring.log_service import LogService, NullLogService
@@ -30,8 +32,9 @@ from heavenly_capital.monitoring.metric_service import MetricService, NullMetric
 from heavenly_capital.monitoring.notification_service import NullNotificationService, NotificationService
 from heavenly_capital.monitoring.health_service import ConnectionStatus, ReadinessCheck
 
-
 #region System DataClass
+
+db = TradingSessionDB()
 
 class SystemStatus(StrEnum):
     BOOTING = "BOOTING"
@@ -70,6 +73,7 @@ class ShutdownRequest:
 
 
 #region MarketDaySession DataClass
+
 class SessionStatus(StrEnum):
     OPEN = "OPEN"
     CLOSED = "CLOSED"
@@ -214,15 +218,15 @@ class SystemManager:
         self.trading_session: MarketDaySession | None = None
         self._active_trading_day = None
 
-
         self._modules = RuntimeRegistry()
-        self._runtime_config = RuntimeConfig()
+        self._runtime_config = get_global_runtime_config(db)
         self._modules_configured = False
         self._modules_started = False
 
+        # TODO:WARNING : temporary fix
+        self._thread: Optional[threading.Thread] = None
 
         self._initialized = True
-
 
     def _set_status(self, status: SystemStatus, detail: str = "") -> None:
         self.state.status = status
@@ -429,12 +433,12 @@ class SystemManager:
 
 
     # TODO : Priority with duckDN or/with postgresDB,
+
     def persist_session(
             self,
             session: MarketDaySession,
             *,
             patch: Optional[Mapping[str, Any]] = None,
-            note: Optional[str] = None,
         ) -> None:
 
             if patch:
@@ -447,7 +451,7 @@ class SystemManager:
             else:
                 self._data_ingestion.insert(session)
 
-    # endregion
+# endregion
 
 
 
@@ -536,6 +540,7 @@ class SystemManager:
 
         self._modules_started = True
 
+
     def _wire_runtime_modules(self) -> None:
         self._wire_routing()
 
@@ -572,8 +577,8 @@ class SystemManager:
         from heavenly_capital.core.thread_manager import get_thread_manager
         from heavenly_capital.core.session_manager import get_session_manager
 
-        # TODO : handle this import to
-        runtime_config = get_global_runtime_config()
+        # TODO:WARNING handle this import to
+        runtime_config = get_global_runtime_config(db)
         self._set_runtime_config(runtime_config)
 
         self._attach_runtime_modules(
@@ -594,11 +599,28 @@ class SystemManager:
 
     # endregion
 
+    def _subscribe_local_runtime(self) -> None:
+        buses = {
+            "tick_bus": self._modules.live_hub.tick_bus,
+            # "feature_bus": self._modules.feature_manager.feature_bus,
+        }
+
+        for key, session in self._modules.session_manager.sessions.items():
+        # if key.mode == "PAPER":
+            print(key)
+            session.wire_buses(buses)
+            session.subscribe_live()
+
+
+
     def launch_local_runtime(self) :
         self._modules.session_manager.initialize_sessions_from_config()
         self._modules.session_manager.load_session_state_from_database()
         self._modules.session_manager.health_check_loaded_sessions()
 
+
+
+# region wire and sync function
     def _wire_gateway_sink_to_data_hub(self) -> None:
         tick_sink = self._modules.live_hub.ingest_port
         self._modules.ibkr_gateway.wire_tick_sink(tick_sink)
@@ -612,7 +634,8 @@ class SystemManager:
         self._modules.feature_manager.wire_historic_candle_bus(candle_bus)
 
     def _wire_feature_store_to_forecast_manager(self) -> None:
-        store = self._modules.feature_manager.store
+        # TODO: Bus event, where PM / RM can subscribe
+        store = self._modules.feature_manager.out_queue
         self._modules.forecast_manager.wire_feature_store(store)
 
 
@@ -621,32 +644,51 @@ class SystemManager:
         self._modules.live_hub.initialize_pipelines(contracts)
         self._modules.historic_hub.initialize_universe(contracts)
         self._modules.feature_manager.initialize_universe(contracts)
+        self._modules.forecast_manager.initialize_universe(contracts)
 
-    def _subscribe_to_feature_snapshot(self) -> None:
-        cb = self._modules.forecast_manager.on_feature_snapshot
-        self._modules.feature_manager.notifier.register(cb)
+# endregion
+
 
     async def initialize_market_data_feeds(self):
         await self._modules.ibkr_gateway.load_universe_snapshot()
 
-        # TODO:HIGH Review the optimal order
-
+        # TODO:HIGH Review the optimal order, be aware when you start() module, while True -> while self.started
         self._wire_gateway_sink_to_data_hub()
         self._wire_live_hub_to_historic_hub()
         self._wire_historic_hub_to_feature_manager()
-
         self._wire_feature_store_to_forecast_manager()
-        self._subscribe_to_feature_snapshot()
 
         self._sync_hubs_with_contracts()
 
         self._modules.feature_manager.build_market_data_banks()
+        # TODO:WARNING I dont understand this duplicated function call
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
 
+        self._subscribe_local_runtime()
+
+        self._modules.forecast_manager.setup_models_and_store()
 
 
+    def start_runtime_thread(self) -> None:
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._runtime_loop, daemon=True)
+            self._thread.start()
 
 
+    def _runtime_loop(self) -> None:
+        while True:
+            now = time.time()
+            self._modules.live_hub.process_ticks(timeout=0.1)
+            self._modules.live_hub.aggregate_and_publish_candles(current_time=now)
 
+            self._modules.historic_hub.ingest_candle_5s()
+            self._modules.historic_hub.dispatch_candle_events()
+
+            self._modules.feature_manager.process_candle_events()
+            self._modules.forecast_manager.run_predictions()
+
+            # Update portfolio and risk monitor
+            # if timimg opportunity then Order Manager send order
+            # suscribe each module to his bus (ticker, features, ...)
 

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Dict, Iterable, Callable
 
-from ib_async import IB, Ticker, Contract
+from ib_async import IB, Ticker, Contract, ExecutionFilter
 
-
+from heavenly_capital.models.account import AccountState
 
 
 # open -n '/Users/paul/Applications/IB Gateway 10.37/IB Gateway 10.37.app'
@@ -35,7 +35,7 @@ class ClientStatus:
 
 class IBKRSessionRegistry:
     def __init__(self, clients: Iterable["IBKRClient"]):
-        self._clients: Dict[str, IBKRClient] = {
+        self._clients: Dict[str, "IBKRClient"] = {
             c.session_name: c for c in clients
         }
 
@@ -95,7 +95,7 @@ class IBKRClient:
         self.account_type = AccountType(account_type)
         self.permission_level = PermissionLevel(permission_level)
 
-        self._ib_client: Optional[IB] = None
+        self.ib_client: Optional[IB] = None
         self._main_task: Optional[asyncio.Task] = None
 
         self._stop_event = asyncio.Event()
@@ -120,8 +120,8 @@ class IBKRClient:
         if self._running:
             return
         try:
-            self._ib_client = IB(session_name=self.session_name)
-            await self._ib_client.connectAsync(
+            self.ib_client = IB(session_name=self.session_name)
+            await self.ib_client.connectAsync(
                 host=self.host,
                 port=self.port,
                 clientId=self.client_id
@@ -156,10 +156,10 @@ class IBKRClient:
                 pass
 
         # disconnect client
-        if self._ib_client:
-            if self._ib_client.isConnected():
-                self._ib_client.disconnect()
-            self._ib_client = None
+        if self.ib_client:
+            if self.ib_client.isConnected():
+                self.ib_client.disconnect()
+            self.ib_client = None
 
 
     async def wait(self):
@@ -218,7 +218,7 @@ class ClientManager:
 
     def _setup_master_session(self):
         self.master: "IBKRClient" = self._registry.get_master()
-        self.master._ib_client.reqMarketDataType(1)
+        self.master.ib_client.reqMarketDataType(1)
 
 
     async def _broadcast(self, method_name: str):
@@ -261,7 +261,7 @@ class ClientManager:
         return self._registry.get_by_account_type(AccountType.PAPER)
 
     async def qualify_contracts(self, contracts: list[Contract]) -> list[Contract]:
-        return await self.master._ib_client.qualifyContractsAsync(*contracts)
+        return await self.master.ib_client.qualifyContractsAsync(*contracts)
 
     def set_tick_handler(self, on_tick: Callable):
         self.on_tick = on_tick
@@ -271,8 +271,10 @@ class ClientManager:
             self.on_tick(ticker)
 
     async def start_streaming(self, contracts: list[Contract]):
+
+        #TODO:HIGH Encapsuler la subscription au contrats dans une fonctions et ajouter la subscription au portefeuille
         for contract in contracts:
-            ticker = self.master._ib_client.reqMktData(
+            ticker = self.master.ib_client.reqMktData(
                 contract=contract,
                 genericTickList='',
                 snapshot=False,
@@ -286,7 +288,7 @@ class ClientManager:
         for ticker in self.tickers.values():
             try:
                 ticker.updateEvent -= self._on_ticker_update
-                self.master._ib_client.cancelMktData(ticker.contract)
+                self.master.ib_client.cancelMktData(ticker.contract)
             except Exception :
                 pass
 
@@ -298,7 +300,7 @@ class ClientManager:
             while True :
                 await asyncio.sleep(5)
                 try:
-                    server_time = await self.master._ib_client.reqCurrentTimeAsync()
+                    server_time = await self.master.ib_client.reqCurrentTimeAsync()
 
                 except Exception:
                 # TODO:MEDIUM Handle this shutdown (RESTART), if server_time = None
@@ -306,3 +308,41 @@ class ClientManager:
 
         except asyncio.CancelledError:
             raise
+
+
+    async def _start_accounts_updates(self):
+        async def start_account_flow(gateway, acct):
+            await gateway.ib_client.reqAccountUpdatesAsync(acct)
+
+        self._tasks = []
+        for gateway in self._registry.all:
+            accounts = gateway.ib_client.managedAccounts()
+            for acct in accounts:
+                task = asyncio.create_task(start_account_flow(gateway, acct))
+                self._tasks.append(task)
+
+
+    async def get_account_state(self):
+        for gateway in self._registry.all:
+            # await gateway.ib_client.reqOpenOrdersAsync()
+            # await gateway.ib_client.reqExecutionsAsync()
+            # await gateway.ib_client.reqCompletedOrdersAsync(True)
+
+            values = await gateway.ib_client.accountSummaryAsync()
+            summary = AccountState.from_account_values(values)
+            print(summary)
+
+            portfolio = gateway.ib_client.portfolio()
+            print(portfolio)
+
+            positions = gateway.ib_client.positions()
+            print(positions)
+
+            trades = gateway.ib_client.trades()
+            print(trades)
+
+            orders = gateway.ib_client.orders()
+            print(orders)
+
+            executions = gateway.ib_client.executions()
+            print(executions)
