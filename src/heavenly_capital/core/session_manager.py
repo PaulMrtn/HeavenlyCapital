@@ -10,6 +10,7 @@ from uuid import uuid4, UUID
 
 from heavenly_capital.core.runtime_config import SessionConfig
 from heavenly_capital.core.system_manager import RuntimeModule
+from heavenly_capital.models.market_data import ReadOnlyTicker
 from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
@@ -92,7 +93,6 @@ class GlobalOrderRouter:
             self._worker.start()
 
     def close(self) -> None:
-
         with self._cv:
             self._closed = True
             self._cv.notify_all()
@@ -118,7 +118,7 @@ class GlobalOrderRouter:
 
             self._cv.notify()
 
-    def _pop_next(self) -> Optional[RoutedOrder]:
+    def _pop_next(self) -> Optional["RoutedOrder"]:
 
         with self._lock:
             if self._live:
@@ -244,12 +244,17 @@ class TradingSession:
             payload=dict(self._payload),
         )
 
+    def wire_live_tickers(self, market_state: dict[int, ReadOnlyTicker]) -> None:
+        self.stack.portfolio.wire_market_state(market_state)
+        self.stack.risk.wire_market_state(market_state)
+
+
     def wire_buses(self, buses: dict[str, "EventBus"]) -> None:
-        self.stack.portfolio.wire_live_tick_bus(buses["tick_bus"])
+        pass
         # self.stack.risk.wire_live_tick_bus(buses["feature_bus"])
 
     def subscribe_live(self) -> None:
-        self.stack.portfolio.subscribe_to_live_tick()
+        pass
         # self.stack.risk.subscribe_to_features()
 
 
@@ -408,6 +413,12 @@ class SessionManager(RuntimeModule):
 
 
 
+
+
+
+
+
+
     # region OldFunction
 
     def get_session(self, key: "TradingSessionKey") -> "TradingSession":
@@ -464,6 +475,9 @@ class SessionManager(RuntimeModule):
             self._data_ingestion.insert(obj)
 
     # endregion
+
+
+
 
 
 _instance: Optional[SessionManager] = None

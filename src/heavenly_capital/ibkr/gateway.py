@@ -7,7 +7,6 @@ from ib_async import Contract, Ticker
 
 from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
 from heavenly_capital.ibkr.client import ClientManager
-from heavenly_capital.models.market_data import TickEvent
 from heavenly_capital.models.tickers import UniverseSnapshot
 
 if TYPE_CHECKING:
@@ -20,7 +19,7 @@ CLIENTS_CONFIG = [
         "host": "127.0.0.1",
         "port": 4002,
         "enable": True,
-        "account_type": "PAPER",         # LIVE ou PAPER
+        "account_type": "LIVE",         # LIVE ou PAPER
         "permission_level": "MASTER"    # MASTER ou STANDARD
     },
     {
@@ -37,29 +36,6 @@ CLIENTS_CONFIG = [
 UTC_ZONE = timezone.utc
 
 
-class TickFeeder:
-    def __init__(self, sink: Optional[Callable[["TickEvent"], None]]):
-        self.sink = sink
-
-    def handle(self, ticker: Ticker):
-        if ticker.last <= 0 and ticker.bid <= 0 and ticker.ask <= 0:
-            return
-
-        event = TickEvent(
-            symbol=ticker.contract.symbol,
-            conId=ticker.contract.conId,
-            last=ticker.last,
-            last_size=ticker.lastSize,
-            bid=ticker.bid,
-            bid_size=ticker.bidSize,
-            ask=ticker.ask,
-            ask_size=ticker.askSize,
-            volume=ticker.volume,
-            timestamp=ticker.timestamp
-        )
-
-        if self.sink:
-            self.sink(event)
 
 
 class IBKRGateway(AsyncRuntimeModule):
@@ -76,7 +52,6 @@ class IBKRGateway(AsyncRuntimeModule):
 
         # TODO : MOCK sent order (update with OrderObject)
         self._mock_sent_orders: list[dict[str, Any]] = list()
-        self.tick_feeder: Optional["TickFeeder"] = None
 
 
     def configure(self, *, config: "IBKRConfig", ports: "SystemPorts") -> None:
@@ -84,10 +59,6 @@ class IBKRGateway(AsyncRuntimeModule):
         self._ports = ports
 
         self.manager = ClientManager(CLIENTS_CONFIG) # config.sessions
-        self.tick_feeder = TickFeeder(sink=None)
-
-        self.manager.set_tick_handler(self.tick_feeder.handle)
-
         self._configured = True
 
     async def start(self) -> None:
@@ -120,9 +91,7 @@ class IBKRGateway(AsyncRuntimeModule):
         return self._ports
 
     def health_check(self) -> dict[str, Any]:
-        return {
-            "is_healthy": True,
-        }
+        return {"is_healthy": True}
 
 
     # --- MOCK SINK API ----------
@@ -138,11 +107,8 @@ class IBKRGateway(AsyncRuntimeModule):
     def get_order_sink(self) -> Callable[[dict[str, Any]], None]:
         return self.order_sink
 
-    def wire_tick_sink(self, sink: Callable[["TickEvent"], None]):
-        if self.tick_feeder is None:
-            raise RuntimeError("Gateway: tick_feeder must be initialized before wiring.")
-
-        self.tick_feeder.sink = sink
+    def wire_live_ticker(self, ticker_sink: Callable[[Ticker], None]):
+        self.manager.set_tick_handler(ticker_sink)
 
     # -----------------------------
 

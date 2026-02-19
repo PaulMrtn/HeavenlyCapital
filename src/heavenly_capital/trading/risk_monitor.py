@@ -17,6 +17,7 @@ class RiskMonitor:
         self._key: Optional["TradingSessionKey"] = None
 
         self._state: Optional["RiskState"] = None
+        self._market_state = None
 
         self._configured = False
         self._started = False
@@ -56,4 +57,5 @@ class RiskMonitor:
             "is_healthy": True,
         }
 
-    def refresh_risk_state(self) -> None : ...
+    def wire_market_state(self, market_state):
+        self._market_state = market_state

@@ -271,7 +271,6 @@ class ClientManager:
             self.on_tick(ticker)
 
     async def start_streaming(self, contracts: list[Contract]):
-
         #TODO:HIGH Encapsuler la subscription au contrats dans une fonctions et ajouter la subscription au portefeuille
         for contract in contracts:
             ticker = self.master.ib_client.reqMktData(
@@ -310,16 +309,16 @@ class ClientManager:
             raise
 
 
-    async def _start_accounts_updates(self):
-        async def start_account_flow(gateway, acct):
-            await gateway.ib_client.reqAccountUpdatesAsync(acct)
-
-        self._tasks = []
-        for gateway in self._registry.all:
-            accounts = gateway.ib_client.managedAccounts()
-            for acct in accounts:
-                task = asyncio.create_task(start_account_flow(gateway, acct))
-                self._tasks.append(task)
+    # async def _start_accounts_updates(self):
+    #     async def start_account_flow(gateway, acct):
+    #         await gateway.ib_client.reqAccountUpdatesAsync(acct)
+    #
+    #     self._tasks = []
+    #     for gateway in self._registry.all:
+    #         accounts = gateway.ib_client.managedAccounts()
+    #         for acct in accounts:
+    #             task = asyncio.create_task(start_account_flow(gateway, acct))
+    #             self._tasks.append(task)
 
 
     async def get_account_state(self):

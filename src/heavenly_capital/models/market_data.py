@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections import namedtuple
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Optional, Literal
-
+from typing import Any, Optional, Literal, List
 
 import numpy as np # TODO:LOW - import only what we need
 
@@ -18,18 +17,44 @@ OHLC = namedtuple("OHLC",
                   ["open", "high", "low", "close", "volume", "tick_count", "ts_start", "ts_end"])
 
 
-@dataclass(slots=True, frozen=True)
-class TickEvent:
-    symbol: str
-    conId: int
-    last: float
-    last_size: float
-    bid: float
-    bid_size: float
-    ask: float
-    ask_size: float
-    volume: float
-    timestamp: float
+_EXPOSED_FIELDS = {
+    "symbol": "contract.symbol",
+    "conId": "contract.conId",
+    "tradingClass": "contract.tradingClass",
+    "last": "last",
+    "lastSize": "lastSize",
+    "bid": "bid",
+    "bidSize": "bidSize",
+    "ask": "ask",
+    "askSize": "askSize",
+    "volume": "volume",
+    "close": "close",
+    "timestamp": "timestamp",
+}
+
+class ReadOnlyTicker:
+    __slots__ = ("_ticker",)
+
+    def __init__(self, ticker: Any):
+        self._ticker = ticker
+
+    def __getattr__(self, item):
+        path = _EXPOSED_FIELDS.get(item)
+        if not path:
+            raise AttributeError(f"{item} not exposed")
+        obj = self._ticker
+        for attr in path.split("."):
+            obj = getattr(obj, attr, None)
+            if obj is None:
+                break
+        return obj
+
+    def __getitem__(self, item):
+        return self.__getattr__(item)
+
+    def as_dict(self):
+        return {k: getattr(self, k) for k in _EXPOSED_FIELDS.keys()}
+
 
 
 @dataclass(frozen=True, slots=True)

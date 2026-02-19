@@ -333,6 +333,7 @@ class HistoricDataHub(RuntimeModule):
 
             self.out_bus.publish(event.conId, event)
             self._out_queue.task_done()
+            print(event)
 
 
 
