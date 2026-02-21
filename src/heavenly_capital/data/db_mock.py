@@ -283,52 +283,60 @@ class TradingSessionDB:
 
     @staticmethod
     def insert_order(order: "Order", account_id: str, portfolio_id: str, con_id: int) -> None:
+
         query = text("""
-                     INSERT INTO orders (perm_id, account_id, portfolio_id, con_id,
-                                         action, order_type, tif, quantity, lmt_price,
-                                         aux_price, oca_type, order_ref, status,
-                                         filled_quantity, remaining_quantity, avg_fill_price,
-                                         display_size, reference_price_type, clearing_intent,
-                                         cash_qty, ref_futures_con_id, rule80a, openclose,
-                                         volatilitytype, created_at, updated_at)
-                         
-                     VALUES (:perm_id, :account_id, :portfolio_id, :con_id,
-                             :action, :order_type, :tif, :quantity, :lmt_price,
-                             :aux_price, :oca_type, :order_ref, :status,
-                             :filled_quantity, :remaining_quantity, :avg_fill_price,
-                             :display_size, :reference_price_type, :clearing_intent,
-                             :cash_qty, :ref_futures_con_id, :rule80a, :openclose,
-                             :volatilitytype, NOW(), NOW())
+                     INSERT INTO orders (perm_id, account_id,
+                                         portfolio_id,
+                                         con_id,
+                                         action,
+                                         order_type,
+                                         tif,
+                                         quantity,
+                                         lmt_price,
+                                         aux_price,
+                                         status,
+                                         filled_quantity,
+                                         remaining_quantity,
+                                         avg_fill_price,
+                                         created_at,
+                                         updated_at)
+                     VALUES (:perm_id,
+                             :account_id,
+                             :portfolio_id,
+                             :con_id,
+                             :action,
+                             :order_type,
+                             :tif,
+                             :quantity,
+                             :lmt_price,
+                             :aux_price,
+                             :status,
+                             :filled_quantity,
+                             :remaining_quantity,
+                             :avg_fill_price,
+                             NOW(),
+                             NOW())
+                     ON CONFLICT (perm_id) DO NOTHING
                      """)
 
         with engine.begin() as conn:
             conn.execute(
                 query,
                 {
-                    "perm_id": getattr(order, "permId"),
+                    "perm_id": order.permId,
                     "account_id": account_id,
                     "portfolio_id": portfolio_id,
                     "con_id": con_id,
-                    "action": getattr(order, "action"),
-                    "order_type": getattr(order, "orderType"),
-                    "tif": getattr(order, "tif", None),
-                    "quantity": getattr(order, "totalQuantity", 0.0),
-                    "lmt_price": getattr(order, "lmtPrice", None),
-                    "aux_price": getattr(order, "auxPrice", None),
-                    "oca_type": getattr(order, "ocaType", None),
-                    "order_ref": getattr(order, "orderRef", None),
-                    "status": "Submitted",
-                    "filled_quantity": getattr(order, "filledQuantity", 0.0),
-                    "remaining_quantity": getattr(order, "totalQuantity", 0.0),
+                    "action": order.action,
+                    "order_type": order.orderType,
+                    "tif": order.tif,
+                    "quantity": order.totalQuantity,
+                    "lmt_price": order.lmtPrice,
+                    "aux_price": order.auxPrice,
+                    "status": "PendingSubmit",
+                    "filled_quantity": 0.0,
+                    "remaining_quantity": order.totalQuantity,
                     "avg_fill_price": 0.0,
-                    "display_size": getattr(order, "displaySize", None),
-                    "reference_price_type": getattr(order, "referencePriceType", 0),
-                    "clearing_intent": getattr(order, "clearingIntent", None),
-                    "cash_qty": getattr(order, "cashQty", 0.0),
-                    "ref_futures_con_id": getattr(order, "refFuturesConId", None),
-                    "rule80a": getattr(order, "rule80A", "0"),
-                    "openclose": getattr(order, "openClose", ""),
-                    "volatilitytype": getattr(order, "volatilityType", 0)
                 }
             )
 
@@ -402,7 +410,6 @@ class TradingSessionDB:
             self._update_lots(execution, portfolio_id=portfolio_id, con_id=con_id)
 
             self._insert_position(
-                execution=execution,
                 portfolio_id=portfolio_id,
                 account_id=account_id,
                 con_id=con_id,
@@ -428,7 +435,6 @@ class TradingSessionDB:
 
     @staticmethod
     def insert_execution(execution: "Execution", account_id: str, portfolio_id: str, con_id: int) -> None:
-
         query = text("""
             INSERT INTO executions (
                 exec_id, perm_id, account_id, portfolio_id, con_id,
@@ -527,15 +533,17 @@ class TradingSessionDB:
                 price,
                 created_at
             )
-            VALUES (
-                :portfolio_id,
-                :con_id,
-                :buy_exec_id,
-                :open_quantity,
-                0,
-                :price,
-                NOW()
+            VALUES (:portfolio_id,
+                    :con_id,
+                    :buy_exec_id,
+                    :open_quantity,
+                    0,
+                    :price,
+                    NOW()
             )
+            ON CONFLICT (portfolio_id, buy_exec_id) DO NOTHING
+
+            
         """)
 
         with engine.begin() as conn:
@@ -667,55 +675,71 @@ class TradingSessionDB:
                 },
             )
 
+    @staticmethod
     def _insert_position(
-            self,
-            execution,
             portfolio_id: str,
             account_id: str,
             con_id: int
     ) -> None:
-        filled_qty = self._D(execution.shares)
-        fill_price = self._D(execution.price)
 
-        query_select = text("""
-                            SELECT quantity, avg_cost
-                            FROM positions
-                            WHERE account_id = :account_id
-                              AND portfolio_id = :portfolio_id
-                              AND con_id = :con_id
-                            """)
+        query_exec = text("""
+                          SELECT side, shares, price
+                          FROM executions
+                          WHERE account_id = :account_id
+                            AND portfolio_id = :portfolio_id
+                            AND con_id = :con_id
+                          """)
 
         with engine.begin() as conn:
-            result = conn.execute(query_select, {
+            executions = conn.execute(query_exec, {
                 "account_id": account_id,
                 "portfolio_id": portfolio_id,
                 "con_id": con_id
-            }).fetchone()
+            }).fetchall()
 
+        total_qty = Decimal("0.0")
+        total_cost = Decimal("0.0")
 
-            if result:
-                existing_qty, existing_avg = self._D(result.quantity), self._D(result.avg_cost)
-            else:
-                existing_qty, existing_avg = self._D("0.0"), self._D("0.0")
+        for exec_row in executions:
+            side = exec_row.side
+            shares = Decimal(exec_row.shares)
+            price = Decimal(exec_row.price)
 
+            if side == "BOT":
+                total_cost += shares * price
+                total_qty += shares
 
-            if execution.side == "BOT":
-                total_qty = existing_qty + filled_qty
-                total_cost = existing_qty * existing_avg + filled_qty * fill_price
-                avg_cost = total_cost / total_qty if total_qty > 0 else self._D("0.0")
+            elif side == "SLD":
+                total_qty -= shares
 
-            elif execution.side == "SLD":
-                total_qty = existing_qty - filled_qty
-                avg_cost = existing_avg
+                if total_qty <= 0:
+                    query_delete = text("""
+                                        DELETE
+                                        FROM positions
+                                        WHERE account_id = :account_id
+                                          AND portfolio_id = :portfolio_id
+                                          AND con_id = :con_id
+                                        """)
+                    with engine.begin() as conn:
+                        conn.execute(query_delete, {
+                            "account_id": account_id,
+                            "portfolio_id": portfolio_id,
+                            "con_id": con_id
+                        })
+                    return
 
-            query_upsert = text("""
-                                INSERT INTO positions(account_id, portfolio_id, con_id, quantity, avg_cost)
-                                VALUES (:account_id, :portfolio_id, :con_id, :quantity, :avg_cost)
-                                ON CONFLICT(account_id, portfolio_id, con_id)
-                                    DO UPDATE SET quantity   = :quantity,
-                                                  avg_cost   = :avg_cost,
-                                                  updated_at = NOW()
-                                """)
+        avg_cost = total_cost / total_qty if total_qty > 0 else Decimal("0.0")
+
+        query_upsert = text("""
+                            INSERT INTO positions(account_id, portfolio_id, con_id, quantity, avg_cost)
+                            VALUES (:account_id, :portfolio_id, :con_id, :quantity, :avg_cost)
+                            ON CONFLICT(account_id, portfolio_id, con_id)
+                                DO UPDATE SET quantity   = :quantity,
+                                              avg_cost   = :avg_cost,
+                                              updated_at = NOW()
+                            """)
+
+        with engine.begin() as conn:
             conn.execute(query_upsert, {
                 "account_id": account_id,
                 "portfolio_id": portfolio_id,
@@ -838,10 +862,15 @@ class TradingSessionDB:
                              :amount,
                              :currency,
                              NOW())
+                     ON CONFLICT (exec_id, type) DO NOTHING
                      """)
 
         with engine.begin() as conn:
             for entry in entries:
+                if entry["type"] == "COMMISSION" and entry["amount"] == 0:
+                    continue
+                currency = entry.get("currency") or "USD"
+
                 conn.execute(query, {
                     "account_id": account_id,
                     "portfolio_id": portfolio_id,
@@ -849,8 +878,10 @@ class TradingSessionDB:
                     "exec_id": entry["exec_id"],
                     "type": entry["type"],
                     "amount": entry["amount"],
-                    "currency": entry["currency"],
+                    "currency": currency,
                 })
+
+
 
     @staticmethod
     def _D(value) -> Decimal:
