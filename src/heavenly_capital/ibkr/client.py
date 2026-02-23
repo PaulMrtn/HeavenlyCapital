@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Dict, Iterable, Callable
 
-from ib_async import IB, Ticker, Contract, ExecutionFilter
+from ib_async import IB, Ticker, Contract, Order
 
 from heavenly_capital.models.account import AccountState
 
@@ -36,7 +36,7 @@ class ClientStatus:
 class IBKRSessionRegistry:
     def __init__(self, clients: Iterable["IBKRClient"]):
         self._clients: Dict[str, "IBKRClient"] = {
-            c.session_name: c for c in clients
+            c.account_id: c for c in clients
         }
 
         self._validate()
@@ -55,8 +55,8 @@ class IBKRSessionRegistry:
             raise RuntimeError("Multiple MASTER sessions detected")
 
 
-    def get(self, session_name: str) -> "IBKRClient":
-        return self._clients[session_name]
+    def get(self, session_id: str) -> "IBKRClient":
+        return self._clients[session_id]
 
     def get_master(self) -> "IBKRClient":
         for c in self._clients.values():
@@ -75,6 +75,12 @@ class IBKRSessionRegistry:
         return list(self._clients.values())
 
 
+@dataclass
+class IBKREvents:
+    order_status: Optional[Callable[..., None]] = None
+    exec_details: Optional[Callable[..., None]] = None
+    commission_report: Optional[Callable[..., None]] = None
+
 
 class IBKRClient:
     def __init__(
@@ -83,6 +89,7 @@ class IBKRClient:
         session_name: str,
         host: str,
         port: int,
+        account_id: str,
         account_type: str,
         permission_level: str
     ):
@@ -92,6 +99,7 @@ class IBKRClient:
         self.host = host
         self.port = port
 
+        self.account_id = account_id
         self.account_type = AccountType(account_type)
         self.permission_level = PermissionLevel(permission_level)
 
@@ -101,6 +109,8 @@ class IBKRClient:
         self._stop_event = asyncio.Event()
         self._pause_event = asyncio.Event()
         self._pause_event.set()
+
+        self.events = IBKREvents()
 
         self._running = False
 
@@ -112,10 +122,6 @@ class IBKRClient:
         )
 
 
-    # ---------------------
-    # Lifecycle
-    # ---------------------
-
     async def start(self):
         if self._running:
             return
@@ -124,13 +130,16 @@ class IBKRClient:
             await self.ib_client.connectAsync(
                 host=self.host,
                 port=self.port,
-                clientId=self.client_id
+                clientId=self.client_id # to update with session_name
             )
 
         except ConnectionError:
             # TODO: HIGHEST ADD SHUTDOWN HERE
             return
 
+        self.ib_client.orderStatusEvent += self._handle_order_status
+        self.ib_client.execDetailsEvent += self._handle_exec_details
+        self.ib_client.commissionReportEvent += self._handle_commission_report
 
         self._running = True
         self._stop_event.clear()
@@ -173,12 +182,8 @@ class IBKRClient:
         self._pause_event.set()
         self.status.state = ClientState.RUNNING
 
-
-    # ---------------------
-    # Main Task Run Loop
-    # ---------------------
-
     async def _run(self):
+        # TODO:HIGH - Check the necessity of this function
         try:
             while not self._stop_event.is_set():
                 await self._pause_event.wait()
@@ -187,6 +192,23 @@ class IBKRClient:
 
         except asyncio.CancelledError:
             pass
+
+    def _handle_order_status(self, *args):
+        if self.events.order_status:
+            self.events.order_status(self, *args)
+
+    def _handle_exec_details(self, *args):
+        if self.events.exec_details:
+            self.events.exec_details(self, *args)
+
+    def _handle_commission_report(self, *args):
+        if self.events.commission_report:
+            self.events.commission_report(self, *args)
+
+
+    # ------ API ------------------------
+    def place_order(self, contract: "Contract", order: "Order"):
+        self.ib_client.placeOrder(contract=contract, order=order)
 
 
 
@@ -209,6 +231,7 @@ class ClientManager:
                     session_name=cfg["session_name"],
                     host=cfg["host"],
                     port=cfg["port"],
+                    account_id=cfg["account_id"],
                     account_type=cfg["account_type"],
                     permission_level=cfg["permission_level"]
                 )
@@ -260,6 +283,9 @@ class ClientManager:
     def paper_sessions(self) -> list["IBKRClient"]:
         return self._registry.get_by_account_type(AccountType.PAPER)
 
+    def get_client_by_id(self, session_id) -> "IBKRClient":
+        return self._registry.get(session_id=session_id)
+
     async def qualify_contracts(self, contracts: list[Contract]) -> list[Contract]:
         return await self.master.ib_client.qualifyContractsAsync(*contracts)
 
@@ -309,6 +335,16 @@ class ClientManager:
             raise
 
 
+
+
+
+
+
+
+
+
+
+
     # async def _start_accounts_updates(self):
     #     async def start_account_flow(gateway, acct):
     #         await gateway.ib_client.reqAccountUpdatesAsync(acct)
@@ -328,20 +364,24 @@ class ClientManager:
             # await gateway.ib_client.reqCompletedOrdersAsync(True)
 
             values = await gateway.ib_client.accountSummaryAsync()
+            print(values)
             summary = AccountState.from_account_values(values)
             print(summary)
+            #
+            # portfolio = gateway.ib_client.portfolio()
+            # print(portfolio)
+            #
+            # positions = gateway.ib_client.positions()
+            # print(positions)
+            #
+            # trades = gateway.ib_client.trades()
+            # print(trades)
+            #
+            # orders = gateway.ib_client.orders()
+            # print(orders)
+            #
+            # executions = gateway.ib_client.executions()
+            # print(executions)
 
-            portfolio = gateway.ib_client.portfolio()
-            print(portfolio)
 
-            positions = gateway.ib_client.positions()
-            print(positions)
 
-            trades = gateway.ib_client.trades()
-            print(trades)
-
-            orders = gateway.ib_client.orders()
-            print(orders)
-
-            executions = gateway.ib_client.executions()
-            print(executions)

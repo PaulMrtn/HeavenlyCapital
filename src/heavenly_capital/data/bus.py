@@ -1,5 +1,5 @@
 from threading import Lock
-from typing import Dict, Any, List, Callable, Optional
+from typing import Dict, Any, List, Callable, Optional, Hashable
 
 
 class EventBus:
@@ -9,26 +9,26 @@ class EventBus:
         self._lock = Lock()
 
         #TODO:MEDIUM necessaire de garder une copy du dernier publish ? overflow memory
-        self._snapshots: Dict[int, Any] = {}
-        self._subscribers: Dict[int, List[Callable]] = {}
+        self._snapshots: Dict[Hashable, Any] = {}
+        self._subscribers: Dict[Hashable, List[Callable]] = {}
 
-        self._subscribers_all: List[Callable[[int, Any], None]] = []
+        self._subscribers_all: List[Callable[[Hashable, Any], None]] = []
 
         self._next_token: int = 1
-        self._subscriptions: Dict[int, tuple[str, Optional[int], Callable[[int, Any], None]]] = {}
+        self._subscriptions: Dict[int, tuple[str, Optional[Hashable], Callable[[Hashable, Any], None]]] = {}
 
-    def subscribe(self, conId: int, callback: Callable[[int, Any], None]):
+    def subscribe(self, entity_id: Hashable, callback: Callable[[Hashable, Any], None]):
         with self._lock:
-            if conId not in self._subscribers:
-                self._subscribers[conId] = []
-            self._subscribers[conId].append(callback)
+            if entity_id not in self._subscribers:
+                self._subscribers[entity_id] = []
+            self._subscribers[entity_id].append(callback)
 
         token = self._next_token
         self._next_token += 1
-        self._subscriptions[token] = ("conId", int(conId), callback)
+        self._subscriptions[token] = ("entity_id", entity_id, callback)
         return token
 
-    def subscribe_all(self, callback: Callable[[int, Any], None]) -> int:
+    def subscribe_all(self, callback: Callable[[Hashable, Any], None]) -> int:
         with self._lock:
             self._subscribers_all.append(callback)
 
@@ -37,18 +37,17 @@ class EventBus:
             self._subscriptions[token] = ("all", None, callback)
             return token
 
-    def subscribe_many(self, conIds: list[int], callback: Callable[[int, Any], None]) -> list[int]:
+    def subscribe_many(self, entity_ids: list[Hashable], callback: Callable[[Hashable, Any], None]) -> list[int]:
         tokens: list[int] = []
         with self._lock:
-            for conId in conIds:
-                conId = int(conId)
-                if conId not in self._subscribers:
-                    self._subscribers[conId] = []
-                self._subscribers[conId].append(callback)
+            for entity_id in entity_ids:
+                if entity_id not in self._subscribers:
+                    self._subscribers[entity_id] = []
+                self._subscribers[entity_id].append(callback)
 
                 token = self._next_token
                 self._next_token += 1
-                self._subscriptions[token] = ("conId", conId, callback)
+                self._subscriptions[token] = ("entity_id", entity_id, callback)
                 tokens.append(token)
 
         return tokens
@@ -59,7 +58,7 @@ class EventBus:
             if entry is None:
                 return False
 
-            scope, conId, callback = entry
+            scope, entity_id, callback = entry
 
             if scope == "all":
                 try:
@@ -68,8 +67,8 @@ class EventBus:
                     pass
                 return True
 
-            if scope == "conId" and conId is not None:
-                callbacks = self._subscribers.get(conId)
+            if scope == "entity_id" and entity_id is not None:
+                callbacks = self._subscribers.get(entity_id)
                 if not callbacks:
                     return True
                 try:
@@ -77,16 +76,16 @@ class EventBus:
                 except ValueError:
                     pass
                 if not callbacks:
-                    self._subscribers.pop(conId, None)
+                    self._subscribers.pop(entity_id, None)
                 return True
 
             return True
 
-    def publish(self, conId: int, data: Any):
+    def publish(self, entity_id: Hashable, data: Any):
         with self._lock:
-            self._snapshots[conId] = data
+            self._snapshots[entity_id] = data
 
-            callbacks_specific = self._subscribers.get(conId, [])
+            callbacks_specific = self._subscribers.get(entity_id, [])
             callbacks_all = self._subscribers_all
             if not callbacks_specific and not callbacks_all:
                 return
@@ -94,12 +93,13 @@ class EventBus:
 
         for cb in target_callbacks:
             try:
-                cb(conId, data)
+                cb(entity_id, data)
             except Exception as e:
-                print(f"[{self.name}] Erreur Callback pour {conId}: {e}")
+                print(f"[{self.name}] Erreur Callback pour {entity_id}: {e}")
 
 
-    def get_last(self, conId: int) -> Optional[Any]:
+    #TODO:MEDIUM necessaire de garder une copy du dernier publish ? overflow memory
+    def get_last(self, entity_id: Hashable) -> Optional[Any]:
         with self._lock:
-            return self._snapshots.get(conId)
+            return self._snapshots.get(entity_id)
 
