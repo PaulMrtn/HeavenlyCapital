@@ -4,12 +4,13 @@ from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 
 from heavenly_capital.models.order import OrderRequest
+from heavenly_capital.models.order import OrderTracker
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey, GlobalOrderRouter
 
-OrderPolicy= Callable[[Dict[str, Any]], bool]
+OrderPolicy = Callable[[Dict[str, Any]], bool]
 
 
 
@@ -53,7 +54,7 @@ class OrderManager:
     def set_router(self, router: "GlobalOrderRouter") -> None:
         self._router = router
 
-    def route_order(self, order: "OrderRequest") -> None:
+    def route_order(self, order: "OrderTracker") -> None:
         if self._router is None:
             raise RuntimeError("OrderManager: router non configuré (set_router() non appelé)")
         if self._key is None:

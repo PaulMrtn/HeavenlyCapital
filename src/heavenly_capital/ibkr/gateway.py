@@ -6,6 +6,7 @@ from typing import Optional, Any, Callable, TYPE_CHECKING
 from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder
 
 from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
+from heavenly_capital.core.session_manager import TradingSessionKey
 from heavenly_capital.ibkr.client import ClientManager
 from heavenly_capital.models.order import OrderTracker, OrderRequest
 from heavenly_capital.models.tickers import UniverseSnapshot
@@ -13,6 +14,10 @@ from heavenly_capital.models.tickers import UniverseSnapshot
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
 
+
+from heavenly_capital.data.db_mock import TradingSessionDB
+
+tsDB = TradingSessionDB()
 
 
 CLIENTS_CONFIG = [
@@ -62,15 +67,26 @@ class IBKRGateway(AsyncRuntimeModule):
         self.manager = ClientManager(CLIENTS_CONFIG) # config.sessions
         self._configured = True
 
+    def _wrap_event(self, handler):
+        def wrapper(*args, **kwargs):
+            try:
+                return handler(*args, **kwargs)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+
+        return wrapper
+
     async def start(self) -> None:
         if not self._configured:
             raise RuntimeError("IBKRGateway: start() called before configure()")
         await self.manager.start()
 
         for client in self.manager.all:
-            client.events.order_status = self._on_order_status
-            client.events.exec_details = self._on_fill
-            client.events.commission_report = self._on_commission
+            client.events.order_status = self._wrap_event(self._on_order_status)
+            client.events.exec_details = self._wrap_event(self._on_fill)
+            client.events.commission_report = self._wrap_event(self._on_commission)
+
 
         self._started = True
 
@@ -103,9 +119,9 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # --- order / trade API ----------
 
-# Cehck si dans lobjet OGR cette fonction qui compatabiel (nouvelle singature)
+# Check si dans l'objet OGR cette fonction qui compatible (nouvelle singature)
 
-    def order_sink(self, tracker: "OrderTracker") -> None:
+    def order_sink(self, session_key: "TradingSessionKey", tracker: "OrderTracker") -> None:
         if not self._configured or not self._started:
             raise RuntimeError("IBKRGateway: order_sink() called while not started/configured")
 
@@ -128,19 +144,20 @@ class IBKRGateway(AsyncRuntimeModule):
 
     @staticmethod
     def _build_order_ib(order: "OrderRequest") -> "Order":
-        if order.order_type == "MARKET":
+        if order.order_type == "MKT":
             ib_order = MarketOrder(
                 orderId=None,
                 action=order.side,
                 totalQuantity=order.quantity
             )
-        elif order.order_type == "LIMIT":
+        elif order.order_type == "LMT":
             ib_order = LimitOrder(
                 orderId=None,
                 action=order.side,
                 totalQuantity=order.quantity,
                 lmtPrice=order.limit_price
             )
+            ib_order.outsideRth = True
         else:
             raise ValueError(f"Unsupported order_type {order.order_type}")
 
@@ -171,7 +188,6 @@ class IBKRGateway(AsyncRuntimeModule):
     def contracts(self) -> dict[str, "Contract"] :
         return self._contracts
 
-
     @staticmethod
     def _map_snapshot_to_ibkr_contracts(snapshot: UniverseSnapshot) -> dict[str, Contract]:
         contracts_map = {}
@@ -193,7 +209,6 @@ class IBKRGateway(AsyncRuntimeModule):
             contracts_map[asset_id] = Contract.create(**kwargs)
 
         return contracts_map
-
 
 
     # --- Wrappers de Contrôle ---
@@ -235,59 +250,24 @@ class IBKRGateway(AsyncRuntimeModule):
     def _on_order_status(self, trade: Trade):
         tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
 
-        self._update_order_in_db(trade, perm_id, portfolio_id, account_id)
+        tsDB.update_order_in_db(
+            trade=trade,
+            perm_id=perm_id,
+            portfolio_id=portfolio_id,
+            account_id=account_id
+        )
 
         tracker.apply_status(
             ib_order_id=trade.order.permId,
-            status=trade.orderStatus.status,
-            filled=trade.orderStatus.filled,
-            remaining=trade.orderStatus.remaining,
-            avg_fill_price=trade.orderStatus.avgFillPrice
+            status=trade.orderStatus.status
         )
-
-    def _update_order_in_db(
-            self,
-            trade: "Trade",
-            perm_id: int,
-            portfolio_id: str,
-            account_id: str
-    ):
-        order_status = trade.orderStatus
-        order = trade.order
-        contract = trade.contract
-
-        if not self._ports.data_access.order_exists(perm_id):
-            self._ports.data_access.insert_order(
-                order=order,
-                perm_id=perm_id,
-                portfolio_id=portfolio_id,
-                account_id=account_id
-            )
-
-        self._ports.data_access.update_order_status(
-            perm_id=perm_id,
-            status=order_status.status,
-            filled_quantity=order_status.filled,
-            remaining_quantity=order_status.remaining,
-            avg_fill_price=order_status.avgFillPrice
-        )
-
-        if order_status.status in ("Filled", "Cancelled", "Inactive", "ApiCancelled"):
-            self._ports.data_access.mark_order_closed(
-                trade=trade,
-                con_id=contract.conId,
-                portfolio_id=portfolio_id,
-                account_id=account_id
-            )
-
-            # retry_order(order_id)
 
     def _on_fill(self, trade: "Trade", fill: "Fill"):
         tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
         execution = fill.execution
         con_id = trade.contract.conId
 
-        self._update_fill_in_db(
+        tsDB.update_fill_in_db(
             execution=execution,
             fill=fill,
             account_id=account_id,
@@ -301,74 +281,18 @@ class IBKRGateway(AsyncRuntimeModule):
             avg_price=execution.avgPrice
         )
 
-    def _update_fill_in_db(
-            self,
-            *,
-            execution,
-            fill,
-            account_id: str,
-            portfolio_id: str,
-            con_id: int
-    ):
-        self._ports.data_access.insert_execution(
-            execution=execution,
-            account_id=account_id,
-            portfolio_id=portfolio_id,
-            con_id=con_id
-        )
-
-        self._ports.data_access._update_lots(
-            execution=execution,
-            portfolio_id=portfolio_id,
-            con_id=con_id
-        )
-
-        self._ports.data_access._insert_position(
-            portfolio_id=portfolio_id,
-            account_id=account_id,
-            con_id=con_id
-        )
-
-        self._ports.data_access.update_portfolio_ledger(
-            execution=execution,
-            commission=getattr(fill, "commissionReport", None),
-            account_id=account_id,
-            portfolio_id=portfolio_id,
-            con_id=con_id
-        )
-
-
     def _on_commission(self, trade: "Trade", fill: "Fill", commission: "CommissionReport"):
         tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
         execution = fill.execution
-        con_id = execution.contract.conId
+        con_id = trade.contract.conId
 
-        self._update_commission_in_db(
+        tsDB.update_commission_in_db(
             execution=execution,
             commission=commission,
             account_id=account_id,
             portfolio_id=portfolio_id,
             con_id=con_id
         )
-
-    def _update_commission_in_db(
-        self,
-        *,
-        execution,
-        commission,
-        account_id: str,
-        portfolio_id: str,
-        con_id: int
-    ):
-        self._ports.data_access.update_portfolio_ledger(
-            execution=execution,
-            commission=commission,
-            account_id=account_id,
-            portfolio_id=portfolio_id,
-            con_id=con_id
-        )
-
-
 
 
 

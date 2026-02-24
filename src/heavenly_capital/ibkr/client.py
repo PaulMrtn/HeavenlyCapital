@@ -195,15 +195,15 @@ class IBKRClient:
 
     def _handle_order_status(self, *args):
         if self.events.order_status:
-            self.events.order_status(self, *args)
+            self.events.order_status(*args)
 
     def _handle_exec_details(self, *args):
         if self.events.exec_details:
-            self.events.exec_details(self, *args)
+            self.events.exec_details(*args)
 
     def _handle_commission_report(self, *args):
         if self.events.commission_report:
-            self.events.commission_report(self, *args)
+            self.events.commission_report(*args)
 
 
     # ------ API ------------------------

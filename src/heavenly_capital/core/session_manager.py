@@ -11,7 +11,7 @@ from uuid import uuid4, UUID
 from heavenly_capital.core.runtime_config import SessionConfig
 from heavenly_capital.core.system_manager import RuntimeModule
 from heavenly_capital.models.market_data import ReadOnlyTicker
-from heavenly_capital.models.order import OrderRequest
+from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
@@ -64,7 +64,7 @@ class MarketDaySessionSnapshot:
 class RoutedOrder:
     seq: int
     session_key: TradingSessionKey
-    order: OrderRequest
+    order: OrderTracker
 
 
 class GlobalOrderRouter:
@@ -72,7 +72,7 @@ class GlobalOrderRouter:
     def __init__(
             self,
             *,
-            sink: Callable[[TradingSessionKey, Dict[str, Any]], None] | None,
+            sink: Callable[["TradingSessionKey", "OrderTracker"], None] | None,
             start_worker: bool = True,
             name: str = "global-order-router",
     ) -> None:
@@ -102,7 +102,7 @@ class GlobalOrderRouter:
             # TODO:HIGH : add .join() to threadPool
             self._worker.join()
 
-    def route_order(self, *, session_key: TradingSessionKey, order: OrderRequest) -> None:
+    def route_order(self, *, session_key: TradingSessionKey, order: "OrderTracker") -> None:
         with self._cv:
             if self._closed:
                 return
