@@ -11,20 +11,17 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class TickerUniverseSnapshot:
-    asset_id: str
     symbol: str
     asset_type: AssetType
-    tickers: list[str]
-    updated_at: datetime
+    name: str
+    sector: str
     con_id: Optional[int] = None
     exchange: str = "SMART"
     currency: str = "USD"
     primary_exchange: Optional[str] = None
 
 
-
 @dataclass(frozen=True)
 class UniverseSnapshot:
     universe_id: str
-    as_of: datetime
-    constituents: Mapping[str, TickerUniverseSnapshot]
+    constituents: Mapping[int, TickerUniverseSnapshot]

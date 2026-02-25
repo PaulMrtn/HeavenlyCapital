@@ -46,10 +46,7 @@ engine = create_postgres_engine(
 )
 
 
-def D(value):
-    if value is None:
-        return Decimal("0")
-    return Decimal(str(value))
+
 
 
 class TradingSessionDB:
@@ -274,13 +271,40 @@ class TradingSessionDB:
         return portfolios
 
     @staticmethod
+    def insert_instrument(
+        symbol: str,
+        currency: str,
+        long_name: str | None = None,
+        sector: str | None = None,
+    ) -> None:
+
+        query = text("""
+            INSERT INTO instruments (symbol, currency, long_name, sector)
+            VALUES (:symbol, :currency, :long_name, :sector)
+            RETURNING instrument_id
+        """)
+
+        with engine.begin() as conn:
+             conn.execute(
+                query,
+                {
+                    "symbol": symbol,
+                    "currency": currency,
+                    "long_name": long_name,
+                    "sector": sector
+                }
+            )
+
+    @staticmethod
     def insert_contract(contract) -> None:
         query = text("""
             INSERT INTO contracts (
-                con_id, symbol, sec_type, exchange, primary_exchange, currency, local_symbol, trading_class
+                con_id, instrument_id, symbol, sec_type, exchange, primary_exchange, currency, local_symbol, trading_class
             )
             VALUES (
-                :con_id, :symbol, :sec_type, :exchange, :primary_exchange, :currency, :local_symbol, :trading_class
+                :con_id,
+                (SELECT instrument_id FROM instruments WHERE symbol = :symbol AND currency = :currency), 
+                :symbol, :sec_type, :exchange, :primary_exchange, :currency, :local_symbol, :trading_class
             )
             ON CONFLICT (con_id) DO NOTHING;
         """)
@@ -299,6 +323,18 @@ class TradingSessionDB:
                     "trading_class": contract.tradingClass
                 }
             )
+
+    @staticmethod
+    def fetch_contracts() -> list[dict]:
+        query = """
+            SELECT con_id, symbol, sec_type, exchange, primary_exchange, currency
+            FROM contracts
+        """
+        query = text(query)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            contracts = [dict(row) for row in result.mappings().all()]
+        return contracts
 
 
     @staticmethod
@@ -657,6 +693,7 @@ class TradingSessionDB:
 
         total_qty = Decimal("0.0")
         total_cost = Decimal("0.0")
+        net_qty = Decimal("0.0")
 
         for exec_row in executions:
             side = exec_row.side
@@ -666,11 +703,10 @@ class TradingSessionDB:
             if side == "BOT":
                 total_qty += shares
                 total_cost += shares * price
-
+                net_qty += shares
             elif side == "SLD":
-                total_qty -= shares
-
-                if total_qty < 0:
+                net_qty -= shares
+                if net_qty < 0:
                     raise ValueError("SELL execution exceeds available quantity")
 
         avg_cost = total_cost / total_qty if total_qty > 0 else Decimal("0.0")
@@ -688,7 +724,7 @@ class TradingSessionDB:
                 "account_id": account_id,
                 "portfolio_id": portfolio_id,
                 "con_id": con_id,
-                "quantity": total_qty,
+                "quantity": net_qty,
                 "avg_cost": avg_cost
             })
         else:
@@ -941,6 +977,31 @@ class TradingSessionDB:
                 con_id=con_id
             )
 
+    @staticmethod
+    def fetch_instruments() -> list[dict]:
+        query = """
+            SELECT 
+                c.con_id,
+                c.symbol,
+                c.sec_type,
+                c.exchange,
+                c.primary_exchange,
+                c.currency,
+                i.long_name,
+                i.sector
+            FROM contracts c
+            LEFT JOIN instruments i
+                ON c.instrument_id = i.instrument_id
+        """
+        query = text(query)
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            contracts = [dict(row) for row in result.mappings().all()]
+        return contracts
+
+
+
+    # UTILITIES
 
     @staticmethod
     def _D(value) -> Decimal:
@@ -949,3 +1010,7 @@ class TradingSessionDB:
     @staticmethod
     def _quantize(value: Decimal) -> Decimal:
         return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+
+

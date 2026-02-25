@@ -9,7 +9,7 @@ from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
 from heavenly_capital.core.session_manager import TradingSessionKey
 from heavenly_capital.ibkr.client import ClientManager
 from heavenly_capital.models.order import OrderTracker, OrderRequest
-from heavenly_capital.models.tickers import UniverseSnapshot
+from heavenly_capital.models.tickers import UniverseSnapshot, TickerUniverseSnapshot
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
@@ -173,11 +173,31 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # --- Gestion des contrats ----
 
-    def fetch_universe_snapshot(self):
-        return self._ports.data_access.get_universe_snapshot()
+    @staticmethod
+    def get_universe_snapshot(universe_id: str) -> UniverseSnapshot:
+        # TODO: MEDIUM Move this function in the correct module
+        contracts = tsDB.fetch_instruments()
+        constituents = {}
 
+        for c in contracts:
+            snapshot = TickerUniverseSnapshot(
+                symbol=c["symbol"],
+                asset_type=c["sec_type"],
+                name=c["long_name"],
+                sector=c["sector"],
+                con_id=c["con_id"],
+                exchange=c.get("exchange") or "SMART",
+                currency=c.get("currency") or "USD",
+                primary_exchange=c.get("primary_exchange")
+            )
+            constituents[snapshot.con_id] = snapshot
+
+        return UniverseSnapshot(
+            universe_id=universe_id,
+            constituents=constituents
+        )
     async def load_universe_snapshot(self) -> None:
-        snapshot = self.fetch_universe_snapshot()
+        snapshot = self.get_universe_snapshot("SP500 Sample")
         id_to_contract_map = self._map_snapshot_to_ibkr_contracts(snapshot)
 
         await self.manager.qualify_contracts(list(id_to_contract_map.values()))
@@ -193,24 +213,16 @@ class IBKRGateway(AsyncRuntimeModule):
         return self._contracts
 
     @staticmethod
-    def _map_snapshot_to_ibkr_contracts(snapshot: UniverseSnapshot) -> dict[str, Contract]:
+    def _map_snapshot_to_ibkr_contracts(snapshot: UniverseSnapshot):
         contracts_map = {}
-        for asset_id, ticker_data in snapshot.constituents.items():
-
+        for con_id, ticker_data in snapshot.constituents.items():
             kwargs = {
                 "symbol": ticker_data.symbol,
-                "secType": ticker_data.asset_type.value,
+                "secType": ticker_data.asset_type,
                 "exchange": getattr(ticker_data, "exchange", "SMART") or "SMART",
-                "currency": getattr(ticker_data, "currency", "USD") or "USD",
+                "currency": getattr(ticker_data, "currency", "USD") or "USD"
             }
-
-            if hasattr(ticker_data, "last_trade_date"):
-                kwargs["lastTradeDateOrContractMonth"] = ticker_data.last_trade_date
-            if hasattr(ticker_data, "strike"):
-                kwargs["strike"] = ticker_data.strike
-                kwargs["right"] = ticker_data.right
-
-            contracts_map[asset_id] = Contract.create(**kwargs)
+            contracts_map[con_id] = Contract.create(**kwargs)
 
         return contracts_map
 
@@ -242,7 +254,8 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # ---------------------------------
 
-    # ----- Handler ------------
+    # ----- Handler -------------------
+
     def _extract_ids(self, trade: "Trade"):
         order = trade.order
         perm_id = order.permId
@@ -250,6 +263,7 @@ class IBKRGateway(AsyncRuntimeModule):
         portfolio_id = tracker.request.portfolio_id
         account_id = tracker.request.account_id
         return tracker, perm_id, portfolio_id, account_id
+
 
     def _on_order_status(self, trade: Trade):
         tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
@@ -301,6 +315,8 @@ class IBKRGateway(AsyncRuntimeModule):
         tracker.state.add_commission(
             amount=commission.commission
         )
+
+    # ---------------------------------
 
 
 _instance: Optional[IBKRGateway] = None
