@@ -291,53 +291,33 @@ class TradingSessionDB:
                 {
                     "con_id": contract.conId,
                     "symbol": contract.symbol,
-                    "sec_type": getattr(contract, 'secType', 'STK'),  # default STK
-                    "exchange": getattr(contract, 'exchange', None),
-                    "primary_exchange": getattr(contract, 'primaryExchange', None),
+                    "sec_type": contract.secType,
+                    "exchange": contract.exchange,
+                    "primary_exchange": contract.primaryExchange,
                     "currency": contract.currency,
-                    "local_symbol": getattr(contract, 'localSymbol', None),
-                    "trading_class": getattr(contract, 'tradingClass', None)
+                    "local_symbol": contract.localSymbol,
+                    "trading_class": contract.tradingClass
                 }
             )
 
+
     @staticmethod
     def insert_order(order: "Order", account_id: str, portfolio_id: str, con_id: int) -> None:
-
         query = text("""
-                     INSERT INTO orders (perm_id, 
-                                         account_id,
-                                         portfolio_id,
-                                         con_id,
-                                         action,
-                                         order_type,
-                                         tif,
+                     INSERT INTO orders (perm_id, account_id, portfolio_id, con_id, action, order_ref, order_type, tif,
                                          quantity,
-                                         lmt_price,
-                                         aux_price,
-                                         status,
-                                         filled_quantity,
-                                         remaining_quantity,
+                                         lmt_price, aux_price, status, filled_quantity, remaining_quantity,
                                          avg_fill_price,
-                                         created_at,
-                                         updated_at)
-                     VALUES (:perm_id,
-                             :account_id,
-                             :portfolio_id,
-                             :con_id,
-                             :action,
-                             :order_type,
-                             :tif,
+                                         reference_price_type, oca_group, oca_type, created_at, updated_at)
+                     VALUES (:perm_id, :account_id, :portfolio_id, :con_id, :action, :order_ref, :order_type, :tif,
                              :quantity,
-                             :lmt_price,
-                             :aux_price,
-                             :status,
-                             :filled_quantity,
-                             :remaining_quantity,
-                             :avg_fill_price,
-                             NOW(),
-                             NOW())
+                             :lmt_price, :aux_price, :status, :filled_quantity, :remaining_quantity, :avg_fill_price,
+                             :reference_price_type, :oca_group, :oca_type, NOW(), NOW())
                      ON CONFLICT (perm_id) DO NOTHING
                      """)
+
+        print()
+
 
         with engine.begin() as conn:
             conn.execute(
@@ -348,6 +328,7 @@ class TradingSessionDB:
                     "portfolio_id": portfolio_id,
                     "con_id": con_id,
                     "action": order.action,
+                    "order_ref": order.orderRef,
                     "order_type": order.orderType,
                     "tif": order.tif,
                     "quantity": order.totalQuantity,
@@ -357,6 +338,9 @@ class TradingSessionDB:
                     "filled_quantity": 0.0,
                     "remaining_quantity": order.totalQuantity,
                     "avg_fill_price": 0.0,
+                    "reference_price_type": 0 if order.referencePriceType == 2147483647 else order.referencePriceType,
+                    "oca_group": order.ocaGroup,
+                    "oca_type": order.ocaType
                 }
             )
 
@@ -390,8 +374,6 @@ class TradingSessionDB:
                          updated_at         = NOW()
                      WHERE perm_id = :perm_id
                      """)
-
-        print(status)
 
         with engine.begin() as conn:
             conn.execute(

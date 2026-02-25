@@ -22,6 +22,7 @@ class OrderType(Enum):
 
 @dataclass(frozen=True)
 class OrderRequest:
+    # TODO:WARNING add attribut from order
     order_id: str
     account_id: str
     portfolio_id: str
@@ -67,6 +68,7 @@ class OrderState:
     filled_quantity: float = 0.0
     remaining_quantity: float = 0.0
     avg_fill_price: float = 0.0
+    commission: float = 0.0
 
     def initialize(self, total_quantity: float) -> None:
         if self.status != OrderStatus.CREATED:
@@ -103,6 +105,11 @@ class OrderState:
             self.status = OrderStatus.PARTIALLY_FILLED
         else:
             self.status = OrderStatus.FILLED
+
+
+    def add_commission(self, amount: float) -> None:
+        """Ajouter une commission à l'ordre."""
+        self.commission += amount
 
     def cancel(self) -> None:
         if self.status in (OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED):

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 
-from heavenly_capital.models.order import OrderRequest
 from heavenly_capital.models.order import OrderTracker
 
 if TYPE_CHECKING:

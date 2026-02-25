@@ -148,16 +148,19 @@ class IBKRGateway(AsyncRuntimeModule):
             ib_order = MarketOrder(
                 orderId=None,
                 action=order.side,
-                totalQuantity=order.quantity
+                totalQuantity=order.quantity,
+                tif='DAY'
             )
         elif order.order_type == "LMT":
             ib_order = LimitOrder(
                 orderId=None,
                 action=order.side,
                 totalQuantity=order.quantity,
-                lmtPrice=order.limit_price
+                lmtPrice=order.limit_price,
+                tif='DAY'
             )
             ib_order.outsideRth = True
+
         else:
             raise ValueError(f"Unsupported order_type {order.order_type}")
 
@@ -293,6 +296,12 @@ class IBKRGateway(AsyncRuntimeModule):
             portfolio_id=portfolio_id,
             con_id=con_id
         )
+
+        tracker.state.add_commission(
+            amount=commission.commission
+        )
+
+        print(tracker.state)
 
 
 
