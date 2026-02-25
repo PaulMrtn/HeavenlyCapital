@@ -144,6 +144,7 @@ class IBKRGateway(AsyncRuntimeModule):
 
     @staticmethod
     def _build_order_ib(order: "OrderRequest") -> "Order":
+        # TODO:WARNING update with all type of Order and all of type of attribut
         if order.order_type == "MKT":
             ib_order = MarketOrder(
                 orderId=None,
@@ -300,9 +301,6 @@ class IBKRGateway(AsyncRuntimeModule):
         tracker.state.add_commission(
             amount=commission.commission
         )
-
-        print(tracker.state)
-
 
 
 _instance: Optional[IBKRGateway] = None
