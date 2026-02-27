@@ -234,6 +234,7 @@ class TradingSession:
             "is_healthy": True,
         }
 
+    # TODO: Check the utility of this function
     def snapshot(self) -> MarketDaySessionSnapshot:
         return MarketDaySessionSnapshot(
             session_date=self.key.session_date,
@@ -381,7 +382,6 @@ class SessionManager(RuntimeModule):
                     raise HealthCheckError(result)
 
             # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session
-
 
     def load_session_state_from_database(self) -> None:
         for session in self.sessions.values():

@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing import Sequence, Optional
 from decimal import Decimal
 
 from ib_async import Order, Execution, CommissionReport
-from sqlalchemy import text, RowMapping
+from sqlalchemy import text, RowMapping, Connection
 from sqlalchemy import create_engine
 
 
@@ -352,9 +353,6 @@ class TradingSessionDB:
                      ON CONFLICT (perm_id) DO NOTHING
                      """)
 
-        print()
-
-
         with engine.begin() as conn:
             conn.execute(
                 query,
@@ -368,7 +366,7 @@ class TradingSessionDB:
                     "order_type": order.orderType,
                     "tif": order.tif,
                     "quantity": order.totalQuantity,
-                    "lmt_price": order.lmtPrice,
+                    "lmt_price": order.lmtPrice if order.auxPrice <= 1e11 else None,
                     "aux_price": order.auxPrice if order.auxPrice <= 1e11 else None,
                     "status": "PendingSubmit",
                     "filled_quantity": 0.0,
@@ -458,27 +456,6 @@ class TradingSessionDB:
             }
         )
 
-    @staticmethod
-    def update_execution_commission(commission: "CommissionReport") -> None:
-        query = text("""
-            UPDATE executions
-            SET commission = :commission,
-                commission_currency = :currency,
-                realized_pnl = :realized_pnl,
-                created_at = NOW()
-            WHERE exec_id = :exec_id
-        """)
-
-        with engine.begin() as conn:
-            conn.execute(
-                query,
-                {
-                    "exec_id": commission.execId,
-                    "commission": commission.commission,
-                    "currency": commission.currency,
-                    "realized_pnl": commission.realizedPNL
-                }
-            )
 
     def _update_lots(self, conn : "Connection", execution, portfolio_id: str, con_id: int) -> None:
         side = execution.side  # 'BOT' ou 'SLD'
@@ -741,6 +718,30 @@ class TradingSessionDB:
                 "con_id": con_id
             })
 
+    @staticmethod
+    def fetch_positions(portfolio_id: str) -> list[dict]:
+        query = text("""
+                     SELECT p.account_id,
+                            p.portfolio_id,
+                            p.con_id,
+                            c.symbol,
+                            p.quantity,
+                            p.avg_cost,
+                            p.market_price,
+                            p.market_value,
+                            p.unrealized_pnl,
+                            p.realized_pnl,
+                            p.updated_at
+                     FROM positions p
+                              JOIN contracts c
+                                   ON p.con_id = c.con_id
+                     WHERE p.portfolio_id = :portfolio_id
+                     """)
+
+        with engine.connect() as conn:
+            result = conn.execute(query, {"portfolio_id": portfolio_id})
+            return [dict(row) for row in result.mappings().all()]
+
 
     @staticmethod
     def _get_realized_pnl_from_fifo(conn: "Connection", exec_id: int) -> Decimal:
@@ -749,7 +750,6 @@ class TradingSessionDB:
                      FROM trade_lot_consumption
                      WHERE sell_exec_id = :exec_id
                      """)
-
 
         pnl = conn.execute(query, {"exec_id": exec_id}).scalar_one()
 
@@ -977,6 +977,7 @@ class TradingSessionDB:
                 con_id=con_id
             )
 
+
     @staticmethod
     def fetch_instruments() -> list[dict]:
         query = """
@@ -998,6 +999,94 @@ class TradingSessionDB:
             result = conn.execute(query)
             contracts = [dict(row) for row in result.mappings().all()]
         return contracts
+
+
+    @staticmethod
+    def insert_portfolio_target(
+            account_id: str,
+            portfolio_id: str,
+            strategy_id: str,
+            rebalance_date: str,  # format 'YYYY-MM-DD'
+            weights: dict[int, float],  # {instrument_id: target_weight}
+            tolerance: float = 0.02
+    ) -> None:
+
+        insert_target_query = text("""
+                                   INSERT INTO portfolio_targets (account_id, portfolio_id, strategy_id, rebalance_date, tolerance)
+                                   VALUES (:account_id, :portfolio_id, :strategy_id, :rebalance_date, :tolerance)
+                                   ON CONFLICT (account_id, portfolio_id, rebalance_date)
+                                       DO UPDATE SET strategy_id = EXCLUDED.strategy_id,
+                                                     tolerance   = EXCLUDED.tolerance,
+                                                     created_at  = NOW()
+                                   RETURNING target_id
+                                   """)
+
+        with engine.begin() as conn:
+            target_id = conn.execute(
+                insert_target_query,
+                {
+                    "account_id": account_id,
+                    "portfolio_id": portfolio_id,
+                    "strategy_id": strategy_id,
+                    "rebalance_date": rebalance_date,
+                    "tolerance": tolerance
+                }
+            ).scalar()
+
+            delete_weights_query = text("DELETE FROM portfolio_target_weights WHERE target_id = :target_id")
+            conn.execute(delete_weights_query, {"target_id": target_id})
+
+            insert_weight_query = text("""
+                                       INSERT INTO portfolio_target_weights (target_id, con_id, target_weight)
+                                       VALUES (:target_id, :con_id, :target_weight)
+                                       """)
+            weight_rows = [
+                {"target_id": target_id, "con_id": con_id, "target_weight": weight}
+                for con_id, weight in weights.items()
+            ]
+
+            conn.execute(insert_weight_query, weight_rows)
+
+    @staticmethod
+    def fetch_portfolio_targets(portfolio_id: str, rebalance_date: str) -> list[dict]:
+        query = text("""
+            SELECT t.target_id, t.rebalance_date, t.tolerance,
+                   w.con_id, w.target_weight
+            FROM portfolio_targets t
+            JOIN portfolio_target_weights w ON t.target_id = w.target_id
+            WHERE t.portfolio_id = :portfolio_id
+              AND t.rebalance_date = :rebalance_date
+        """)
+
+        with engine.connect() as conn:
+            result = conn.execute(query, {"portfolio_id": portfolio_id, "rebalance_date": rebalance_date})
+            return [dict(row) for row in result.mappings().all()]
+
+    @staticmethod
+    def check_rebalance_date(portfolio_id: str, today: datetime) -> bool:
+        query = text("""
+                     SELECT 1
+                     FROM portfolio_targets
+                     WHERE portfolio_id = :portfolio_id
+                       AND rebalance_date = :today
+                     LIMIT 1
+                     """)
+
+        with engine.connect() as conn:
+            result = conn.execute(query, {"portfolio_id": portfolio_id, "today": today}).fetchone()
+            return result is not None
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

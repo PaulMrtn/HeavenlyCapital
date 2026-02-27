@@ -117,6 +117,7 @@ class IBKRGateway(AsyncRuntimeModule):
         return {"is_healthy": True}
 
 
+
     # --- order / trade API ----------
 
 # Check si dans l'objet OGR cette fonction qui compatible (nouvelle singature)
@@ -245,6 +246,8 @@ class IBKRGateway(AsyncRuntimeModule):
     # ---------------------------------
 
     # ---- API ------------------------
+
+    # TODO: WARNING Get Cash and other information about account
     async def get_account_summary(self) -> None:
         await self.manager.get_account_state()
 

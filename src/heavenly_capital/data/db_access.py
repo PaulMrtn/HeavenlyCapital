@@ -20,44 +20,6 @@ class InMemorySessionDAL:
     def __init__(self):
         self._store = None
 
-    def get_portfolio_snapshot(self, account_id: str) -> "PortfolioSnapshot":
-        as_of = datetime.now(timezone.utc)
-
-        if account_id == "account_0":
-            return PortfolioSnapshot(
-                account_id=account_id,
-                as_of=as_of,
-                base_currency="USD",
-                cash=Decimal("100000.00"),
-                positions={
-                    "AAPL": Position(symbol="AAPL", quantity=Decimal("10"), avg_price=Decimal("175.50")),
-                    "MSFT": Position(symbol="MSFT", quantity=Decimal("5"), avg_price=Decimal("410.25")),
-                },
-                snapshot_version=1,
-            )
-
-        if account_id == "account_1":
-            return PortfolioSnapshot(
-                account_id=account_id,
-                as_of=as_of,
-                base_currency="USD",
-                cash=Decimal("100000.00"),
-                positions={},
-                snapshot_version=1,
-            )
-
-        return PortfolioSnapshot(
-            account_id=account_id,
-            as_of=as_of,
-            base_currency="USD",
-            cash=Decimal("0.00"),
-            positions={},
-            snapshot_version=1,
-        )
-
-
-
-
     def get_risk_snapshot(self, account_id: str) -> "RiskSnapshot":
         as_of = datetime.now(timezone.utc)
 
