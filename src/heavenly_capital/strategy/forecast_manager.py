@@ -178,7 +178,6 @@ class ForecastManager(RuntimeModule):
             "is_healthy": True,
         }
 
-
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
         for c in contracts.values():

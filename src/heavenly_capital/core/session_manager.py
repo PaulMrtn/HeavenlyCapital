@@ -8,7 +8,7 @@ from threading import Condition, RLock, Thread
 from typing import Any, Callable, Deque, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
 
-from heavenly_capital.core.runtime_config import SessionConfig
+from heavenly_capital.core.runtime_config import SessionConfig, ModuleRouter, ModuleType
 from heavenly_capital.core.system_manager import RuntimeModule
 from heavenly_capital.models.market_data import ReadOnlyTicker
 from heavenly_capital.models.order import OrderRequest, OrderTracker
@@ -16,6 +16,7 @@ from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
 from heavenly_capital.trading.risk_monitor import RiskMonitor
+
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
@@ -42,15 +43,56 @@ class TradingSessionKey:
     mode: TradingMode
 
 
-@dataclass(frozen=True)
-class SessionStack:
-    orders: OrderManager
-    portfolio: PortfolioManager
-    risk: RiskMonitor
+
+
+class TradingEngine(ModuleRouter):
+
+    def __init__(
+            self,
+            orders: BaseModule,
+            portfolio: BaseModule,
+            risk: BaseModule,
+    ) -> None:
+        self._modules: Dict[ModuleType, BaseModule] = {
+            ModuleType.ORDERS: orders,
+            ModuleType.PORTFOLIO: portfolio,
+            ModuleType.RISK: risk,
+        }
+
+        for module_type, module in self._modules.items():
+            module.bind_router(self, module_type)
+
+    def transfer(
+            self,
+            *,
+            source: ModuleType,
+            target: ModuleType,
+            payload: Any,
+    ) -> None:
+        if source == target:
+            return
+
+        target_module = self._modules[target]
+        target_module.receive(source, payload)
+
+    @property
+    def orders(self):
+        return self._modules[ModuleType.ORDERS]
+
+    @property
+    def portfolio(self):
+        return self._modules[ModuleType.PORTFOLIO]
+
+    @property
+    def risk(self):
+        return self._modules[ModuleType.RISK]
+
+
 
 
 @dataclass
 class MarketDaySessionSnapshot:
+    #TODO:MEDIUM useless ?
     session_date: date
     account_id: str
     mode: str
@@ -169,7 +211,7 @@ class TradingSession:
         self._ports: Optional["SystemPorts"] = ports
         self._router: "GlobalOrderRouter" = router
 
-        self.stack: Optional[SessionStack] = None
+        self.stack: Optional[TradingEngine] = None
 
     @property
     def ports(self) -> "SystemPorts":
@@ -190,29 +232,22 @@ class TradingSession:
         for m in (orders, portfolio, risk):
             m.configure(session_id=self.session_id, key=self.key, ports=self.ports)
 
-    @staticmethod
-    def _wire_modules(
-            *,
-            orders: "OrderManager",
-            portfolio: "PortfolioManager",
-            risk: "RiskMonitor",
-            router: "GlobalOrderRouter",
-    ) -> None:
-
-        orders.wire(
-            portfolio_authorizer=portfolio.authorize_order,
-            risk_authorizer=risk.authorize_order,
-        )
-
-        orders.set_router(router)
-
     def initialize_modules(self) -> None:
         orders, portfolio, risk = self._build_modules()
 
-        self._inject_modules(orders=orders, portfolio=portfolio, risk=risk)
-        self._wire_modules(orders=orders, portfolio=portfolio, risk=risk, router=self.router)
-        self.stack = SessionStack(orders=orders, portfolio=portfolio, risk=risk)
+        self._inject_modules(
+            orders=orders,
+            portfolio=portfolio,
+            risk=risk
+        )
 
+        orders.set_router(self.router)
+
+        self.stack = TradingEngine(
+            orders=orders,
+            portfolio=portfolio,
+            risk=risk
+        )
 
     def start(self) -> None:
         if self.state in (SessionState.RUNNING, SessionState.CLOSED):
@@ -243,6 +278,9 @@ class TradingSession:
             state=self.state.value,
             payload=dict(self._payload),
         )
+
+    def load_contracts(self, contracts: dict[str, "Contract"]) -> None:
+        self.stack.orders.load_contracts(contracts)
 
     def wire_live_tickers(self, market_state: dict[int, ReadOnlyTicker]) -> None:
         self.stack.portfolio.wire_market_state(market_state)
@@ -359,7 +397,6 @@ class SessionManager(RuntimeModule):
             router=self.router
         )
 
-
     def initialize_sessions_from_config(self) -> None:
         for session_cfg in getattr(self._config, "sessions", []):
             for portfolio_cfg in session_cfg.portfolios:
@@ -387,6 +424,11 @@ class SessionManager(RuntimeModule):
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
             session.stack.risk.load_risk_state()
+
+    def load_session_portfolio_orders(self) -> None:
+        for session in self.sessions.values():
+            session.stack.portfolio.load_portfolio_orders()
+
 
     def health_check_loaded_sessions(self) -> None:
 

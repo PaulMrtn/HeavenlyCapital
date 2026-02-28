@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
+from heavenly_capital.core.runtime_config import BaseModule, ModuleType
 from heavenly_capital.models.risk import RiskSnapshot, RiskState
 
 if TYPE_CHECKING:
@@ -10,8 +11,9 @@ if TYPE_CHECKING:
     from heavenly_capital.core.session_manager import TradingSessionKey
 
 
-class RiskMonitor:
+class RiskMonitor(BaseModule):
     def __init__(self) -> None:
+        super().__init__()
         self._session_id: Optional[UUID] = None
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
@@ -36,6 +38,12 @@ class RiskMonitor:
     def stop(self) -> None:
         self._started = False
 
+    def dispatch(self, target: ModuleType, action: str, data: Any) -> None:
+        payload = {
+            "action": action,
+            "data": data
+        }
+        self.send(target, payload)
 
     def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
 

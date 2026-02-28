@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import runtime_checkable, Protocol, Any, Optional
 from pathlib import Path
 
@@ -249,4 +250,47 @@ class AsyncRuntimeModule(RuntimeModule):
 
     @abstractmethod
     async def stop(self) -> Any:
+        pass
+
+
+
+
+
+class ModuleType(str, Enum):
+    ORDERS = "orders"
+    PORTFOLIO = "portfolio"
+    RISK = "risk"
+
+
+class ModuleRouter(ABC):
+    @abstractmethod
+    def transfer(
+        self,
+        *,
+        source: ModuleType,
+        target: ModuleType,
+        payload: Any,
+    ) -> None:
+        ...
+
+
+
+class BaseModule(ABC):
+
+    def __init__(self) -> None:
+        self._router: Optional[ModuleRouter] = None
+        self._module_type: Optional[ModuleType] = None
+
+    def bind_router(self, router: ModuleRouter, module_type: ModuleType) -> None:
+        self._router = router
+        self._module_type = module_type
+
+    def send(self, target: ModuleType, payload: Any) -> None:
+        self._router.transfer(
+            source=self._module_type,
+            target=target,
+            payload=payload,
+        )
+
+    def _receive(self, source: ModuleType, payload: Any) -> None:
         pass

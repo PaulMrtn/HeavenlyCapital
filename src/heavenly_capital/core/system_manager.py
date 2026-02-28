@@ -640,10 +640,21 @@ class SystemManager:
 
     def _sync_hubs_with_contracts(self) -> None:
         contracts = self._modules.ibkr_gateway.contracts
+
         self._modules.live_hub.initialize_pipelines(contracts)
-        self._modules.historic_hub.initialize_universe(contracts)
-        self._modules.feature_manager.initialize_universe(contracts)
-        self._modules.forecast_manager.initialize_universe(contracts)
+
+        modules = [
+            self._modules.historic_hub,
+            self._modules.feature_manager,
+            self._modules.forecast_manager
+        ]
+
+        for m in modules:
+            m.initialize_universe(contracts)
+
+        for session in self._modules.session_manager.sessions.values():
+            session.load_contracts(contracts)
+
 
 # endregion
 

@@ -120,7 +120,7 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # --- order / trade API ----------
 
-# Check si dans l'objet OGR cette fonction qui compatible (nouvelle singature)
+# Check si dans l'objet OGR cette fonction qui compatible (nouvelle signature)
 
     def order_sink(self, session_key: "TradingSessionKey", tracker: "OrderTracker") -> None:
         if not self._configured or not self._started:
@@ -210,7 +210,7 @@ class IBKRGateway(AsyncRuntimeModule):
         }
 
     @property
-    def contracts(self) -> dict[str, "Contract"] :
+    def contracts(self) -> dict[str, Contract] | None:
         return self._contracts
 
     @staticmethod

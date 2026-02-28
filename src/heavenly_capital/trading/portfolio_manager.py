@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import UUID
 
+from heavenly_capital.core.runtime_config import BaseModule, ModuleType
 from heavenly_capital.models.order import OrderRequest
 from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget
 from heavenly_capital.data.db_mock import TradingSessionDB
@@ -17,8 +18,9 @@ if TYPE_CHECKING:
 tsDB = TradingSessionDB()
 
 
-class PortfolioManager:
+class PortfolioManager(BaseModule):
     def __init__(self) -> None:
+        super().__init__()
         self._session_id: Optional[UUID] = None
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
@@ -44,7 +46,12 @@ class PortfolioManager:
     def stop(self) -> None:
         self._started = False
 
-    def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
+    def dispatch(self, target: ModuleType, action: str, data: Any) -> None:
+        payload = {
+            "action": action,
+            "data": data
+        }
+        self.send(target, payload)
 
     def load_portfolio_state(self) -> None:
         if not self._configured:
@@ -56,7 +63,7 @@ class PortfolioManager:
 
         self._portfolio = Portfolio.from_snapshot(snapshot)
 
-    def load_portfolio_targets(self):
+    def load_portfolio_orders(self):
         today = self._ports.market_calendar.today()
         portfolio_id = self._key.portfolio_id
 
@@ -67,9 +74,8 @@ class PortfolioManager:
             )
 
             orders = self.build_rebalance_orders()
-            print(orders)
 
-
+            self.dispatch(ModuleType.ORDERS, "order_request", orders)
 
     @property
     def portfolio_state(self) -> Optional[Portfolio]:
@@ -104,6 +110,7 @@ class PortfolioManager:
         else:
             as_of = None
 
+        # TODO:WARNING load cash from AccountSummary
         cash = Decimal("100000")
 
         return PortfolioSnapshot(
@@ -140,13 +147,19 @@ class PortfolioManager:
         all_instruments = set(self._portfolio.positions.keys()) | set(self._portfolio_target.weights.keys())
 
         for con_id in all_instruments:
-            target_weight = Decimal(str(self._portfolio_target.weights.get(con_id, 0)))
+
+            market_data = self._market_state.get(con_id).as_dict()
+            last = market_data.get("bid")
+            market_price = Decimal(str(last))
+            if market_price <= 0:
+                continue
 
             position = self._portfolio.positions.get(con_id)
             current_qty = position.quantity if position else Decimal("0")
-            market_price = position.market_price if position and position.market_price is not None else None
-            if market_price is None or market_price == 0:
-                continue
+
+            target_weight = Decimal(str(
+                self._portfolio_target.weights.get(con_id, 0)
+            ))
 
             target_value = target_weight * total_value
             target_qty = (target_value / market_price).quantize(Decimal("1"), rounding=ROUND_DOWN)
@@ -181,6 +194,13 @@ class PortfolioManager:
 
             position.mark_to_market(market_data)
 
+    def authorize_order(self, con_id: int) -> None:
+        auth_payload = {
+            "con_id": con_id,
+            "authorized":True
+        }
+
+        self.dispatch(ModuleType.ORDERS, "authorize_order", auth_payload)
 
 
 
