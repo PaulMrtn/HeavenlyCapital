@@ -1,17 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, UTC
 from decimal import Decimal
-from typing import Dict, Mapping, Optional, Union, Any
+from typing import Dict, Mapping, Optional, Any
 
 
-@dataclass(frozen=True, slots=True)
-class PortfolioLedger:
-    account_id: str
-    strategy_id: str
-    portfolio_id: str
-    portfolio_name: str
-    enabled: bool
-    cash: Dict[str, Optional[Union[Decimal, float]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -61,11 +53,18 @@ class Position:
 
 
 @dataclass(frozen=True, slots=True)
-class PortfolioSnapshot:
-    account_id: str
-    as_of: datetime
-    base_currency: str
+class PortfolioBalance:
     cash: Decimal
+    stock_market_value: Decimal
+    unrealized_pnl: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioSnapshot:
+    portfolio_id : str
+    account_id: str
+    base_currency: str
+    balance: PortfolioBalance
     positions: Mapping[int, Position]
 
 
@@ -77,27 +76,27 @@ class PortfolioTarget:
 @dataclass(slots=True)
 class Portfolio:
     account_id: str
-    as_of: Optional[datetime]
+    portfolio_id: str
     base_currency: str
-    cash: Decimal
+    balance: PortfolioBalance
     positions: Dict[int, Position]
 
     @classmethod
     def from_snapshot(cls, snapshot: PortfolioSnapshot) -> "Portfolio":
         return cls(
             account_id=snapshot.account_id,
-            as_of=snapshot.as_of,
+            portfolio_id=snapshot.portfolio_id,
             base_currency=snapshot.base_currency,
-            cash=snapshot.cash,
+            balance=snapshot.balance,
             positions=dict(snapshot.positions)
         )
 
     def to_snapshot(self) -> PortfolioSnapshot:
         return PortfolioSnapshot(
             account_id=self.account_id,
-            as_of=self.as_of,
+            portfolio_id=self.portfolio_id,
             base_currency=self.base_currency,
-            cash=self.cash,
+            balance=self.balance,
             positions=dict(self.positions)
         )
 
@@ -106,7 +105,7 @@ class Portfolio:
         positions_value = sum(
             p.market_value for p in self.positions.values() if p.market_value is not None
         )
-        return self.cash + positions_value
+        return self.balance.cash + positions_value
 
     @property
     def weights(self) -> dict[str, float]:
@@ -121,7 +120,7 @@ class Portfolio:
             else:
                 weights_dict[symbol] = 0.0
 
-        weights_dict["CASH"] = float(self.cash / total)
+        weights_dict["CASH"] = float(self.balance.cash / total)
         return weights_dict
 
     @property
@@ -148,11 +147,11 @@ class Portfolio:
         total_cost = sum(p.avg_price * p.quantity for p in self.positions.values())
         total_market = sum(p.market_value for p in self.positions.values() if p.market_value is not None)
 
-        if total_market is None or (total_cost + self.cash) == 0:
+        if total_market is None or (total_cost + self.balance.cash) == 0:
             return None
 
-        total_portfolio_value = total_market + self.cash
-        return float((total_portfolio_value - (total_cost + self.cash)) / (total_cost + self.cash))
+        total_portfolio_value = total_market + self.balance.cash
+        return float((total_portfolio_value - (total_cost + self.balance.cash)) / (total_cost + self.balance.cash))
 
 
 

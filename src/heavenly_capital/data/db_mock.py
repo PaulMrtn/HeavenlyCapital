@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Sequence, Optional
-from decimal import Decimal
 
 from ib_async import Order, Execution, CommissionReport
 from sqlalchemy import text, RowMapping, Connection
@@ -9,6 +8,8 @@ from sqlalchemy import create_engine
 
 from decimal import Decimal, ROUND_HALF_UP
 
+from heavenly_capital.models.account import AccountState
+from heavenly_capital.models.portfolio import PortfolioBalance
 
 
 class UnitOfWork:
@@ -36,6 +37,7 @@ def create_postgres_engine(
 
     url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
     return create_engine(url, future=future)
+
 
 
 engine = create_postgres_engine(
@@ -76,15 +78,14 @@ class TradingSessionDB:
         strategy_id: str,
         portfolio_id: str,
         portfolio_name: str,
-        cash: float,
         currency: str = "EUR",
         enabled: bool = True
     ) -> None:
         query = text("""
             INSERT INTO portfolio_registry
-                (account_id, portfolio_id, portfolio_name, strategy_id, cash, currency, enabled)
+                (account_id, portfolio_id, portfolio_name, strategy_id, currency, enabled)
             VALUES
-                (:account_id, :portfolio_id, :portfolio_name, :strategy_id, :cash, :currency, :enabled)
+                (:account_id, :portfolio_id, :portfolio_name, :strategy_id, :currency, :enabled)
         """)
 
         with engine.begin() as conn:
@@ -95,7 +96,6 @@ class TradingSessionDB:
                     "portfolio_id": portfolio_id,
                     "portfolio_name": portfolio_name,
                     "strategy_id": strategy_id,
-                    "cash": cash,
                     "currency": currency,
                     "enabled": enabled
                 }
@@ -122,29 +122,6 @@ class TradingSessionDB:
             deleted = result.mappings().first()
 
         return deleted
-
-    @staticmethod
-    def total_cash_for_session(account_id: str) -> dict[str, Decimal]:
-        query = text("""
-            SELECT cash, currency
-            FROM portfolio_registry
-            WHERE account_id = :account_id
-        """)
-
-        with engine.connect() as conn:
-            result = conn.execute(
-                query,
-                {"account_id": account_id}
-            )
-            rows = result.mappings().all()
-
-        totals: dict[str, Decimal] = {}
-        for row in rows:
-            cash = row["cash"]
-            currency = row["currency"]
-            totals[currency] = totals.get(currency, Decimal("0.0")) + cash
-
-        return totals
 
 
     @staticmethod
@@ -688,7 +665,7 @@ class TradingSessionDB:
 
         avg_cost = total_cost / total_qty if total_qty > 0 else Decimal("0.0")
 
-        if total_qty > 0:
+        if net_qty > 0:
             query_upsert = text("""
                                 INSERT INTO positions(account_id, portfolio_id, con_id, quantity, avg_cost)
                                 VALUES (:account_id, :portfolio_id, :con_id, :quantity, :avg_cost)
@@ -730,7 +707,6 @@ class TradingSessionDB:
                             p.market_price,
                             p.market_value,
                             p.unrealized_pnl,
-                            p.realized_pnl,
                             p.updated_at
                      FROM positions p
                               JOIN contracts c
@@ -913,7 +889,7 @@ class TradingSessionDB:
                 avg_fill_price=order_status.avgFillPrice
             )
 
-            # retry_order(order_id) add cancelOrder()
+            #TODO: retry_order(order_id) add cancelOrder()
 
     def update_fill_in_db(
             self,
@@ -1078,16 +1054,332 @@ class TradingSessionDB:
 
 
 
+    def _update_margin_account(self, state: "AccountState", currency: str):
+        m = state.margin
+        if not m:
+            return
+
+        query = text("""
+            INSERT INTO account_margins (
+                account_id, currency, equity_with_loan, full_available_funds, full_excess_liquidity,
+                full_init_margin_req, full_maint_margin_req, gross_position_value, net_liquidation,
+                total_cash_value, buying_power, cushion, lookahead_next_change, updated_at
+            )
+            VALUES (
+                :account_id, :currency, :equity_with_loan, :full_available_funds, :full_excess_liquidity,
+                :full_init_margin_req, :full_maint_margin_req, :gross_position_value, :net_liquidation,
+                :total_cash_value, :buying_power, :cushion, :lookahead_next_change, NOW()
+            )
+            ON CONFLICT (account_id, currency)
+            DO UPDATE SET
+                equity_with_loan        = EXCLUDED.equity_with_loan,
+                full_available_funds    = EXCLUDED.full_available_funds,
+                full_excess_liquidity   = EXCLUDED.full_excess_liquidity,
+                full_init_margin_req    = EXCLUDED.full_init_margin_req,
+                full_maint_margin_req   = EXCLUDED.full_maint_margin_req,
+                gross_position_value    = EXCLUDED.gross_position_value,
+                net_liquidation         = EXCLUDED.net_liquidation,
+                total_cash_value        = EXCLUDED.total_cash_value,
+                buying_power            = EXCLUDED.buying_power,
+                cushion                 = EXCLUDED.cushion,
+                lookahead_next_change   = EXCLUDED.lookahead_next_change,
+                updated_at              = NOW()
+        """)
+
+        with engine.begin() as conn:
+            conn.execute(query, {
+                "account_id": state.account,
+                "currency": currency,
+                "equity_with_loan": m.equity_with_loan,
+                "full_available_funds": m.full_available_funds,
+                "full_excess_liquidity": m.full_excess_liquidity,
+                "full_init_margin_req": m.full_init_margin_req,
+                "full_maint_margin_req": m.full_maint_margin_req,
+                "gross_position_value": state.gross_position_value,
+                "net_liquidation": state.net_liquidation,
+                "total_cash_value": state.total_cash_value,
+                "buying_power": m.buying_power,
+                "cushion": m.cushion,
+                "lookahead_next_change": m.lookahead_next_change
+            })
 
 
+    def _update_balance_account(self, state: "AccountState", currency: str):
+        b = state.balances.get(currency)
+        if not b:
+            return
+
+        query = text("""
+                     INSERT INTO account_balances (account_id, currency, total_cash_balance, accrued_cash,
+                                                   net_liquidation_by_currency,
+                                                   stock_market_value, unrealized_pnl, exchange_rate,
+                                                   net_dividend, updated_at)
+                     VALUES (:account_id, :currency, :total_cash_balance, :accrued_cash, :net_liquidation_by_currency,
+                             :stock_market_value, :unrealized_pnl, :exchange_rate, :net_dividend, NOW())
+                     ON CONFLICT (account_id, currency)
+                         DO UPDATE SET total_cash_balance          = EXCLUDED.total_cash_balance,
+                                       accrued_cash                = EXCLUDED.accrued_cash,
+                                       net_liquidation_by_currency = EXCLUDED.net_liquidation_by_currency,
+                                       stock_market_value          = EXCLUDED.stock_market_value,
+                                       unrealized_pnl              = EXCLUDED.unrealized_pnl,
+                                       exchange_rate               = EXCLUDED.exchange_rate,
+                                       net_dividend                = EXCLUDED.net_dividend,
+                                       updated_at                  = NOW()
+                     """)
+
+        with engine.begin() as conn:
+            conn.execute(query, {
+                "account_id": state.account,
+                "currency": currency,
+                "total_cash_balance": b.total_cash_balance,
+                "accrued_cash": b.accrued_cash,
+                "net_liquidation_by_currency": b.net_liquidation_by_currency,
+                "stock_market_value": b.stock_market_value,
+                "unrealized_pnl": b.unrealized_pnl,
+                "realized_pnl": b.realized_pnl,
+                "exchange_rate": b.exchange_rate,
+                "net_dividend": b.net_dividend
+            })
 
 
+    def update_account_state_in_db(self, state: "AccountState"):
+        if not state.account:
+            raise ValueError("AccountState must have an account_id")
+
+        self._update_margin_account(state, "USD")
+
+        for currency in state.balances.keys():
+            self._update_balance_account(state, currency)
+
+    @staticmethod
+    def get_account_total_cash(account_id: str, currency: str = "USD") -> Optional[Decimal]:
+        query = text("""
+                     SELECT total_cash_balance
+                     FROM account_balances
+                     WHERE account_id = :account_id
+                       AND currency = :currency
+                     LIMIT 1
+                     """)
+
+        with engine.begin() as conn:
+            result = conn.execute(query, {"account_id": account_id, "currency": currency}).scalar_one_or_none()
+
+        return Decimal(result) if result is not None else None
 
 
+    def insert_capital_event(
+            self,
+            account_id: str,
+            portfolio_id: str,
+            event: str,
+            amount: Decimal,
+            currency: str = "USD"
+    ):
+        if event not in ("INITIAL_CAPITAL", "CAPITAL_ADDITION", "CAPITAL_WITHDRAWAL"):
+            raise ValueError(f"Unsupported capital type: {event}")
+
+        amount = self._quantize(amount)
+
+        query = text("""
+                     INSERT INTO portfolio_capital (account_id, portfolio_id, type, amount, currency, created_at)
+                     VALUES (:account_id, :portfolio_id, :type, :amount, :currency, NOW())
+                     ON CONFLICT (portfolio_id, type, created_at) DO NOTHING
+                     """)
+
+        with engine.begin() as conn:
+            conn.execute(query, {
+                "account_id": account_id,
+                "portfolio_id": portfolio_id,
+                "type": event,
+                "amount": amount,
+                "currency": currency,
+            })
 
 
+    def update_portfolio_balance(
+            #TODO:WARNING CHECK THIS FUNCTION
+            self,
+            portfolio_id: str,
+            account_id: str,
+            currency: str = "USD"
+    ) -> None:
+
+        query = text("""
+                     WITH capital AS (SELECT portfolio_id,
+                                             COALESCE(SUM(
+                                                              CASE
+                                                                  WHEN type = 'INITIAL_CAPITAL' THEN amount
+                                                                  WHEN type = 'CAPITAL_ADDITION' THEN amount
+                                                                  WHEN type = 'CAPITAL_WITHDRAWAL' THEN -amount
+                                                                  END
+                                                      ), 0) AS capital_cash
+                                      FROM portfolio_capital
+                                      WHERE portfolio_id = :portfolio_id
+                                      GROUP BY portfolio_id),
+                         
+                          ledger_cash AS (SELECT portfolio_id,
+                                                 COALESCE(SUM(
+                                                                  CASE
+                                                                      WHEN type = 'TRADE_CREDIT' THEN amount
+                                                                      WHEN type = 'TRADE_DEBIT' THEN -amount
+                                                                      WHEN type = 'COMMISSION' THEN -amount
+                                                                      WHEN type = 'REALIZED_PNL' THEN amount
+                                                                      END
+                                                          ), 0) AS ledger_cash,
+                                                 COALESCE(SUM(
+                                                                  CASE WHEN type = 'REALIZED_PNL' THEN amount END
+                                                          ), 0) AS realized_pnl,
+                                                 COALESCE(SUM(
+                                                                  CASE WHEN type = 'COMMISSION' THEN amount END
+                                                          ), 0) AS total_commissions
+                                          FROM portfolio_ledger
+                                          WHERE portfolio_id = :portfolio_id
+                                          GROUP BY portfolio_id),
+                         
+                          positions_value AS (SELECT portfolio_id,
+                                                     COALESCE(SUM(market_value), 0)   AS stock_market_value,
+                                                     COALESCE(SUM(unrealized_pnl), 0) AS unrealized_pnl
+                                              FROM positions
+                                              WHERE portfolio_id = :portfolio_id
+                                              GROUP BY portfolio_id)
+                         
+                     SELECT COALESCE(c.capital_cash, 0) + COALESCE(l.ledger_cash, 0) AS cash,
+                            COALESCE(p.stock_market_value, 0)                        AS stock_market_value,
+                            COALESCE(p.unrealized_pnl, 0)                            AS unrealized_pnl,
+                            COALESCE(l.realized_pnl, 0)                              AS realized_pnl,
+                            COALESCE(l.total_commissions, 0)                         AS total_commissions
+                     
+                     FROM capital c
+                              FULL JOIN ledger_cash l USING (portfolio_id)
+                              FULL JOIN positions_value p USING (portfolio_id)
+                     """)
+
+        with engine.begin() as conn:
+            r = conn.execute(query, {"portfolio_id": portfolio_id}).one()
+
+            total_cash_balance = self._quantize(r.cash)
+            stock_market_value = self._quantize(r.stock_market_value)
+            unrealized_pnl = self._quantize(r.unrealized_pnl)
+            realized_pnl = self._quantize(r.realized_pnl)
+            total_commissions = self._quantize(r.total_commissions)
+
+            upsert = text("""
+                          INSERT INTO portfolio_balances (portfolio_id,
+                                                          account_id,
+                                                          currency,
+                                                          stock_market_value,
+                                                          unrealized_pnl,
+                                                          realized_pnl,
+                                                          total_commissions,
+                                                          total_cash_balance,
+                                                          updated_at)
+                          VALUES (:portfolio_id,
+                                  :account_id,
+                                  :currency,
+                                  :stock_market_value,
+                                  :unrealized_pnl,
+                                  :realized_pnl,
+                                  :total_commissions,
+                                  :total_cash_balance,
+                                  NOW())
+                          ON CONFLICT (portfolio_id)
+                              DO UPDATE SET total_cash_balance = EXCLUDED.total_cash_balance,
+                                            stock_market_value = EXCLUDED.stock_market_value,
+                                            unrealized_pnl     = EXCLUDED.unrealized_pnl,
+                                            realized_pnl       = EXCLUDED.realized_pnl,
+                                            total_commissions  = EXCLUDED.total_commissions,
+                                            updated_at         = NOW()
+                          """)
+
+            conn.execute(upsert, {
+                "portfolio_id": portfolio_id,
+                "account_id": account_id,
+                "currency": currency,
+                "stock_market_value": stock_market_value,
+                "unrealized_pnl": unrealized_pnl,
+                "realized_pnl": realized_pnl,
+                "total_commissions": total_commissions,
+                "total_cash_balance": total_cash_balance
+            })
+
+    @staticmethod
+    def get_portfolio_balance(portfolio_id: str, account_id: str, currency: str = "USD") -> PortfolioBalance:
+        query = text("""
+                     SELECT total_cash_balance, stock_market_value, unrealized_pnl
+                     FROM portfolio_balances
+                     WHERE portfolio_id = :portfolio_id
+                       AND account_id = :account_id
+                       AND currency = :currency
+                     LIMIT 1
+                     """)
+
+        with engine.begin() as conn:
+            result = conn.execute(query, {
+                "portfolio_id": portfolio_id,
+                "account_id": account_id,
+                "currency": currency
+            }).first()
+
+        if result is None:
+            return PortfolioBalance(Decimal("0"), Decimal("0"), Decimal("0"))
+
+        total_cash_balance, stock_market_value, unrealized_pnl = result
+        return PortfolioBalance(
+            cash=Decimal(total_cash_balance),
+            stock_market_value=Decimal(stock_market_value),
+            unrealized_pnl=Decimal(unrealized_pnl)
+        )
+
+    # @staticmethod
+    # def update_portfolio_balance(
+    #         portfolio_id: str,
+    #         account_id: str,
+    #         balance: PortfolioBalance,
+    #         currency: str = "USD"
+    # ) -> None:
+    #     query = text("""
+    #                  UPDATE portfolio_balances
+    #                  SET total_cash_balance = :cash,
+    #                      stock_market_value = :stock_market_value,
+    #                      unrealized_pnl     = :unrealized_pnl
+    #                  WHERE portfolio_id = :portfolio_id
+    #                    AND account_id = :account_id
+    #                    AND currency = :currency
+    #                  """)
+    #
+    #     with engine.begin() as conn:
+    #         conn.execute(query, {
+    #             "portfolio_id": portfolio_id,
+    #             "account_id": account_id,
+    #             "currency": currency,
+    #             "cash": balance.cash,
+    #             "stock_market_value": balance.stock_market_value,
+    #             "unrealized_pnl": balance.unrealized_pnl
+    #         })
 
 
+    @staticmethod
+    def update_market_data_in_db(market_snapshot: dict[int, float]) -> None:
+        query = text("""
+                     UPDATE positions
+                     SET market_price   = :market_price,
+                         market_value   = quantity * :market_price,
+                         unrealized_pnl = (quantity * :market_price) - (quantity * avg_cost),
+                         updated_at     = NOW()
+                     WHERE con_id = :con_id
+                       AND :market_price IS NOT NULL
+                       AND :market_price <> -1
+                     """)
+
+        with engine.begin() as conn:
+            for con_id, price in market_snapshot.items():
+                conn.execute(
+                    query,
+                    {
+                        "con_id": con_id,
+                        "market_price": price
+                    }
+                )
 
 
     # UTILITIES
@@ -1099,7 +1391,5 @@ class TradingSessionDB:
     @staticmethod
     def _quantize(value: Decimal) -> Decimal:
         return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-
-
 
 

@@ -73,7 +73,7 @@ class TradingEngine(ModuleRouter):
             return
 
         target_module = self._modules[target]
-        target_module.receive(source, payload)
+        target_module.receive(payload, source)
 
     @property
     def orders(self):
@@ -209,7 +209,7 @@ class TradingSession:
 
         self._payload: Dict[str, Any] = payload or {}
         self._ports: Optional["SystemPorts"] = ports
-        self._router: "GlobalOrderRouter" = router
+        self._order_router: "GlobalOrderRouter" = router
 
         self.stack: Optional[TradingEngine] = None
 
@@ -219,7 +219,7 @@ class TradingSession:
 
     @property
     def router(self) -> "GlobalOrderRouter":
-        return self._router
+        return self._order_router
 
     @staticmethod
     def _build_modules() -> tuple["OrderManager", "PortfolioManager", "RiskMonitor"]:
@@ -241,7 +241,7 @@ class TradingSession:
             risk=risk
         )
 
-        orders.set_router(self.router)
+        orders.set_order_router(self.router)
 
         self.stack = TradingEngine(
             orders=orders,
@@ -308,7 +308,7 @@ class SessionManager(RuntimeModule):
 
         self._lock = RLock()
         self.sessions: Dict["TradingSessionKey", "TradingSession"] = {}
-        self._router: Optional["GlobalOrderRouter"] = None
+        self._order_router: Optional["GlobalOrderRouter"] = None
 
     def configure(self, *, config: "SessionConfig", ports: "SystemPorts") -> None:
         self._config = config
@@ -323,22 +323,22 @@ class SessionManager(RuntimeModule):
     def stop(self) -> None:
         self._started = False
 
-    def init_router(self, *, sink) -> None:
+    def init_order_router(self, *, sink) -> None:
         if sink is None:
-            raise ValueError("SessionManager: init_router() requires a non-null sink")
-        if self._router is not None:
+            raise ValueError("SessionManager: init_order_router() requires a non-null sink")
+        if self._order_router is not None:
             raise RuntimeError("SessionManager: router already initialized")
 
-        self._router = GlobalOrderRouter(sink=sink)
+        self._order_router = GlobalOrderRouter(sink=sink)
 
     @property
     def router(self) -> "GlobalOrderRouter":
-        if self._router is None:
+        if self._order_router is None:
             raise RuntimeError(
                 "SessionManager: router not initialized yet. "
-                "Call init_router(sink=...) after IBKR sink injection."
+                "Call init_order_router(sink=...) after IBKR sink injection."
             )
-        return self._router
+        return self._order_router
 
     @property
     def is_configured(self) -> bool:
@@ -424,10 +424,16 @@ class SessionManager(RuntimeModule):
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
             session.stack.risk.load_risk_state()
+    def load_session_forecast_model(self) -> None:
+        for session in self.sessions.values():
+            session.stack.portfolio.load_forecast_model()
+            session.stack.risk.load_forecast_model()
 
     def load_session_portfolio_orders(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_orders()
+
+
 
 
     def health_check_loaded_sessions(self) -> None:
@@ -480,26 +486,6 @@ class SessionManager(RuntimeModule):
         with self._lock:
             return tuple(self.sessions.values())
 
-
-    def end_of_day_persist(self) -> None:
-        """
-        Persiste toutes les sessions de la journée (snapshot).
-        On s'appuie sur DataIngestionLayer: insert/update/exists_for_date,
-        donc à ce stade on persiste "par date" (version minimaliste).
-        """
-        with self._lock:
-            sessions = list(self.sessions.values())
-
-        # Remarque: ton DIL actuel est indexé par date uniquement;
-        # donc pour supporter plusieurs sessions par date, il faudra évoluer le storage.
-        # Pour démarrer, on stocke une structure agrégée par date.
-        if not sessions:
-            return
-
-        session_date = sessions[0].key.session_date
-        payload = {
-            "sessions": [asdict(s.snapshot()) for s in sessions],
-        }
 
         # On crée un objet compatible "MarketDaySession" côté système plus tard.
         # Ici on passe un objet duck-typed minimal attendu par DIL.

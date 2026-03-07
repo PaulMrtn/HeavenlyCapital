@@ -335,53 +335,33 @@ class ClientManager:
             raise
 
 
-
-
-
-
-
-
-
-
-
-
-    # async def _start_accounts_updates(self):
-    #     async def start_account_flow(gateway, acct):
-    #         await gateway.ib_client.reqAccountUpdatesAsync(acct)
-    #
-    #     self._tasks = []
-    #     for gateway in self._registry.all:
-    #         accounts = gateway.ib_client.managedAccounts()
-    #         for acct in accounts:
-    #             task = asyncio.create_task(start_account_flow(gateway, acct))
-    #             self._tasks.append(task)
-
-
     async def get_account_state(self):
+        accounts = []
         for gateway in self._registry.all:
-            # await gateway.ib_client.reqOpenOrdersAsync()
-            # await gateway.ib_client.reqExecutionsAsync()
-            # await gateway.ib_client.reqCompletedOrdersAsync(True)
+            summary = await gateway.ib_client.accountSummaryAsync()
 
-            values = await gateway.ib_client.accountSummaryAsync()
-            print(values)
-            summary = AccountState.from_account_values(values)
-            print(summary)
-            #
-            # portfolio = gateway.ib_client.portfolio()
-            # print(portfolio)
-            #
-            # positions = gateway.ib_client.positions()
-            # print(positions)
-            #
-            # trades = gateway.ib_client.trades()
-            # print(trades)
-            #
-            # orders = gateway.ib_client.orders()
-            # print(orders)
-            #
-            # executions = gateway.ib_client.executions()
-            # print(executions)
+            account_state = AccountState.from_account_summary(summary)
+            account_state.apply_usd_exchange_rate()
+            accounts.append(account_state)
+
+        return accounts
 
 
 
+    # async def get_portfolio_state(self):
+    #
+    #     accounts = []
+    #     for gateway in self._registry.all:
+    #         portfolio = gateway.ib_client.portfolio()
+    #         accounts.append(portfolio)
+    #
+    #     return accounts
+
+
+# await gateway.ib_client.reqOpenOrdersAsync()
+# await gateway.ib_client.reqExecutionsAsync()
+# await gateway.ib_client.reqCompletedOrdersAsync(True)
+# positions = gateway.ib_client.positions()
+# trades = gateway.ib_client.trades()
+# orders = gateway.ib_client.orders()
+# executions = gateway.ib_client.executions()

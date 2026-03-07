@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
-from typing import Optional
+from typing import Optional, Callable
 from enum import Enum
 
 from ib_async import Contract
@@ -70,6 +70,11 @@ class OrderState:
     avg_fill_price: float = 0.0
     commission: float = 0.0
 
+    commission_received: bool = False
+
+    on_filled: Optional[Callable[["OrderState"], None]] = None
+
+
     def initialize(self, total_quantity: float) -> None:
         if self.status != OrderStatus.CREATED:
             raise InvalidOrderTransition("Order already initialized")
@@ -83,6 +88,15 @@ class OrderState:
             raise InvalidOrderTransition("Only CREATED can move to SUBMITTED")
 
         self.status = OrderStatus.SUBMITTED
+
+
+    def _update_position_from_fill(self) -> None:
+        if (
+                self.status == OrderStatus.FILLED
+                and self.commission_received
+                and self.on_filled is not None
+        ):
+            self.on_filled(self)
 
     def apply_fill(
             self,
@@ -103,13 +117,15 @@ class OrderState:
 
         if remaining > 0:
             self.status = OrderStatus.PARTIALLY_FILLED
+
         else:
             self.status = OrderStatus.FILLED
-
+            self._update_position_from_fill()
 
     def add_commission(self, amount: float) -> None:
-        """Ajouter une commission à l'ordre."""
         self.commission += amount
+        self.commission_received = True
+        self._update_position_from_fill()
 
     def cancel(self) -> None:
         if self.status in (OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED):
@@ -154,7 +170,7 @@ class OrderTracker:
         self,
         *,
         ib_order_id: Optional[int] = None,
-        status: str,
+        status: Optional[str|OrderStatus],
     ) -> None:
 
         if ib_order_id is not None:

@@ -353,7 +353,7 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if not self._market_calendar.is_open_today() :
+        if self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -546,7 +546,7 @@ class SystemManager:
 
     def _wire_routing(self) -> None:
         sink = self._modules.ibkr_gateway.order_sink
-        self._modules.session_manager.init_router(sink=sink)
+        self._modules.session_manager.init_order_router(sink=sink)
 
 
     def _health_checks_runtime_modules(self) -> None:
@@ -691,6 +691,7 @@ class SystemManager:
         while True:
             now = time.time()
             self._modules.live_hub.aggregate_and_publish_candles(current_time=now)
+            self._modules.live_hub.refresh_market_data(current_time=now)
 
             self._modules.historic_hub.ingest_candle_5s()
             self._modules.historic_hub.dispatch_candle_events()

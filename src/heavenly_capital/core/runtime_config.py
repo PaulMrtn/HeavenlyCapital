@@ -127,6 +127,9 @@ class FeatureConfig:
     )
 
 
+
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     model_id: str
@@ -134,6 +137,8 @@ class ModelSpec:
     path: Path
     input_dim: int
     version: str
+
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,7 +188,7 @@ class SessionConfig:
 
 def load_session_config(db: "TradingSessionDB") -> SessionConfig:
     rows = db.fetch_all()
-    sessions = [TradingSessionConfig.from_persistence(row, db) for row in rows]
+    sessions = [TradingSessionConfig.from_database(row, db) for row in rows]
     return SessionConfig(sessions=tuple(sessions))
 
 
@@ -251,7 +256,6 @@ class AsyncRuntimeModule(RuntimeModule):
     @abstractmethod
     async def stop(self) -> Any:
         pass
-
 
 
 

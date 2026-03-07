@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from types import MappingProxyType
-from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
+from typing import Optional, Any, TYPE_CHECKING, Callable, Dict, cast
 
 from ib_async import Contract, Ticker
 
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
+from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.market_data import OHLC, ReadOnlyTicker
 
 if TYPE_CHECKING:
@@ -14,7 +14,9 @@ if TYPE_CHECKING:
     from heavenly_capital.ibkr.gateway import Contract
 
 
+UPDATE_INTERVAL = 5
 
+tsDB = TradingSessionDB()
 
 class OHLCAggregator:
     def __init__(self):
@@ -79,8 +81,10 @@ class InstrumentPipeline:
 class LiveDataHub(RuntimeModule):
 
     def __init__(self) -> None:
+        self._last_update_interval = None
         self._configured: bool = False
         self._started: bool = False
+
         self._last_agg_time: Optional[float] = None
 
         self._tickers: Dict[int, "Ticker"] = {}
@@ -168,6 +172,22 @@ class LiveDataHub(RuntimeModule):
                 self.candle_bus.publish(conId, bars)
 
             self._last_agg_time = current_time
+
+    def refresh_market_data(self, current_time: float) -> None:
+        current_interval = int(current_time) // UPDATE_INTERVAL
+
+        if current_interval != self._last_update_interval:
+            self._last_update_interval = current_interval
+
+            market_snapshot = {
+                ticker.contract.conId: cast(float, ticker.last)
+                for ticker in self._tickers.values()
+                if ticker.last is not None and ticker.last != -1
+            }
+
+            tsDB.update_market_data_in_db(market_snapshot)
+
+
 
 
 

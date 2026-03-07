@@ -45,7 +45,13 @@ class RiskMonitor(BaseModule):
         }
         self.send(target, payload)
 
-    def authorize_order(self, order_intent: Dict[str, Any]) -> bool: ...
+    def authorize_order(self, con_id: int) -> None:
+        auth_payload = {
+            "con_id": con_id,
+            "authorized":True
+        }
+
+        self.dispatch(ModuleType.ORDERS, "authorize_order", auth_payload)
 
     def load_risk_state(self) -> None:
         if not self._configured:

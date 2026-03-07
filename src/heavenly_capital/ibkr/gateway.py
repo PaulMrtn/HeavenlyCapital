@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timezone, datetime
+from datetime import timezone
 from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder
@@ -8,7 +8,7 @@ from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder
 from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
 from heavenly_capital.core.session_manager import TradingSessionKey
 from heavenly_capital.ibkr.client import ClientManager
-from heavenly_capital.models.order import OrderTracker, OrderRequest
+from heavenly_capital.models.order import OrderTracker, OrderRequest, OrderStatus
 from heavenly_capital.models.tickers import UniverseSnapshot, TickerUniverseSnapshot
 
 if TYPE_CHECKING:
@@ -248,8 +248,11 @@ class IBKRGateway(AsyncRuntimeModule):
     # ---- API ------------------------
 
     # TODO: WARNING Get Cash and other information about account
-    async def get_account_summary(self) -> None:
-        await self.manager.get_account_state()
+    async def update_account_state(self) -> None:
+        accounts = await self.manager.get_account_state()
+
+        for account in accounts:
+            tsDB.update_account_state_in_db(account)
 
     def place_order(self, account_id: str, contract: "Contract", order: "Order") -> None:
         client = self.manager.get_client_by_id(account_id)
@@ -277,6 +280,12 @@ class IBKRGateway(AsyncRuntimeModule):
             portfolio_id=portfolio_id,
             account_id=account_id
         )
+
+        if trade.orderStatus.status == OrderStatus.FILLED:
+            tsDB.update_portfolio_balance(
+                account_id=account_id,
+                portfolio_id=portfolio_id
+            )
 
         tracker.apply_status(
             ib_order_id=trade.order.permId,
@@ -332,4 +341,11 @@ def get_ibkr_gateway() -> IBKRGateway:
 
 
 
+
+
+    # async def update_portfolio_state(self) -> None:
+    #     portfolios = await self.manager.get_portfolio_state()
+    #
+    #     for portfolio in portfolios:
+    #         print(portfolio)
 

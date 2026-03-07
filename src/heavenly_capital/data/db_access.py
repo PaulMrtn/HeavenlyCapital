@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Protocol, Mapping
+from typing import Protocol
 
-from heavenly_capital.models.market_data import AssetType
-from heavenly_capital.models.portfolio import Position, PortfolioSnapshot
+from heavenly_capital.models.portfolio import PortfolioSnapshot
 from heavenly_capital.models.risk import RiskSnapshot
-from heavenly_capital.models.tickers import TickerUniverseSnapshot, UniverseSnapshot
+from heavenly_capital.models.tickers import UniverseSnapshot
 
 
 class DataAccessLayer(Protocol):
