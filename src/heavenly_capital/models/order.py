@@ -4,7 +4,7 @@ from uuid import uuid4
 from typing import Optional, Callable
 from enum import Enum
 
-from ib_async import Contract
+from ib_async import Contract, Trade, Fill, CommissionReport, Execution
 
 
 class OrderStatus(Enum):
@@ -70,9 +70,14 @@ class OrderState:
     avg_fill_price: float = 0.0
     commission: float = 0.0
 
-    commission_received: bool = False
+    fills_count: int = 0
+    commissions_count: int = 0
 
-    on_filled: Optional[Callable[["OrderState"], None]] = None
+    on_fully_filled: Optional[Callable[["OrderState"], None]] = None
+
+    on_order_status: Optional[Callable[["Trade", "TrackerEventContext"], None]] = None
+    on_fill: Optional[Callable[["Fill", "TrackerEventContext"], None]] = None
+    on_commission: Optional[Callable[["Execution", "CommissionReport", "TrackerEventContext"], None]] = None
 
 
     def initialize(self, total_quantity: float) -> None:
@@ -90,42 +95,43 @@ class OrderState:
         self.status = OrderStatus.SUBMITTED
 
 
-    def _update_position_from_fill(self) -> None:
+    def _update_position_from_fully_filled(self) -> None:
         if (
                 self.status == OrderStatus.FILLED
-                and self.commission_received
-                and self.on_filled is not None
+                and self.commissions_count == self.fills_count
+                and self.on_fully_filled is not None
         ):
-            self.on_filled(self)
+            self.on_fully_filled(self)
 
-    def apply_fill(
-            self,
-            *,
-            filled: float,
-            remaining: float,
-            avg_price: float,
-    ) -> None:
+
+    def apply_fill(self, trade: "Trade", fill: "Fill", context: "TrackerEventContext") -> None:
+        execution = fill.execution
+        remaining = max(context.tracker.state.remaining_quantity - execution.shares, 0)
 
         if self.status not in (OrderStatus.SUBMITTED, OrderStatus.PARTIALLY_FILLED):
-            raise InvalidOrderTransition(
-                f"Cannot apply fill in state {self.status}"
-            )
+            raise InvalidOrderTransition(f"Cannot apply fill in state {self.status}")
 
-        self.filled_quantity += filled
+        self.filled_quantity += execution.shares
         self.remaining_quantity = remaining
-        self.avg_fill_price = avg_price
+        self.avg_fill_price = execution.avgPrice
+        self.fills_count += 1
 
-        if remaining > 0:
-            self.status = OrderStatus.PARTIALLY_FILLED
+        self.status = OrderStatus.PARTIALLY_FILLED if remaining > 0 else OrderStatus.FILLED
+        if self.status == OrderStatus.FILLED:
+            self._update_position_from_fully_filled()
 
-        else:
-            self.status = OrderStatus.FILLED
-            self._update_position_from_fill()
+        if self.on_fill:
+            self.on_fill(fill, context)
 
-    def add_commission(self, amount: float) -> None:
-        self.commission += amount
-        self.commission_received = True
-        self._update_position_from_fill()
+
+    def apply_commission(self, execution: "Execution", commission: "CommissionReport", context: "TrackerEventContext") -> None:
+        self.commission += commission.commission
+        self.commissions_count += 1
+
+        if self.on_commission:
+            self.on_commission(execution, commission, context)
+
+        self._update_position_from_fully_filled()
 
     def cancel(self) -> None:
         if self.status in (OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED):
@@ -142,6 +148,7 @@ class OrderState:
             )
 
         self.status = OrderStatus.REJECTED
+
 
 
 @dataclass
@@ -166,20 +173,17 @@ class OrderTracker:
             contract=contract,
         )
 
-    def apply_status(
-        self,
-        *,
-        ib_order_id: Optional[int] = None,
-        status: Optional[str|OrderStatus],
-    ) -> None:
+    def apply_status(self, *, trade: "Trade", context: "TrackerEventContext") -> None:
 
-        if ib_order_id is not None:
-            self.ib_order_id = ib_order_id
+        order = trade.order
+        status = trade.orderStatus.status
+
+        if order.permId:
+            self.ib_order_id = order.permId
 
         status_mapping = {
             "Submitted": OrderStatus.SUBMITTED,
             "PreSubmitted": OrderStatus.SUBMITTED,
-            # TODO:HIGH - Check ValidationError Status IBKR Documentation
             "ValidationError": OrderStatus.SUBMITTED,
             "Filled": OrderStatus.FILLED,
             "Cancelled": OrderStatus.CANCELLED,
@@ -187,13 +191,28 @@ class OrderTracker:
             "ApiCancelled": OrderStatus.CANCELLED,
             "Rejected": OrderStatus.REJECTED,
         }
-        mapped_status = status_mapping.get(status, None)
 
+        mapped_status = status_mapping.get(status)
         if mapped_status == OrderStatus.SUBMITTED:
             self.state.submit()
         elif mapped_status == OrderStatus.CANCELLED:
             self.state.cancel()
         elif mapped_status == OrderStatus.REJECTED:
             self.state.reject()
-        elif mapped_status is None:
-            return
+
+        if self.state.on_order_status:
+            self.state.on_order_status(trade, context)
+
+
+
+
+@dataclass
+class TrackerEventContext:
+    tracker: OrderTracker
+    perm_id: int
+    portfolio_id: str
+    account_id: str
+    con_id: int = field(init=False)
+
+    def __post_init__(self):
+        self.con_id = self.tracker.contract.conId

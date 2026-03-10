@@ -7,14 +7,12 @@ from ib_async import Contract, Ticker
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.data.db_mock import TradingSessionDB
-from heavenly_capital.models.market_data import OHLC, ReadOnlyTicker
+from heavenly_capital.models.market_data import OHLC, ReadOnlyTicker, TickerManager
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
     from heavenly_capital.ibkr.gateway import Contract
 
-
-UPDATE_INTERVAL = 5
 
 tsDB = TradingSessionDB()
 
@@ -87,11 +85,8 @@ class LiveDataHub(RuntimeModule):
 
         self._last_agg_time: Optional[float] = None
 
-        self._tickers: Dict[int, "Ticker"] = {}
         self._pipelines: Dict[int, "InstrumentPipeline"] = {}
-
-        self._market_state: Dict[int, "ReadOnlyTicker"] = {}
-
+        self._tickers = TickerManager()
         self.candle_bus = EventBus(name="CandleBus")
 
         self._config: Optional["LiveHubConfig"] = None
@@ -143,8 +138,7 @@ class LiveDataHub(RuntimeModule):
         }
 
     def ingest_ticker(self, ticker: Ticker):
-        self._tickers[ticker.contract.conId] = ticker
-        self._market_state[ticker.contract.conId] = ReadOnlyTicker(ticker)
+        self._tickers.add_ticker(ticker)
 
         pipeline = self._pipelines.get(ticker.contract.conId)
         if pipeline:
@@ -155,8 +149,8 @@ class LiveDataHub(RuntimeModule):
         return self.ingest_ticker
 
     @property
-    def tickers(self) -> dict[int, "ReadOnlyTicker"]:
-        return self._market_state
+    def tickers(self) -> "TickerManager":
+        return self._tickers
 
     def aggregate_and_publish_candles(self, current_time: float):
         if self._last_agg_time is None:
@@ -172,21 +166,6 @@ class LiveDataHub(RuntimeModule):
                 self.candle_bus.publish(conId, bars)
 
             self._last_agg_time = current_time
-
-    def refresh_market_data(self, current_time: float) -> None:
-        current_interval = int(current_time) // UPDATE_INTERVAL
-
-        if current_interval != self._last_update_interval:
-            self._last_update_interval = current_interval
-
-            market_snapshot = {
-                ticker.contract.conId: cast(float, ticker.last)
-                for ticker in self._tickers.values()
-                if ticker.last is not None and ticker.last != -1
-            }
-
-            tsDB.update_market_data_in_db(market_snapshot)
-
 
 
 

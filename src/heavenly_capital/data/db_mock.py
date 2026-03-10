@@ -19,12 +19,13 @@ class UnitOfWork:
         return self.conn                    # On retourne la connexion pour l'utiliser
 
     def __exit__(self, exc_type, exc, tb):
-        if exc_type:
-            self.trans.rollback()
-        else:
-            self.trans.commit()
-        self.conn.close()
-
+        try :
+            if exc_type:
+                self.trans.rollback()
+            else:
+                self.trans.commit()
+        finally:
+            self.conn.close()
 
 def create_postgres_engine(
     user: str,
@@ -343,7 +344,7 @@ class TradingSessionDB:
                     "order_type": order.orderType,
                     "tif": order.tif,
                     "quantity": order.totalQuantity,
-                    "lmt_price": order.lmtPrice if order.auxPrice <= 1e11 else None,
+                    "lmt_price": order.lmtPrice if order.lmtPrice <= 1e11 else None,
                     "aux_price": order.auxPrice if order.auxPrice <= 1e11 else None,
                     "status": "PendingSubmit",
                     "filled_quantity": 0.0,
@@ -1329,6 +1330,7 @@ class TradingSessionDB:
             stock_market_value=Decimal(stock_market_value),
             unrealized_pnl=Decimal(unrealized_pnl)
         )
+
 
     # @staticmethod
     # def update_portfolio_balance(

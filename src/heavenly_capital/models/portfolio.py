@@ -4,8 +4,6 @@ from decimal import Decimal
 from typing import Dict, Mapping, Optional, Any
 
 
-
-
 @dataclass
 class Position:
     symbol: str
@@ -52,12 +50,12 @@ class Position:
         }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class PortfolioBalance:
     cash: Decimal
     stock_market_value: Decimal
     unrealized_pnl: Decimal
-
+    total_commission: Decimal = Decimal("0")
 
 @dataclass(frozen=True, slots=True)
 class PortfolioSnapshot:
@@ -73,13 +71,15 @@ class PortfolioTarget:
     weights: Dict[int, float]
     rebalance_date: str  # datetime.date
 
-@dataclass(slots=True)
+@dataclass
 class Portfolio:
     account_id: str
     portfolio_id: str
     base_currency: str
     balance: PortfolioBalance
     positions: Dict[int, Position]
+
+    updated_at: Optional[datetime] = None
 
     @classmethod
     def from_snapshot(cls, snapshot: PortfolioSnapshot) -> "Portfolio":
@@ -106,6 +106,23 @@ class Portfolio:
             p.market_value for p in self.positions.values() if p.market_value is not None
         )
         return self.balance.cash + positions_value
+
+    def refresh_balance(self) -> None:
+        stock_value = sum(
+            p.market_value for p in self.positions.values() if p.market_value is not None
+        )
+        unrealized = sum(
+            p.unrealized_pnl for p in self.positions.values() if p.unrealized_pnl is not None
+        )
+
+        self.balance.stock_market_value = Decimal(str(stock_value))
+        self.balance.unrealized_pnl = Decimal(str(unrealized))
+
+        self.updated_at = max(
+            (p.updated_at for p in self.positions.values() if p.updated_at is not None),
+            default=datetime.now(UTC)
+        )
+
 
     @property
     def weights(self) -> dict[str, float]:
@@ -153,13 +170,4 @@ class Portfolio:
         total_portfolio_value = total_market + self.balance.cash
         return float((total_portfolio_value - (total_cost + self.balance.cash)) / (total_cost + self.balance.cash))
 
-
-
-
-    # def add_position(self, position: Position):
-    #     self.positions[position.symbol] = position
-    #
-    # def remove_position(self, symbol: str):
-    #     if symbol in self.positions:
-    #         del self.positions[symbol]
-
+#TODO:WARNING Why there is a spread between performance and performance_by_pnl?

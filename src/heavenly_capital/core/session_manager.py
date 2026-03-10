@@ -10,7 +10,7 @@ from uuid import uuid4, UUID
 
 from heavenly_capital.core.runtime_config import SessionConfig, ModuleRouter, ModuleType
 from heavenly_capital.core.system_manager import RuntimeModule
-from heavenly_capital.models.market_data import ReadOnlyTicker
+from heavenly_capital.models.market_data import ReadOnlyTicker, TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.order_manager import OrderManager
@@ -282,9 +282,9 @@ class TradingSession:
     def load_contracts(self, contracts: dict[str, "Contract"]) -> None:
         self.stack.orders.load_contracts(contracts)
 
-    def wire_live_tickers(self, market_state: dict[int, ReadOnlyTicker]) -> None:
-        self.stack.portfolio.wire_market_state(market_state)
-        self.stack.risk.wire_market_state(market_state)
+    def wire_live_tickers(self, ticker_manager: "TickerManager") -> None:
+        self.stack.portfolio.wire_ticker_manager(ticker_manager)
+        self.stack.risk.wire_ticker_manager(ticker_manager)
 
 
     def wire_buses(self, buses: dict[str, "EventBus"]) -> None:

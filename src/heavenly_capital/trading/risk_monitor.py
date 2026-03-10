@@ -19,7 +19,7 @@ class RiskMonitor(BaseModule):
         self._key: Optional["TradingSessionKey"] = None
 
         self._state: Optional["RiskState"] = None
-        self._market_state = None
+        self._tickers = None
 
         self._configured = False
         self._started = False
@@ -71,5 +71,5 @@ class RiskMonitor(BaseModule):
             "is_healthy": True,
         }
 
-    def wire_market_state(self, market_state):
-        self._market_state = market_state
+    def wire_ticker_manager(self, tickers_manager):
+        self._tickers = tickers_manager

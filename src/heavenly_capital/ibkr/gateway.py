@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import timezone
 from typing import Optional, Any, Callable, TYPE_CHECKING
 
-from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder
+from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder, Fill, CommissionReport
 
 from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
 from heavenly_capital.core.session_manager import TradingSessionKey
 from heavenly_capital.ibkr.client import ClientManager
-from heavenly_capital.models.order import OrderTracker, OrderRequest, OrderStatus
+from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEventContext
 from heavenly_capital.models.tickers import UniverseSnapshot, TickerUniverseSnapshot
 
 if TYPE_CHECKING:
@@ -58,7 +58,6 @@ class IBKRGateway(AsyncRuntimeModule):
         self._contracts: Optional[dict[str, "Contract"]] = None
 
         self._order_registry: dict[str, "OrderTracker"] = {}
-
 
     def configure(self, *, config: "IBKRConfig", ports: "SystemPorts") -> None:
         self._config = config
@@ -262,70 +261,37 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # ----- Handler -------------------
 
-    def _extract_ids(self, trade: "Trade"):
+    def _build_event_context(self, trade: "Trade") -> "TrackerEventContext":
         order = trade.order
-        perm_id = order.permId
         tracker = self._order_registry[order.orderRef]
-        portfolio_id = tracker.request.portfolio_id
-        account_id = tracker.request.account_id
-        return tracker, perm_id, portfolio_id, account_id
-
-
-    def _on_order_status(self, trade: Trade):
-        tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
-
-        tsDB.update_order_in_db(
-            trade=trade,
-            perm_id=perm_id,
-            portfolio_id=portfolio_id,
-            account_id=account_id
+        return TrackerEventContext(
+            tracker=tracker,
+            perm_id=order.permId,
+            portfolio_id=tracker.request.portfolio_id,
+            account_id=tracker.request.account_id
         )
 
-        if trade.orderStatus.status == OrderStatus.FILLED:
-            tsDB.update_portfolio_balance(
-                account_id=account_id,
-                portfolio_id=portfolio_id
-            )
-
-        tracker.apply_status(
-            ib_order_id=trade.order.permId,
-            status=trade.orderStatus.status
+    def _on_order_status(self, trade: Trade):
+        ctx = self._build_event_context(trade)
+        ctx.tracker.apply_status(
+            trade=trade,
+            context=ctx
         )
 
     def _on_fill(self, trade: "Trade", fill: "Fill"):
-        tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
-        execution = fill.execution
-        con_id = trade.contract.conId
-
-        tsDB.update_fill_in_db(
-            execution=execution,
+        ctx = self._build_event_context(trade)
+        ctx.tracker.state.apply_fill(
+            trade=trade,
             fill=fill,
-            account_id=account_id,
-            portfolio_id=portfolio_id,
-            con_id=con_id
-        )
-
-        tracker.state.apply_fill(
-            filled=execution.shares,
-            remaining=max(tracker.state.remaining_quantity - execution.shares, 0),
-            avg_price=execution.avgPrice
+            context=ctx
         )
 
     def _on_commission(self, trade: "Trade", fill: "Fill", commission: "CommissionReport"):
-        tracker, perm_id, portfolio_id, account_id = self._extract_ids(trade)
-        execution = fill.execution
-        con_id = trade.contract.conId
-
-        tsDB.update_commission_in_db(
-            execution=execution,
+        ctx = self._build_event_context(trade)
+        ctx.tracker.state.apply_commission(
+            execution=fill.execution,
             commission=commission,
-            account_id=account_id,
-            portfolio_id=portfolio_id,
-            con_id=con_id
-        )
-
-        tracker.state.add_commission(
-            amount=commission.commission
+            context=ctx
         )
 
     # ---------------------------------

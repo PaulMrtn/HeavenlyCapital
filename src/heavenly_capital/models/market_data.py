@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import namedtuple
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Optional, Literal, List
-
+from typing import Any, Optional, Literal, List, Callable
+import time
 import numpy as np # TODO:LOW - import only what we need
 
 class AssetType(StrEnum):
@@ -32,11 +32,15 @@ _EXPOSED_FIELDS = {
     "timestamp": "timestamp",
 }
 
+
 class ReadOnlyTicker:
-    __slots__ = ("_ticker",)
+    __slots__ = ("_ticker", "_callbacks")
 
     def __init__(self, ticker: Any):
         self._ticker = ticker
+        self._callbacks = []
+
+        ticker.updateEvent.trades().connect(self._on_update)
 
     def __getattr__(self, item):
         path = _EXPOSED_FIELDS.get(item)
@@ -52,8 +56,62 @@ class ReadOnlyTicker:
     def __getitem__(self, item):
         return self.__getattr__(item)
 
+    def _on_update(self, ticker):
+        for cb in tuple(self._callbacks):
+            cb(self)
+
+    def subscribe(self, cb):
+        if cb not in self._callbacks:
+            self._callbacks.append(cb)
+
+    def unsubscribe(self, cb):
+        self._callbacks.remove(cb)
+
     def as_dict(self):
         return {k: getattr(self, k) for k in _EXPOSED_FIELDS.keys()}
+
+    # TODO:WARNING add callback,to update portfolio , with attach fn to callback port
+
+
+
+class TickerManager:
+
+    def __init__(self):
+        self.tickers: dict[int, ReadOnlyTicker] = {}
+        self._subscriptions: list[Callable[[], None]] = []
+
+        self._refresh_interval = 0.5
+        self._last_callback = 0.0
+
+    def add_ticker(self, ticker: Any) -> ReadOnlyTicker:
+        ro = ReadOnlyTicker(ticker)
+        self.tickers[ticker.contract.conId] = ro
+
+        ro.subscribe(lambda ro: self._on_ticker_update())
+        return ro
+
+    def _on_ticker_update(self):
+        now = time.time()
+        if now - self._last_callback >= self._refresh_interval:
+            for cb in tuple(self._subscriptions):
+                cb()
+
+            self._last_callback = time.time()
+
+    def subscribe(self, cb: Callable[[], None]):
+        if cb not in self._subscriptions:
+            self._subscriptions.append(cb)
+
+    def unsubscribe(self, cb: Callable[[], None]):
+        if cb in self._subscriptions:
+            self._subscriptions.remove(cb)
+
+    def get_ticker(self, conId: int) -> Optional["ReadOnlyTicker"]:
+        return self.tickers.get(conId)
+
+    def all_tickers(self):
+        return list(self.tickers.values())
+
 
 
 

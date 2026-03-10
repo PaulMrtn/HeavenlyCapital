@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
 
 from heavenly_capital.core.runtime_config import BaseModule, ModuleType
+from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget
 from heavenly_capital.data.db_mock import TradingSessionDB
@@ -27,7 +28,7 @@ class PortfolioManager(BaseModule):
 
         self._portfolio: Optional["Portfolio"] = None
         self._portfolio_target: Optional["PortfolioTarget"] = None
-        self._market_state = None
+        self._tickers = None
 
         self.live_orders: list[OrderTracker] = []
 
@@ -78,9 +79,6 @@ class PortfolioManager(BaseModule):
 
         self._portfolio = Portfolio.from_snapshot(snapshot)
 
-    def load_forecast_model(self) -> None:
-        ...
-
 
     def load_portfolio_orders(self):
         today = self._ports.market_calendar.today()
@@ -106,8 +104,9 @@ class PortfolioManager(BaseModule):
     def health_check(self) -> dict[str, Any]:
         return {"is_healthy": True}
 
-    def wire_market_state(self, market_state):
-        self._market_state = market_state
+    def wire_ticker_manager(self, tickers_manager: "TickerManager"):
+        self._tickers = tickers_manager
+        self._tickers.subscribe(self.refresh_portfolio)
 
 
     @staticmethod
@@ -174,11 +173,12 @@ class PortfolioManager(BaseModule):
         orders: list["OrderRequest"] = []
 
         total_value = self._portfolio.total_value
+        print(f"Total portfolio value: {total_value}")
+
         all_instruments = set(self._portfolio.positions.keys()) | set(self._portfolio_target.weights.keys())
 
         for con_id in all_instruments:
-
-            market_data = self._market_state.get(con_id).as_dict()
+            market_data = self._tickers.get_ticker(con_id).as_dict()
             #TODO:WARNING turn bid to last
             last = market_data.get("bid")
             market_price = Decimal(str(last))
@@ -199,6 +199,8 @@ class PortfolioManager(BaseModule):
             if delta_qty == 0:
                 continue
 
+            print(f"con_id: {con_id} | current_qty: {current_qty} | target_qty: {target_qty} | delta_qty: {delta_qty}")
+
             order_side = "BUY" if delta_qty > 0 else "SELL"
 
             # TODO:MEDIUM : add order strategies (MKT, LMT, pegged, ...)
@@ -214,16 +216,27 @@ class PortfolioManager(BaseModule):
 
         return orders
 
+
     def _mark_to_market(self) -> None:
-        if not self._portfolio or not self._market_state:
+        if not self._portfolio or not self._tickers:
             return
 
         for con_id, position in self._portfolio.positions.items():
-            market_data = self._market_state.get(con_id).as_dict()
+            market_data = self._tickers.get_ticker(con_id).as_dict()
             if not market_data:
                 continue
 
             position.mark_to_market(market_data)
+
+
+    def refresh_portfolio(self) -> None:
+        if not self._portfolio:
+            return
+
+        self._mark_to_market()
+        self._portfolio.refresh_balance()
+        self._portfolio.update_database()
+
 
     def authorize_order(self, con_id: int) -> None:
         auth_payload = {
@@ -237,53 +250,60 @@ class PortfolioManager(BaseModule):
     def _handle_order_tracking(self, order: OrderTracker):
         self.live_orders.append(order)
 
-        order.state.on_filled = lambda o=order: self._apply_fill_to_portfolio(o)
+        order.state.on_filled = lambda state=None, tracker=order: self._apply_fill_to_portfolio(tracker)
 
 
     def _apply_fill_to_portfolio(self, order: OrderTracker) -> None:
         if not self._portfolio:
-                return
+            return
 
-        con_id = order.con_id
+        con_id = order.request.con_id
+        side = order.request.side
+        symbol = order.contract.symbol
         fill_qty = Decimal(str(order.state.filled_quantity))
         fill_price = Decimal(str(order.state.avg_fill_price))
         commission = Decimal(str(order.state.commission))
 
+        position = self._portfolio.positions.get(con_id)
 
 
-    #
-    #     position = self._portfolio.positions.get(con_id)
-    #
-    #     if order.state.side == "BUY":
-    #         # Achat : mettre à jour la position
-    #         if position:
-    #             total_cost = position.avg_price * position.quantity + fill_price * fill_qty
-    #             new_qty = position.quantity + fill_qty
-    #             position.avg_price = (total_cost / new_qty).quantize(Decimal("0.0001"))
-    #             position.quantity = new_qty
-    #         else:
-    #             # Nouvelle position
-    #             self._portfolio.positions[con_id] = Position(
-    #                 symbol=order.symbol,
-    #                 quantity=fill_qty,
-    #                 avg_price=fill_price
-    #             )
-    #         # Débiter le cash
-    #         self._portfolio.balance.cash -= fill_qty * fill_price
-    #
-    #     elif order.state.side == "SELL":
-    #         if not position:
-    #             return  # Impossible normalement
-    #         # Vendre une partie ou totalité
-    #         position.quantity -= fill_qty
-    #         self._portfolio.balance.cash += fill_qty * fill_price
-    #         # Si quantité tombe à zéro, on peut retirer la position
-    #         if position.quantity <= 0:
-    #             del self._portfolio.positions[con_id]
-    #
-    #     # Supprimer l'ordre rempli de la liste live_orders
-    #     if order in self.live_orders:
-    #         self.live_orders.remove(order)
+        if side == "BUY":
+            if position:
+                total_cost = position.avg_price * position.quantity + fill_price * fill_qty
+                new_qty = position.quantity + fill_qty
+                position.avg_price = (total_cost / new_qty).quantize(Decimal("0.0001"))
+                position.quantity = new_qty
+            else:
+                self._portfolio.positions[con_id] = Position(
+                    symbol=symbol,
+                    quantity=fill_qty,
+                    avg_price=fill_price
+                )
+
+            self._portfolio.balance.cash -= fill_qty * fill_price
+            self._portfolio.balance.total_commission += commission
+
+        elif side == "SELL":
+            if not position:
+                return
+            position.quantity -= fill_qty
+            self._portfolio.balance.cash += fill_qty * fill_price
+            self._portfolio.balance.total_commission += commission
+
+            if position.quantity == 0:
+                del self._portfolio.positions[con_id]
+            elif position.quantity < 0:
+                raise ValueError(
+                    f"Position quantity negative for {symbol} (con_id={con_id}). "
+                    f"Tried to sell {fill_qty}, but only {position.quantity + fill_qty} available."
+                )
+
+        if order in self.live_orders:
+            self.live_orders.remove(order)
+
+
+
+
 
 
 

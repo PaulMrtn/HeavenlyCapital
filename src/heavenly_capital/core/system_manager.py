@@ -353,7 +353,7 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if self._market_calendar.is_open_today() :
+        if not self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,
@@ -690,8 +690,8 @@ class SystemManager:
     def _runtime_loop(self) -> None:
         while True:
             now = time.time()
+
             self._modules.live_hub.aggregate_and_publish_candles(current_time=now)
-            self._modules.live_hub.refresh_market_data(current_time=now)
 
             self._modules.historic_hub.ingest_candle_5s()
             self._modules.historic_hub.dispatch_candle_events()

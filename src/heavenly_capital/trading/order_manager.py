@@ -3,14 +3,18 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
 
-from ib_async import Contract
+from ib_async import Contract, Execution, CommissionReport, Fill, Trade
 
 from heavenly_capital.core.runtime_config import BaseModule, ModuleType
-from heavenly_capital.models.order import OrderTracker, OrderRequest
+from heavenly_capital.data.db_mock import TradingSessionDB
+from heavenly_capital.models.order import OrderTracker, OrderRequest, OrderStatus, TrackerEventContext
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey, GlobalOrderRouter
+
+
+tsDB = TradingSessionDB()
 
 
 class OrderManager(BaseModule):
@@ -22,8 +26,7 @@ class OrderManager(BaseModule):
         self._key: Optional["TradingSessionKey"] = None
 
         self._order_router: Optional["GlobalOrderRouter"] = None
-
-        self._contracts: dict[int, Contract] = {}
+        self._contracts: Dict[int, Contract] = {}
         self._pending_orders: Dict[int, OrderTracker] = {}
 
         self._configured = False
@@ -72,6 +75,41 @@ class OrderManager(BaseModule):
         if handler:
             handler(data)
 
+    @staticmethod
+    def _persist_order_status(trade: "Trade", ctx: "TrackerEventContext") -> None:
+        tsDB.update_order_in_db(
+            trade=trade,
+            perm_id=ctx.perm_id,
+            portfolio_id=ctx.portfolio_id,
+            account_id=ctx.account_id
+        )
+
+        if trade.orderStatus.status == OrderStatus.FILLED:
+            tsDB.update_portfolio_balance(
+                account_id=ctx.account_id,
+                portfolio_id=ctx.portfolio_id
+            )
+
+    @staticmethod
+    def _persist_fill(fill: "Fill", ctx: "TrackerEventContext") -> None:
+        tsDB.update_fill_in_db(
+            execution=fill.execution,
+            fill=fill,
+            account_id=ctx.account_id,
+            portfolio_id=ctx.portfolio_id,
+            con_id=ctx.con_id
+        )
+
+    @staticmethod
+    def _persist_commission(execution: "Execution", commission: "CommissionReport", ctx: "TrackerEventContext") -> None:
+        tsDB.update_commission_in_db(
+            execution=execution,
+            commission=commission,
+            account_id=ctx.account_id,
+            portfolio_id=ctx.portfolio_id,
+            con_id=ctx.con_id
+        )
+
 
     def _create_tracker(self, request: "OrderRequest") -> "OrderTracker":
         contract = self._contracts.get(request.con_id)
@@ -79,7 +117,13 @@ class OrderManager(BaseModule):
             raise ValueError(f"No contract found for con_id {request.con_id}")
 
         tracker = OrderTracker.create(request=request, contract=contract)
+
+        tracker.state.on_order_status = self._persist_order_status
+        tracker.on_fill = self._persist_fill
+        tracker.on_commission = self._persist_commission
+
         return tracker
+
 
     def stage_orders(self, requests: list["OrderRequest"]):
         for request in requests:
@@ -110,7 +154,12 @@ class OrderManager(BaseModule):
         if self._key is None:
             raise RuntimeError("OrderManager: key non configurée (configure() non appelé)")
 
-        self._order_router.route_order(session_key=self._key, order=order)
+        self._order_router.route_order(
+            session_key=self._key,
+            order=order
+        )
+
+
 
 
 
