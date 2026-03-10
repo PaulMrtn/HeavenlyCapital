@@ -94,7 +94,6 @@ class OrderState:
 
         self.status = OrderStatus.SUBMITTED
 
-
     def _update_position_from_fully_filled(self) -> None:
         if (
                 self.status == OrderStatus.FILLED
@@ -102,9 +101,10 @@ class OrderState:
                 and self.on_fully_filled is not None
         ):
             self.on_fully_filled(self)
+            print(self)
 
 
-    def apply_fill(self, trade: "Trade", fill: "Fill", context: "TrackerEventContext") -> None:
+    def apply_fill(self, fill: "Fill", context: "TrackerEventContext") -> None:
         execution = fill.execution
         remaining = max(context.tracker.state.remaining_quantity - execution.shares, 0)
 

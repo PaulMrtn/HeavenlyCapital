@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import Lock
 from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
@@ -20,6 +21,7 @@ tsDB = TradingSessionDB()
 
 
 class PortfolioManager(BaseModule):
+
     def __init__(self) -> None:
         super().__init__()
         self._session_id: Optional[UUID] = None
@@ -27,9 +29,9 @@ class PortfolioManager(BaseModule):
         self._key: Optional["TradingSessionKey"] = None
 
         self._portfolio: Optional["Portfolio"] = None
+        self._portfolio_lock = Lock()
         self._portfolio_target: Optional["PortfolioTarget"] = None
         self._tickers = None
-
         self.live_orders: list[OrderTracker] = []
 
         self._configured = False
@@ -158,7 +160,7 @@ class PortfolioManager(BaseModule):
             rebalance_date=rebalance_date)
 
         if not rows:
-            raise ValueError(f"No target found for portfolio {portfolio_id} on {rebalance_date}")
+            return PortfolioTarget(weights={}, rebalance_date=rebalance_date)
 
         weights = {row["con_id"]: row["target_weight"] for row in rows}
         rebalance_date = rows[0]["rebalance_date"]
@@ -233,9 +235,11 @@ class PortfolioManager(BaseModule):
         if not self._portfolio:
             return
 
-        self._mark_to_market()
-        self._portfolio.refresh_balance()
-        self._portfolio.update_database()
+        with self._portfolio_lock:
+            self._mark_to_market()
+            self._portfolio.refresh_balance()
+
+        # self._portfolio.update_database()
 
 
     def authorize_order(self, con_id: int) -> None:
@@ -246,62 +250,62 @@ class PortfolioManager(BaseModule):
 
         self.dispatch(ModuleType.ORDERS, "authorize_order", auth_payload)
 
-
     def _handle_order_tracking(self, order: OrderTracker):
         self.live_orders.append(order)
 
-        order.state.on_filled = lambda state=None, tracker=order: self._apply_fill_to_portfolio(tracker)
+        order.state.on_fully_filled = lambda state=None, tracker=order: self._update_portfolio_after_fully_filled(tracker)
 
 
-    def _apply_fill_to_portfolio(self, order: OrderTracker) -> None:
+    def _update_portfolio_after_fully_filled(self, order: OrderTracker) -> None:
         if not self._portfolio:
             return
 
-        con_id = order.request.con_id
-        side = order.request.side
-        symbol = order.contract.symbol
-        fill_qty = Decimal(str(order.state.filled_quantity))
-        fill_price = Decimal(str(order.state.avg_fill_price))
-        commission = Decimal(str(order.state.commission))
+        with self._portfolio_lock:
 
-        position = self._portfolio.positions.get(con_id)
+            con_id = order.request.con_id
+            side = order.request.side
+            symbol = order.contract.symbol
+            fill_qty = Decimal(str(order.state.filled_quantity))
+            fill_price = Decimal(str(order.state.avg_fill_price))
+            commission = Decimal(str(order.state.commission))
 
+            position = self._portfolio.positions.get(con_id)
 
-        if side == "BUY":
-            if position:
-                total_cost = position.avg_price * position.quantity + fill_price * fill_qty
-                new_qty = position.quantity + fill_qty
-                position.avg_price = (total_cost / new_qty).quantize(Decimal("0.0001"))
-                position.quantity = new_qty
-            else:
-                self._portfolio.positions[con_id] = Position(
-                    symbol=symbol,
-                    quantity=fill_qty,
-                    avg_price=fill_price
-                )
+            if side == "BUY":
+                if position:
+                    total_cost = position.avg_price * position.quantity + fill_price * fill_qty
+                    new_qty = position.quantity + fill_qty
+                    position.avg_price = (total_cost / new_qty).quantize(Decimal("0.0001"))
+                    position.quantity = new_qty
+                else:
+                    self._portfolio.positions[con_id] = Position(
+                        symbol=symbol,
+                        quantity=fill_qty,
+                        avg_price=fill_price
+                    )
 
-            self._portfolio.balance.cash -= fill_qty * fill_price
-            self._portfolio.balance.total_commission += commission
-
-        elif side == "SELL":
-            if not position:
-                return
-            position.quantity -= fill_qty
-            self._portfolio.balance.cash += fill_qty * fill_price
-            self._portfolio.balance.total_commission += commission
-
-            if position.quantity == 0:
-                del self._portfolio.positions[con_id]
-            elif position.quantity < 0:
-                raise ValueError(
-                    f"Position quantity negative for {symbol} (con_id={con_id}). "
-                    f"Tried to sell {fill_qty}, but only {position.quantity + fill_qty} available."
-                )
-
-        if order in self.live_orders:
-            self.live_orders.remove(order)
+                self._portfolio.balance.cash -= fill_qty * fill_price
+                self._portfolio.balance.total_commission += commission
 
 
+            elif side == "SELL":
+                if not position:
+                    return
+                position.quantity -= fill_qty
+                self._portfolio.balance.cash += fill_qty * fill_price
+                self._portfolio.balance.total_commission += commission
+
+                if position.quantity == 0:
+                    del self._portfolio.positions[con_id]
+                elif position.quantity < 0:
+                    raise ValueError(
+                        f"Position quantity negative for {symbol} (con_id={con_id}). "
+                        f"Tried to sell {fill_qty}, but only {position.quantity + fill_qty} available."
+                    )
+
+
+            if order in self.live_orders:
+                self.live_orders.remove(order)
 
 
 

@@ -1013,16 +1013,17 @@ class TradingSessionDB:
             delete_weights_query = text("DELETE FROM portfolio_target_weights WHERE target_id = :target_id")
             conn.execute(delete_weights_query, {"target_id": target_id})
 
-            insert_weight_query = text("""
-                                       INSERT INTO portfolio_target_weights (target_id, con_id, target_weight)
-                                       VALUES (:target_id, :con_id, :target_weight)
-                                       """)
-            weight_rows = [
-                {"target_id": target_id, "con_id": con_id, "target_weight": weight}
-                for con_id, weight in weights.items()
-            ]
+            if weights:
+                insert_weight_query = text("""
+                                           INSERT INTO portfolio_target_weights (target_id, con_id, target_weight)
+                                           VALUES (:target_id, :con_id, :target_weight)
+                                           """)
+                weight_rows = [
+                    {"target_id": target_id, "con_id": con_id, "target_weight": weight}
+                    for con_id, weight in weights.items()
+                ]
 
-            conn.execute(insert_weight_query, weight_rows)
+                conn.execute(insert_weight_query, weight_rows)
 
     @staticmethod
     def fetch_portfolio_targets(portfolio_id: str, rebalance_date: str) -> list[dict]:
@@ -1258,6 +1259,8 @@ class TradingSessionDB:
         with engine.begin() as conn:
             r = conn.execute(query, {"portfolio_id": portfolio_id}).one()
 
+            print(r)
+
             total_cash_balance = self._quantize(r.cash)
             stock_market_value = self._quantize(r.stock_market_value)
             unrealized_pnl = self._quantize(r.unrealized_pnl)
@@ -1292,7 +1295,7 @@ class TradingSessionDB:
                                             updated_at         = NOW()
                           """)
 
-            conn.execute(upsert, {
+            params = {
                 "portfolio_id": portfolio_id,
                 "account_id": account_id,
                 "currency": currency,
@@ -1301,7 +1304,19 @@ class TradingSessionDB:
                 "realized_pnl": realized_pnl,
                 "total_commissions": total_commissions,
                 "total_cash_balance": total_cash_balance
-            })
+            }
+
+
+            print("Avant execution de la requête, params:")
+            for k, v in params.items():
+                print(f"  {k} = {v}")
+
+            try:
+                conn.execute(upsert, params)
+                print("Requête exécutée avec succès")
+            except Exception as e:
+                print("Erreur lors de l'exécution de la requête :", e)
+
 
     @staticmethod
     def get_portfolio_balance(portfolio_id: str, account_id: str, currency: str = "USD") -> PortfolioBalance:

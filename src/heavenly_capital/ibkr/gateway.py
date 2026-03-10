@@ -196,6 +196,7 @@ class IBKRGateway(AsyncRuntimeModule):
             universe_id=universe_id,
             constituents=constituents
         )
+
     async def load_universe_snapshot(self) -> None:
         snapshot = self.get_universe_snapshot("SP500 Sample")
         id_to_contract_map = self._map_snapshot_to_ibkr_contracts(snapshot)
@@ -244,6 +245,7 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # ---------------------------------
 
+
     # ---- API ------------------------
 
     # TODO: WARNING Get Cash and other information about account
@@ -256,6 +258,7 @@ class IBKRGateway(AsyncRuntimeModule):
     def place_order(self, account_id: str, contract: "Contract", order: "Order") -> None:
         client = self.manager.get_client_by_id(account_id)
         client.place_order(contract=contract, order=order)
+
 
     # ---------------------------------
 
@@ -281,7 +284,6 @@ class IBKRGateway(AsyncRuntimeModule):
     def _on_fill(self, trade: "Trade", fill: "Fill"):
         ctx = self._build_event_context(trade)
         ctx.tracker.state.apply_fill(
-            trade=trade,
             fill=fill,
             context=ctx
         )

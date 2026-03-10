@@ -120,7 +120,7 @@ class Portfolio:
 
         self.updated_at = max(
             (p.updated_at for p in self.positions.values() if p.updated_at is not None),
-            default=datetime.now(UTC)
+            default=None
         )
 
 

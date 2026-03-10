@@ -119,10 +119,11 @@ class OrderManager(BaseModule):
         tracker = OrderTracker.create(request=request, contract=contract)
 
         tracker.state.on_order_status = self._persist_order_status
-        tracker.on_fill = self._persist_fill
-        tracker.on_commission = self._persist_commission
+        tracker.state.on_fill = self._persist_fill
+        tracker.state.on_commission = self._persist_commission
 
         return tracker
+
 
 
     def stage_orders(self, requests: list["OrderRequest"]):

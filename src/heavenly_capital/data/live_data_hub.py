@@ -7,7 +7,7 @@ from ib_async import Contract, Ticker
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.data.db_mock import TradingSessionDB
-from heavenly_capital.models.market_data import OHLC, ReadOnlyTicker, TickerManager
+from heavenly_capital.models.market_data import OHLC, TickerManager
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
@@ -61,12 +61,19 @@ class InstrumentPipeline:
         self.ask_agg = OHLCAggregator()
 
     def on_ticker(self, tick: "Ticker"):
-        if tick.last > 0:
-            self.last_agg.add(tick.last, tick.lastSize, tick.timestamp)
-        if tick.bid > 0:
-            self.bid_agg.add(tick.bid, tick.lastSize, tick.timestamp)
-        if tick.ask > 0:
-            self.ask_agg.add(tick.ask, tick.lastSize, tick.timestamp)
+        ts = tick.timestamp
+
+        last = tick.last
+        if last > 0:
+            self.last_agg.add(last, tick.lastSize, ts)
+
+        bid = tick.bid
+        if bid > 0:
+            self.bid_agg.add(bid, tick.bidSize, ts)
+
+        ask = tick.ask
+        if ask > 0:
+            self.ask_agg.add(ask, tick.askSize, ts)
 
     def aggregate_all(self, ts_start: float, ts_end: float) -> dict[str, Optional["OHLC"]]:
         return {
@@ -88,6 +95,7 @@ class LiveDataHub(RuntimeModule):
         self._pipelines: Dict[int, "InstrumentPipeline"] = {}
         self._tickers = TickerManager()
         self.candle_bus = EventBus(name="CandleBus")
+
 
         self._config: Optional["LiveHubConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -138,10 +146,13 @@ class LiveDataHub(RuntimeModule):
         }
 
     def ingest_ticker(self, ticker: Ticker):
-        self._tickers.add_ticker(ticker)
+        conId = ticker.contract.conId
+
+        if conId not in self._tickers.tickers:
+            self._tickers.add_ticker(ticker)
 
         pipeline = self._pipelines.get(ticker.contract.conId)
-        if pipeline:
+        if pipeline is not None:
             pipeline.on_ticker(ticker)
 
     @property

@@ -218,7 +218,7 @@ class ClientManager:
         self._heartbeat_task: Optional[asyncio.Task] = None
         self.on_tick: Optional[Callable[[Ticker], None]] = None
 
-        self.tickers: dict[int, "Ticker"] = {}
+        self.tickers_registry: dict[int, "Ticker"] = {}
 
 
     @staticmethod
@@ -307,17 +307,17 @@ class ClientManager:
             )
 
             ticker.updateEvent += self._on_ticker_update
-            self.tickers[contract.conId] = ticker
+            self.tickers_registry[contract.conId] = ticker
 
     async def stop_streaming(self):
-        for ticker in self.tickers.values():
+        for ticker in self.tickers_registry.values():
             try:
                 ticker.updateEvent -= self._on_ticker_update
                 self.master.ib_client.cancelMktData(ticker.contract)
             except Exception :
                 pass
 
-        self.tickers.clear()
+        self.tickers_registry.clear()
 
 
     async def _heartbeat(self):

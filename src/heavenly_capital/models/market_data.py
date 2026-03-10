@@ -40,7 +40,7 @@ class ReadOnlyTicker:
         self._ticker = ticker
         self._callbacks = []
 
-        ticker.updateEvent.trades().connect(self._on_update)
+        ticker.updateEvent.connect(self._on_update)
 
     def __getattr__(self, item):
         path = _EXPOSED_FIELDS.get(item)
@@ -70,7 +70,6 @@ class ReadOnlyTicker:
     def as_dict(self):
         return {k: getattr(self, k) for k in _EXPOSED_FIELDS.keys()}
 
-    # TODO:WARNING add callback,to update portfolio , with attach fn to callback port
 
 
 
@@ -84,10 +83,15 @@ class TickerManager:
         self._last_callback = 0.0
 
     def add_ticker(self, ticker: Any) -> ReadOnlyTicker:
-        ro = ReadOnlyTicker(ticker)
-        self.tickers[ticker.contract.conId] = ro
+        conId = ticker.contract.conId
 
+        if conId in self.tickers:
+            return self.tickers[conId]
+
+        ro = ReadOnlyTicker(ticker)
+        self.tickers[conId] = ro
         ro.subscribe(lambda ro: self._on_ticker_update())
+
         return ro
 
     def _on_ticker_update(self):
@@ -95,7 +99,6 @@ class TickerManager:
         if now - self._last_callback >= self._refresh_interval:
             for cb in tuple(self._subscriptions):
                 cb()
-
             self._last_callback = time.time()
 
     def subscribe(self, cb: Callable[[], None]):
