@@ -19,10 +19,12 @@ class Position:
         #TODO:WARNING: turn bid to last
         last = market_data.get("bid")
         timestamp = market_data.get("timestamp")
+
         if last is None:
             return
 
-        last_price = Decimal(str(last))
+        #TODO:WARNING convert value to Decimal a the root (Client)
+        last_price = Decimal(last) if isinstance(last, str) else Decimal(str(last))
 
         self.market_price = last_price
         self.market_value = self.quantity * last_price
@@ -100,6 +102,12 @@ class Portfolio:
             positions=dict(self.positions)
         )
 
+    def iter_db_positions(self):
+        for con_id, pos in self.positions.items():
+            if pos.market_price is None:
+                continue
+            yield con_id, pos
+
     @property
     def total_value(self) -> Decimal:
         positions_value = sum(
@@ -109,20 +117,22 @@ class Portfolio:
 
     def refresh_balance(self) -> None:
         stock_value = sum(
-            p.market_value for p in self.positions.values() if p.market_value is not None
-        )
-        unrealized = sum(
-            p.unrealized_pnl for p in self.positions.values() if p.unrealized_pnl is not None
+            (p.market_value for p in self.positions.values() if p.market_value is not None),
+            start=Decimal("0")
         )
 
-        self.balance.stock_market_value = Decimal(str(stock_value))
-        self.balance.unrealized_pnl = Decimal(str(unrealized))
+        unrealized = sum(
+            (p.unrealized_pnl for p in self.positions.values() if p.unrealized_pnl is not None),
+            start=Decimal("0")
+        )
+
+        self.balance.stock_market_value = stock_value
+        self.balance.unrealized_pnl = unrealized
 
         self.updated_at = max(
             (p.updated_at for p in self.positions.values() if p.updated_at is not None),
             default=None
         )
-
 
     @property
     def weights(self) -> dict[str, float]:
@@ -169,5 +179,6 @@ class Portfolio:
 
         total_portfolio_value = total_market + self.balance.cash
         return float((total_portfolio_value - (total_cost + self.balance.cash)) / (total_cost + self.balance.cash))
+
 
 #TODO:WARNING Why there is a spread between performance and performance_by_pnl?

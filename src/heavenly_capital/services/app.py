@@ -88,7 +88,7 @@ class SessionService:
             currency=currency
         )
 
-        self._db.update_portfolio_balance(
+        self._db.update_portfolio_balances(
             account_id=account_id,
             portfolio_id=portfolio_id,
             currency=currency

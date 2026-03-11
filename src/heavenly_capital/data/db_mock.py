@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Sequence, Optional
 
-from ib_async import Order, Execution, CommissionReport
+from ib_async import Order, Execution, CommissionReport, Trade
 from sqlalchemy import text, RowMapping, Connection
 from sqlalchemy import create_engine
 
@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from decimal import Decimal, ROUND_HALF_UP
 
 from heavenly_capital.models.account import AccountState
-from heavenly_capital.models.portfolio import PortfolioBalance
+from heavenly_capital.models.portfolio import PortfolioBalance, Portfolio
 
 
 class UnitOfWork:
@@ -554,7 +554,7 @@ class TradingSessionDB:
             WHERE portfolio_id = :portfolio_id
               AND con_id = :con_id
               AND open_quantity > 0
-            ORDER BY id ASC
+            ORDER BY id
         """)
 
         with engine.begin() as conn:
@@ -1055,8 +1055,8 @@ class TradingSessionDB:
             return result is not None
 
 
-
-    def _update_margin_account(self, state: "AccountState", currency: str):
+    @staticmethod
+    def _update_margin_account(state: "AccountState", currency: str):
         m = state.margin
         if not m:
             return
@@ -1105,8 +1105,8 @@ class TradingSessionDB:
                 "lookahead_next_change": m.lookahead_next_change
             })
 
-
-    def _update_balance_account(self, state: "AccountState", currency: str):
+    @staticmethod
+    def _update_balance_account(state: "AccountState", currency: str):
         b = state.balances.get(currency)
         if not b:
             return
@@ -1153,6 +1153,7 @@ class TradingSessionDB:
         for currency in state.balances.keys():
             self._update_balance_account(state, currency)
 
+
     @staticmethod
     def get_account_total_cash(account_id: str, currency: str = "USD") -> Optional[Decimal]:
         query = text("""
@@ -1198,8 +1199,7 @@ class TradingSessionDB:
             })
 
 
-    def update_portfolio_balance(
-            #TODO:WARNING CHECK THIS FUNCTION
+    def update_portfolio_balances(
             self,
             portfolio_id: str,
             account_id: str,
@@ -1218,104 +1218,52 @@ class TradingSessionDB:
                                       FROM portfolio_capital
                                       WHERE portfolio_id = :portfolio_id
                                       GROUP BY portfolio_id),
-                         
-                          ledger_cash AS (SELECT portfolio_id,
-                                                 COALESCE(SUM(
-                                                                  CASE
-                                                                      WHEN type = 'TRADE_CREDIT' THEN amount
-                                                                      WHEN type = 'TRADE_DEBIT' THEN -amount
-                                                                      WHEN type = 'COMMISSION' THEN -amount
-                                                                      WHEN type = 'REALIZED_PNL' THEN amount
-                                                                      END
-                                                          ), 0) AS ledger_cash,
-                                                 COALESCE(SUM(
-                                                                  CASE WHEN type = 'REALIZED_PNL' THEN amount END
-                                                          ), 0) AS realized_pnl,
-                                                 COALESCE(SUM(
-                                                                  CASE WHEN type = 'COMMISSION' THEN amount END
-                                                          ), 0) AS total_commissions
-                                          FROM portfolio_ledger
-                                          WHERE portfolio_id = :portfolio_id
-                                          GROUP BY portfolio_id),
-                         
-                          positions_value AS (SELECT portfolio_id,
-                                                     COALESCE(SUM(market_value), 0)   AS stock_market_value,
-                                                     COALESCE(SUM(unrealized_pnl), 0) AS unrealized_pnl
-                                              FROM positions
-                                              WHERE portfolio_id = :portfolio_id
-                                              GROUP BY portfolio_id)
-                         
-                     SELECT COALESCE(c.capital_cash, 0) + COALESCE(l.ledger_cash, 0) AS cash,
-                            COALESCE(p.stock_market_value, 0)                        AS stock_market_value,
-                            COALESCE(p.unrealized_pnl, 0)                            AS unrealized_pnl,
+                          ledger AS (SELECT portfolio_id,
+                                            COALESCE(SUM(
+                                                             CASE
+                                                                 WHEN type = 'TRADE_CREDIT' THEN amount
+                                                                 WHEN type = 'TRADE_DEBIT' THEN -amount
+                                                                 WHEN type = 'COMMISSION' THEN -amount
+                                                                 END
+                                                     ), 0)                                                    AS ledger_cash,
+                                            COALESCE(SUM(CASE WHEN type = 'REALIZED_PNL' THEN amount END), 0) AS realized_pnl,
+                                            COALESCE(SUM(CASE WHEN type = 'COMMISSION' THEN amount END), 0)   AS total_commissions
+                                     FROM portfolio_ledger
+                                     WHERE portfolio_id = :portfolio_id
+                                     GROUP BY portfolio_id)
+                     SELECT COALESCE(c.capital_cash, 0) + COALESCE(l.ledger_cash, 0) AS total_cash_balance,
                             COALESCE(l.realized_pnl, 0)                              AS realized_pnl,
                             COALESCE(l.total_commissions, 0)                         AS total_commissions
-                     
                      FROM capital c
-                              FULL JOIN ledger_cash l USING (portfolio_id)
-                              FULL JOIN positions_value p USING (portfolio_id)
+                              FULL JOIN ledger l USING (portfolio_id)
                      """)
 
         with engine.begin() as conn:
             r = conn.execute(query, {"portfolio_id": portfolio_id}).one()
 
-            print(r)
-
-            total_cash_balance = self._quantize(r.cash)
-            stock_market_value = self._quantize(r.stock_market_value)
-            unrealized_pnl = self._quantize(r.unrealized_pnl)
-            realized_pnl = self._quantize(r.realized_pnl)
-            total_commissions = self._quantize(r.total_commissions)
+            params = {
+                "portfolio_id": portfolio_id,
+                "account_id": account_id,
+                "currency": currency,
+                "total_cash_balance": self._quantize(r.total_cash_balance),
+                "realized_pnl": self._quantize(r.realized_pnl),
+                "total_commissions": self._quantize(r.total_commissions),
+            }
 
             upsert = text("""
-                          INSERT INTO portfolio_balances (portfolio_id,
-                                                          account_id,
-                                                          currency,
-                                                          stock_market_value,
-                                                          unrealized_pnl,
-                                                          realized_pnl,
-                                                          total_commissions,
-                                                          total_cash_balance,
+                          INSERT INTO portfolio_balances (portfolio_id, account_id, currency,
+                                                          total_cash_balance, realized_pnl, total_commissions,
                                                           updated_at)
-                          VALUES (:portfolio_id,
-                                  :account_id,
-                                  :currency,
-                                  :stock_market_value,
-                                  :unrealized_pnl,
-                                  :realized_pnl,
-                                  :total_commissions,
-                                  :total_cash_balance,
-                                  NOW())
+                          VALUES (:portfolio_id, :account_id, :currency,
+                                  :total_cash_balance, :realized_pnl, :total_commissions, NOW())
                           ON CONFLICT (portfolio_id)
                               DO UPDATE SET total_cash_balance = EXCLUDED.total_cash_balance,
-                                            stock_market_value = EXCLUDED.stock_market_value,
-                                            unrealized_pnl     = EXCLUDED.unrealized_pnl,
                                             realized_pnl       = EXCLUDED.realized_pnl,
                                             total_commissions  = EXCLUDED.total_commissions,
                                             updated_at         = NOW()
                           """)
 
-            params = {
-                "portfolio_id": portfolio_id,
-                "account_id": account_id,
-                "currency": currency,
-                "stock_market_value": stock_market_value,
-                "unrealized_pnl": unrealized_pnl,
-                "realized_pnl": realized_pnl,
-                "total_commissions": total_commissions,
-                "total_cash_balance": total_cash_balance
-            }
-
-
-            print("Avant execution de la requête, params:")
-            for k, v in params.items():
-                print(f"  {k} = {v}")
-
-            try:
-                conn.execute(upsert, params)
-                print("Requête exécutée avec succès")
-            except Exception as e:
-                print("Erreur lors de l'exécution de la requête :", e)
+            conn.execute(upsert, params)
 
 
     @staticmethod
@@ -1347,56 +1295,64 @@ class TradingSessionDB:
         )
 
 
-    # @staticmethod
-    # def update_portfolio_balance(
-    #         portfolio_id: str,
-    #         account_id: str,
-    #         balance: PortfolioBalance,
-    #         currency: str = "USD"
-    # ) -> None:
-    #     query = text("""
-    #                  UPDATE portfolio_balances
-    #                  SET total_cash_balance = :cash,
-    #                      stock_market_value = :stock_market_value,
-    #                      unrealized_pnl     = :unrealized_pnl
-    #                  WHERE portfolio_id = :portfolio_id
-    #                    AND account_id = :account_id
-    #                    AND currency = :currency
-    #                  """)
-    #
-    #     with engine.begin() as conn:
-    #         conn.execute(query, {
-    #             "portfolio_id": portfolio_id,
-    #             "account_id": account_id,
-    #             "currency": currency,
-    #             "cash": balance.cash,
-    #             "stock_market_value": balance.stock_market_value,
-    #             "unrealized_pnl": balance.unrealized_pnl
-    #         })
+    def update_portfolio_in_db(self, portfolio: "Portfolio") -> None:
+        with UnitOfWork() as conn:
+            self._update_positions(conn, portfolio)
+            self._update_portfolio_market_values(conn, portfolio)
 
 
     @staticmethod
-    def update_market_data_in_db(market_snapshot: dict[int, float]) -> None:
+    def _update_positions(conn, portfolio: Portfolio) -> None:
         query = text("""
                      UPDATE positions
                      SET market_price   = :market_price,
-                         market_value   = quantity * :market_price,
-                         unrealized_pnl = (quantity * :market_price) - (quantity * avg_cost),
+                         market_value   = :market_value,
+                         unrealized_pnl = :unrealized_pnl,
                          updated_at     = NOW()
-                     WHERE con_id = :con_id
-                       AND :market_price IS NOT NULL
-                       AND :market_price <> -1
+                     WHERE account_id = :account_id
+                       AND portfolio_id = :portfolio_id
+                       AND con_id = :con_id
                      """)
 
-        with engine.begin() as conn:
-            for con_id, price in market_snapshot.items():
-                conn.execute(
-                    query,
-                    {
-                        "con_id": con_id,
-                        "market_price": price
-                    }
-                )
+        for con_id, pos in portfolio.iter_db_positions():
+            conn.execute(
+                query,
+                {
+                    "account_id": portfolio.account_id,
+                    "portfolio_id": portfolio.portfolio_id,
+                    "con_id": con_id,
+                    "market_price": pos.market_price,
+                    "market_value": pos.market_value,
+                    "unrealized_pnl": pos.unrealized_pnl,
+                },
+            )
+
+
+    @staticmethod
+    def _update_portfolio_market_values(
+            conn,
+            portfolio: "Portfolio"
+    ) -> None:
+
+        query = text("""
+                     UPDATE portfolio_balances
+                     SET stock_market_value = :stock_market_value,
+                         unrealized_pnl     = :unrealized_pnl,
+                         updated_at         = NOW()
+                     WHERE account_id = :account_id
+                       AND portfolio_id = :portfolio_id
+                     """)
+
+        conn.execute(
+            query,
+            {
+                "account_id": portfolio.account_id,
+                "portfolio_id": portfolio.portfolio_id,
+                "stock_market_value": portfolio.balance.stock_market_value,
+                "unrealized_pnl": portfolio.balance.unrealized_pnl
+            }
+        )
+
 
 
     # UTILITIES

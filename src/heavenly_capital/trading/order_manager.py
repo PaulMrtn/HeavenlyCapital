@@ -84,11 +84,6 @@ class OrderManager(BaseModule):
             account_id=ctx.account_id
         )
 
-        if trade.orderStatus.status == OrderStatus.FILLED:
-            tsDB.update_portfolio_balance(
-                account_id=ctx.account_id,
-                portfolio_id=ctx.portfolio_id
-            )
 
     @staticmethod
     def _persist_fill(fill: "Fill", ctx: "TrackerEventContext") -> None:

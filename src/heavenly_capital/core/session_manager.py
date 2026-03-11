@@ -368,7 +368,7 @@ class SessionManager(RuntimeModule):
 # -------- API ----------------------
 
     def _current_session_date(self):
-        # TODO:HIGH Persist current day dans unf format ISO (ou équivalent)
+        # TODO:HIGH Persist current day dans un format ISO (ou équivalent)
         return self.ports.market_calendar.today()
 
     def _build_session_key(
@@ -423,11 +423,11 @@ class SessionManager(RuntimeModule):
     def load_session_state_from_database(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
-            session.stack.risk.load_risk_state()
+            # session.stack.risk.load_risk_state()
     def load_session_forecast_model(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_forecast_model()
-            session.stack.risk.load_forecast_model()
+            # session.stack.risk.load_forecast_model()
 
     def load_session_portfolio_orders(self) -> None:
         for session in self.sessions.values():

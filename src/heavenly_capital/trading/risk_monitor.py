@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
 from heavenly_capital.core.runtime_config import BaseModule, ModuleType

@@ -101,7 +101,6 @@ class OrderState:
                 and self.on_fully_filled is not None
         ):
             self.on_fully_filled(self)
-            print(self)
 
 
     def apply_fill(self, fill: "Fill", context: "TrackerEventContext") -> None:
