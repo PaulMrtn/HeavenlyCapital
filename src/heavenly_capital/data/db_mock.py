@@ -1354,6 +1354,116 @@ class TradingSessionDB:
         )
 
 
+    @staticmethod
+    def model_is_enabled(model_name: str, version: float) -> bool:
+        query = text("""
+                     SELECT 1
+                     FROM models_registry
+                     WHERE model_name = :model_name
+                       AND version = :version
+                       AND enabled = TRUE
+                     LIMIT 1
+                     """)
+
+        with engine.connect() as conn:
+            result = conn.execute(
+                query,
+                {"model_name": model_name, "version": version}
+            )
+            row = result.mappings().first()
+
+        return row is not None
+
+
+    @staticmethod
+    def update_portfolio_model(
+            portfolio_id: str,
+            model_name: str,
+            model_type: str,
+            version: float
+    ) -> None:
+
+        query = text("""
+                     INSERT INTO portfolio_models (portfolio_id,
+                                                   model_type,
+                                                   model_name,
+                                                   version,
+                                                   created_at,
+                                                   updated_at)
+                     VALUES (:portfolio_id,
+                             :model_type,
+                             :model_name,
+                             :version,
+                             NOW(),
+                             NOW())
+                     ON CONFLICT (portfolio_id, model_type)
+                         DO UPDATE SET model_name = EXCLUDED.model_name,
+                                       version    = EXCLUDED.version,
+                                       updated_at = NOW()
+                     """)
+
+        with engine.begin() as conn:
+            conn.execute(query, {
+                "portfolio_id": portfolio_id,
+                "model_type": model_type,
+                "model_name": model_name,
+                "version": version
+            })
+
+
+    @staticmethod
+    def update_forecast_model(
+            model_name: str,
+            model_type: str,
+            version: float,
+            path: str,
+            description: str | None,
+            enabled: bool
+    ) -> None:
+
+        query = text("""
+                     INSERT INTO models_registry (model_name,
+                                                  model_type,
+                                                  version,
+                                                  path,
+                                                  description,
+                                                  enabled,
+                                                  created_at,
+                                                  updated_at)
+                     VALUES (:model_name,
+                             :model_type,
+                             :version,
+                             :path,
+                             :description,
+                             :enabled,
+                             NOW(),
+                             NOW())
+                     ON CONFLICT (model_name, version)
+                         DO UPDATE SET model_type  = EXCLUDED.model_type,
+                                       path        = EXCLUDED.path,
+                                       description = EXCLUDED.description,
+                                       enabled     = EXCLUDED.enabled,
+                                       updated_at  = NOW()
+                     """)
+
+        with engine.begin() as conn:
+            conn.execute(query, {
+                "model_name": model_name,
+                "model_type": model_type,
+                "version": version,
+                "path": path,
+                "description": description,
+                "enabled": enabled
+            })
+
+
+
+
+
+
+
+
+
 
     # UTILITIES
 

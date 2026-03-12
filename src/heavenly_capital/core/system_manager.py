@@ -671,6 +671,7 @@ class SystemManager:
         self._sync_hubs_with_contracts()
 
         self._modules.feature_manager.build_market_data_banks()
+
         # TODO:WARNING I dont understand this duplicated function call
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()

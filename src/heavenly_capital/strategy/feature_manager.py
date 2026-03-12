@@ -345,12 +345,14 @@ class FeatureManager(RuntimeModule):
     # -------------------------------------------
     
 
+
     def process_candle_events(self) -> None:
         processed = False
 
         while True:
             try:
                 event = self._in_queue.get_nowait()
+
             except queue.Empty:
                 break
 

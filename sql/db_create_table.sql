@@ -20,6 +20,9 @@
 -- DROP TABLE IF EXISTS portfolio_balances CASCADE;
 -- DROP TABLE IF EXISTS account_margins CASCADE;
 
+-- DROP TABLE IF EXISTS models_registry CASCADE;
+-- DROP TABLE IF EXISTS portfolio_models CASCADE;
+
 -- DROP TYPE IF EXISTS session_mode;
 
 
@@ -413,4 +416,43 @@ CREATE TABLE portfolio_balances (
     FOREIGN KEY (portfolio_id)
         REFERENCES portfolio_registry(portfolio_id)
         ON DELETE CASCADE
+);
+
+
+CREATE TABLE models_registry (
+    id SERIAL PRIMARY KEY,
+    model_name TEXT NOT NULL,
+    model_type TEXT NOT NULL CHECK (model_type IN ('BUY','SELL','STOP_LOSS')),
+    version NUMERIC(2,1) NOT NULL CHECK (version > 0),
+    path TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT TRUE,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE(model_name, version)
+);
+
+
+CREATE TABLE portfolio_models (
+    portfolio_id TEXT NOT NULL,
+    model_type TEXT NOT NULL CHECK (
+        model_type IN ('BUY','SELL','STOP_LOSS')
+    ),
+
+    model_name TEXT NOT NULL,
+    version NUMERIC(3,1) NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    PRIMARY KEY (portfolio_id, model_type),
+
+    FOREIGN KEY (portfolio_id)
+        REFERENCES portfolio_registry(portfolio_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (model_name, version)
+        REFERENCES models_registry(model_name, version)
+        ON DELETE RESTRICT
 );

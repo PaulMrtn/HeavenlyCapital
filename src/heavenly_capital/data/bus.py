@@ -1,6 +1,11 @@
 from threading import Lock
 from typing import Dict, Any, List, Callable, Optional, Hashable
 
+from heavenly_capital.models.market_data import CandleEvent
+
+
+Subscriber = Callable[[int, CandleEvent], None]
+
 
 class EventBus:
 
@@ -11,13 +16,12 @@ class EventBus:
         #TODO:MEDIUM necessaire de garder une copy du dernier publish ? overflow memory
         self._snapshots: Dict[Hashable, Any] = {}
         self._subscribers: Dict[Hashable, List[Callable]] = {}
-
-        self._subscribers_all: List[Callable[[Hashable, Any], None]] = []
+        self._subscribers_all: List[Subscriber] = []
 
         self._next_token: int = 1
-        self._subscriptions: Dict[int, tuple[str, Optional[Hashable], Callable[[Hashable, Any], None]]] = {}
+        self._subscriptions: Dict[int, tuple[str, Optional[int], Subscriber]] = {}
 
-    def subscribe(self, entity_id: Hashable, callback: Callable[[Hashable, Any], None]):
+    def subscribe(self, entity_id: int, callback: Callable[[Hashable, Any], None]):
         with self._lock:
             if entity_id not in self._subscribers:
                 self._subscribers[entity_id] = []
@@ -28,7 +32,7 @@ class EventBus:
         self._subscriptions[token] = ("entity_id", entity_id, callback)
         return token
 
-    def subscribe_all(self, callback: Callable[[Hashable, Any], None]) -> int:
+    def subscribe_all(self, callback: Subscriber) -> int:
         with self._lock:
             self._subscribers_all.append(callback)
 
@@ -37,7 +41,7 @@ class EventBus:
             self._subscriptions[token] = ("all", None, callback)
             return token
 
-    def subscribe_many(self, entity_ids: list[Hashable], callback: Callable[[Hashable, Any], None]) -> list[int]:
+    def subscribe_many(self, entity_ids: list[int], callback: Callable[[Hashable, Any], None]) -> list[int]:
         tokens: list[int] = []
         with self._lock:
             for entity_id in entity_ids:

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from heavenly_capital.data.db_mock import TradingSessionDB
 
@@ -118,3 +118,50 @@ class SessionService:
             )
 
         return self._db.portfolio_is_enabled(portfolio_id)
+
+
+    def set_model(
+            self,
+            model_name: str,
+            model_type: str,
+            version: float,
+            path: str,
+            description: Optional[str],
+            enabled: bool = True
+    ) -> None:
+
+        if version is None:
+            raise ValueError("version must be provided")
+        if model_type not in ("BUY", "SELL", "STOP_LOSS"):
+            raise ValueError(f"Invalid model_type {model_type}")
+
+        self._db.update_forecast_model(
+            model_name=model_name,
+            model_type=model_type,
+            version=version,
+            path=path,
+            description=description,
+            enabled=enabled
+        )
+
+
+    def assign_model_to_portfolio(
+            self,
+            portfolio_id: str,
+            model_name: str,
+            model_type: str,
+            version: float
+    ) -> None:
+
+        if not self._db.portfolio_is_enabled(portfolio_id):
+            raise ValueError(f"Portfolio {portfolio_id} does not exist or is disabled")
+
+        if not self._db.model_is_enabled(model_name, version):
+            raise ValueError(f"Model {model_name} v{version} does not exist or is disabled")
+
+        self._db.update_portfolio_model(
+            portfolio_id=portfolio_id,
+            model_name=model_name,
+            model_type=model_type,
+            version=version
+        )

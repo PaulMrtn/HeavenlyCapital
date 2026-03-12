@@ -47,6 +47,8 @@ class HistoricHubConfig:
 
 
 
+
+
 @dataclass(frozen=True, slots=True)
 class FeatureSpec:
     id: str
@@ -129,13 +131,11 @@ class FeatureConfig:
 
 
 
-
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     model_id: str
-    kind: ModelKind
+    model_type: ModelKind
     path: Path
-    input_dim: int
     version: str
 
 
@@ -146,27 +146,28 @@ class ForecastConfig:
     specs: tuple[ModelSpec, ...] = (
         ModelSpec(
             model_id="test_linear_v1",
-            kind=ModelKind.BUY,
+            model_type=ModelKind.BUY,
             path=Path("ml_artifacts/mock_model.pkl"),
-            input_dim=10,
             version="1.0",
         ),
         ModelSpec(
             model_id="test3_linear_v1",
-            kind=ModelKind.STOP_LOSS,
+            model_type=ModelKind.STOP_LOSS,
             path=Path("ml_artifacts/mock_model.pkl"),
-            input_dim=5,
             version="1.0",
         ),
         ModelSpec(
             model_id="test2_linear_v1",
-            kind=ModelKind.SELL,
+            model_type=ModelKind.SELL,
             path=Path("ml_artifacts/mock_model.pkl"),
-            input_dim=8,
             version="1.0",
         ),
 
     )
+
+
+
+
 
 
 
