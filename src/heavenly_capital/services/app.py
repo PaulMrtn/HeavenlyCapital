@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from heavenly_capital.data.db_mock import TradingSessionDB
 
