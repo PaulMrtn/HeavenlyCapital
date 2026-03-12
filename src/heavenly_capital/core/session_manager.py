@@ -8,12 +8,15 @@ from threading import Condition, RLock, Thread
 from typing import Any, Callable, Deque, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
 
-from heavenly_capital.core.runtime_config import SessionConfig
+from heavenly_capital.core.runtime_config import SessionConfig, ModuleRouter, ModuleType
 from heavenly_capital.core.system_manager import RuntimeModule
+from heavenly_capital.models.market_data import ReadOnlyTicker, TickerManager
+from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
 from heavenly_capital.trading.risk_monitor import RiskMonitor
+
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
@@ -40,15 +43,56 @@ class TradingSessionKey:
     mode: TradingMode
 
 
-@dataclass(frozen=True)
-class SessionStack:
-    orders: OrderManager
-    portfolio: PortfolioManager
-    risk: RiskMonitor
+
+
+class TradingEngine(ModuleRouter):
+
+    def __init__(
+            self,
+            orders: BaseModule,
+            portfolio: BaseModule,
+            risk: BaseModule,
+    ) -> None:
+        self._modules: Dict[ModuleType, BaseModule] = {
+            ModuleType.ORDERS: orders,
+            ModuleType.PORTFOLIO: portfolio,
+            ModuleType.RISK: risk,
+        }
+
+        for module_type, module in self._modules.items():
+            module.bind_router(self, module_type)
+
+    def transfer(
+            self,
+            *,
+            source: ModuleType,
+            target: ModuleType,
+            payload: Any,
+    ) -> None:
+        if source == target:
+            return
+
+        target_module = self._modules[target]
+        target_module.receive(payload, source)
+
+    @property
+    def orders(self):
+        return self._modules[ModuleType.ORDERS]
+
+    @property
+    def portfolio(self):
+        return self._modules[ModuleType.PORTFOLIO]
+
+    @property
+    def risk(self):
+        return self._modules[ModuleType.RISK]
+
+
 
 
 @dataclass
 class MarketDaySessionSnapshot:
+    #TODO:MEDIUM useless ?
     session_date: date
     account_id: str
     mode: str
@@ -62,7 +106,7 @@ class MarketDaySessionSnapshot:
 class RoutedOrder:
     seq: int
     session_key: TradingSessionKey
-    order: Dict[str, Any] # TODO : replace by OrderObject
+    order: OrderTracker
 
 
 class GlobalOrderRouter:
@@ -70,7 +114,7 @@ class GlobalOrderRouter:
     def __init__(
             self,
             *,
-            sink: Callable[[TradingSessionKey, Dict[str, Any]], None] | None,
+            sink: Callable[["TradingSessionKey", "OrderTracker"], None] | None,
             start_worker: bool = True,
             name: str = "global-order-router",
     ) -> None:
@@ -92,7 +136,6 @@ class GlobalOrderRouter:
             self._worker.start()
 
     def close(self) -> None:
-
         with self._cv:
             self._closed = True
             self._cv.notify_all()
@@ -101,9 +144,7 @@ class GlobalOrderRouter:
             # TODO:HIGH : add .join() to threadPool
             self._worker.join()
 
-    def route_order(self, *, session_key: TradingSessionKey, order: Dict[str, Any]) -> None:
-        # TODO: créer un objet Order contenant toutes les infos de TradingSessionKey et supprimer session-key en input.
-
+    def route_order(self, *, session_key: TradingSessionKey, order: "OrderTracker") -> None:
         with self._cv:
             if self._closed:
                 return
@@ -118,7 +159,7 @@ class GlobalOrderRouter:
 
             self._cv.notify()
 
-    def _pop_next(self) -> Optional[RoutedOrder]:
+    def _pop_next(self) -> Optional["RoutedOrder"]:
 
         with self._lock:
             if self._live:
@@ -168,9 +209,9 @@ class TradingSession:
 
         self._payload: Dict[str, Any] = payload or {}
         self._ports: Optional["SystemPorts"] = ports
-        self._router: "GlobalOrderRouter" = router
+        self._order_router: "GlobalOrderRouter" = router
 
-        self.stack: Optional[SessionStack] = None
+        self.stack: Optional[TradingEngine] = None
 
     @property
     def ports(self) -> "SystemPorts":
@@ -178,7 +219,7 @@ class TradingSession:
 
     @property
     def router(self) -> "GlobalOrderRouter":
-        return self._router
+        return self._order_router
 
     @staticmethod
     def _build_modules() -> tuple["OrderManager", "PortfolioManager", "RiskMonitor"]:
@@ -191,29 +232,22 @@ class TradingSession:
         for m in (orders, portfolio, risk):
             m.configure(session_id=self.session_id, key=self.key, ports=self.ports)
 
-    @staticmethod
-    def _wire_modules(
-            *,
-            orders: "OrderManager",
-            portfolio: "PortfolioManager",
-            risk: "RiskMonitor",
-            router: "GlobalOrderRouter",
-    ) -> None:
-
-        orders.wire(
-            portfolio_authorizer=portfolio.authorize_order,
-            risk_authorizer=risk.authorize_order,
-        )
-
-        orders.set_router(router)
-
     def initialize_modules(self) -> None:
         orders, portfolio, risk = self._build_modules()
 
-        self._inject_modules(orders=orders, portfolio=portfolio, risk=risk)
-        self._wire_modules(orders=orders, portfolio=portfolio, risk=risk, router=self.router)
-        self.stack = SessionStack(orders=orders, portfolio=portfolio, risk=risk)
+        self._inject_modules(
+            orders=orders,
+            portfolio=portfolio,
+            risk=risk
+        )
 
+        orders.set_order_router(self.router)
+
+        self.stack = TradingEngine(
+            orders=orders,
+            portfolio=portfolio,
+            risk=risk
+        )
 
     def start(self) -> None:
         if self.state in (SessionState.RUNNING, SessionState.CLOSED):
@@ -235,6 +269,7 @@ class TradingSession:
             "is_healthy": True,
         }
 
+    # TODO: Check the utility of this function
     def snapshot(self) -> MarketDaySessionSnapshot:
         return MarketDaySessionSnapshot(
             session_date=self.key.session_date,
@@ -244,12 +279,20 @@ class TradingSession:
             payload=dict(self._payload),
         )
 
+    def load_contracts(self, contracts: dict[str, "Contract"]) -> None:
+        self.stack.orders.load_contracts(contracts)
+
+    def wire_live_tickers(self, ticker_manager: "TickerManager") -> None:
+        self.stack.portfolio.wire_ticker_manager(ticker_manager)
+        self.stack.risk.wire_ticker_manager(ticker_manager)
+
+
     def wire_buses(self, buses: dict[str, "EventBus"]) -> None:
-        self.stack.portfolio.wire_live_tick_bus(buses["tick_bus"])
+        pass
         # self.stack.risk.wire_live_tick_bus(buses["feature_bus"])
 
     def subscribe_live(self) -> None:
-        self.stack.portfolio.subscribe_to_live_tick()
+        pass
         # self.stack.risk.subscribe_to_features()
 
 
@@ -265,7 +308,7 @@ class SessionManager(RuntimeModule):
 
         self._lock = RLock()
         self.sessions: Dict["TradingSessionKey", "TradingSession"] = {}
-        self._router: Optional["GlobalOrderRouter"] = None
+        self._order_router: Optional["GlobalOrderRouter"] = None
 
     def configure(self, *, config: "SessionConfig", ports: "SystemPorts") -> None:
         self._config = config
@@ -280,22 +323,22 @@ class SessionManager(RuntimeModule):
     def stop(self) -> None:
         self._started = False
 
-    def init_router(self, *, sink) -> None:
+    def init_order_router(self, *, sink) -> None:
         if sink is None:
-            raise ValueError("SessionManager: init_router() requires a non-null sink")
-        if self._router is not None:
+            raise ValueError("SessionManager: init_order_router() requires a non-null sink")
+        if self._order_router is not None:
             raise RuntimeError("SessionManager: router already initialized")
 
-        self._router = GlobalOrderRouter(sink=sink)
+        self._order_router = GlobalOrderRouter(sink=sink)
 
     @property
     def router(self) -> "GlobalOrderRouter":
-        if self._router is None:
+        if self._order_router is None:
             raise RuntimeError(
                 "SessionManager: router not initialized yet. "
-                "Call init_router(sink=...) after IBKR sink injection."
+                "Call init_order_router(sink=...) after IBKR sink injection."
             )
-        return self._router
+        return self._order_router
 
     @property
     def is_configured(self) -> bool:
@@ -325,7 +368,7 @@ class SessionManager(RuntimeModule):
 # -------- API ----------------------
 
     def _current_session_date(self):
-        # TODO:HIGH Persist current day dans unf format ISO (ou équivalent)
+        # TODO:HIGH Persist current day dans un format ISO (ou équivalent)
         return self.ports.market_calendar.today()
 
     def _build_session_key(
@@ -354,7 +397,6 @@ class SessionManager(RuntimeModule):
             router=self.router
         )
 
-
     def initialize_sessions_from_config(self) -> None:
         for session_cfg in getattr(self._config, "sessions", []):
             for portfolio_cfg in session_cfg.portfolios:
@@ -378,11 +420,21 @@ class SessionManager(RuntimeModule):
 
             # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session
 
-
     def load_session_state_from_database(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
-            session.stack.risk.load_risk_state()
+            # session.stack.risk.load_risk_state()
+    def load_session_forecast_model(self) -> None:
+        for session in self.sessions.values():
+            session.stack.portfolio.load_forecast_model()
+            # session.stack.risk.load_forecast_model()
+
+    def load_session_portfolio_orders(self) -> None:
+        for session in self.sessions.values():
+            session.stack.portfolio.load_portfolio_orders()
+
+
+
 
     def health_check_loaded_sessions(self) -> None:
 
@@ -400,6 +452,12 @@ class SessionManager(RuntimeModule):
             raise HealthCheckError(failures)
 
         # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session with a new fonction
+
+
+
+
+
+
 
 
 
@@ -429,26 +487,6 @@ class SessionManager(RuntimeModule):
             return tuple(self.sessions.values())
 
 
-    def end_of_day_persist(self) -> None:
-        """
-        Persiste toutes les sessions de la journée (snapshot).
-        On s'appuie sur DataIngestionLayer: insert/update/exists_for_date,
-        donc à ce stade on persiste "par date" (version minimaliste).
-        """
-        with self._lock:
-            sessions = list(self.sessions.values())
-
-        # Remarque: ton DIL actuel est indexé par date uniquement;
-        # donc pour supporter plusieurs sessions par date, il faudra évoluer le storage.
-        # Pour démarrer, on stocke une structure agrégée par date.
-        if not sessions:
-            return
-
-        session_date = sessions[0].key.session_date
-        payload = {
-            "sessions": [asdict(s.snapshot()) for s in sessions],
-        }
-
         # On crée un objet compatible "MarketDaySession" côté système plus tard.
         # Ici on passe un objet duck-typed minimal attendu par DIL.
         class _MarketDaySessionLike:
@@ -464,6 +502,9 @@ class SessionManager(RuntimeModule):
             self._data_ingestion.insert(obj)
 
     # endregion
+
+
+
 
 
 _instance: Optional[SessionManager] = None

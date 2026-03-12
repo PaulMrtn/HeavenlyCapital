@@ -211,4 +211,4 @@ __marimo__/
 
 
 #ML Model Picle (artifacts)
-src/heavenly_capital/ml_artifacts/
+/ml_artifacts/

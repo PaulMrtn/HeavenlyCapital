@@ -1,23 +1,20 @@
 from __future__ import annotations
 
-import time
-from queue import Queue, Empty
-from threading import Thread
+from typing import Optional, Any, TYPE_CHECKING, Callable, Dict, cast
 
-from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
-
-from ib_async import Contract
+from ib_async import Contract, Ticker
 
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
-from heavenly_capital.models.market_data import TickEvent, OHLC
+from heavenly_capital.data.db_mock import TradingSessionDB
+from heavenly_capital.models.market_data import OHLC, TickerManager
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
     from heavenly_capital.ibkr.gateway import Contract
 
 
-
+tsDB = TradingSessionDB()
 
 class OHLCAggregator:
     def __init__(self):
@@ -54,7 +51,6 @@ class OHLCAggregator:
         )
 
 
-
 class InstrumentPipeline:
     def __init__(self, contract: "Contract"):
         self.contract = contract
@@ -64,14 +60,20 @@ class InstrumentPipeline:
         self.bid_agg = OHLCAggregator()
         self.ask_agg = OHLCAggregator()
 
-    def on_tick(self, tick: "TickEvent"):
-        if tick.last > 0:
-            self.last_agg.add(tick.last, tick.last_size, tick.timestamp)
-        if tick.bid > 0:
-            self.bid_agg.add(tick.bid, tick.bid_size, tick.timestamp)
-        if tick.ask > 0:
-            self.ask_agg.add(tick.ask, tick.ask_size, tick.timestamp)
+    def on_ticker(self, tick: "Ticker"):
+        ts = tick.timestamp
 
+        last = tick.last
+        if last > 0:
+            self.last_agg.add(last, tick.lastSize, ts)
+
+        bid = tick.bid
+        if bid > 0:
+            self.bid_agg.add(bid, tick.bidSize, ts)
+
+        ask = tick.ask
+        if ask > 0:
+            self.ask_agg.add(ask, tick.askSize, ts)
 
     def aggregate_all(self, ts_start: float, ts_end: float) -> dict[str, Optional["OHLC"]]:
         return {
@@ -81,24 +83,23 @@ class InstrumentPipeline:
         }
 
 
-
-
 class LiveDataHub(RuntimeModule):
 
     def __init__(self) -> None:
+        self._last_update_interval = None
         self._configured: bool = False
         self._started: bool = False
 
-        self._pipelines: Dict[int, "InstrumentPipeline"] = {}
-
-        self._queue = Queue()
         self._last_agg_time: Optional[float] = None
 
-        self.tick_bus = EventBus(name="TickBus")
+        self._pipelines: Dict[int, "InstrumentPipeline"] = {}
+        self._tickers = TickerManager()
         self.candle_bus = EventBus(name="CandleBus")
+
 
         self._config: Optional["LiveHubConfig"] = None
         self._ports: Optional["SystemPorts"] = None
+
 
     def configure(self, *, config: "LiveHubConfig", ports: "SystemPorts") -> None:
         self._config = config
@@ -122,7 +123,6 @@ class LiveDataHub(RuntimeModule):
 
     @property
     def is_started(self) -> bool:
-        # TODO:MEDIUM : rename is_stared to is_running
         return self._started
 
     @property
@@ -138,33 +138,30 @@ class LiveDataHub(RuntimeModule):
         return self._ports
 
     def health_check(self) -> dict[str, Any]:
-        return {
-            "is_healthy": True,
-        }
+        return {"is_healthy": True}
 
     def initialize_pipelines(self, contracts: dict[str, Contract]):
         self._pipelines = {
             c.conId: InstrumentPipeline(c) for c in contracts.values()
         }
 
-    def _ingest(self, tick):
-        self._queue.put(tick)
+    def ingest_ticker(self, ticker: Ticker):
+        conId = ticker.contract.conId
+
+        if conId not in self._tickers.tickers:
+            self._tickers.add_ticker(ticker)
+
+        pipeline = self._pipelines.get(ticker.contract.conId)
+        if pipeline is not None:
+            pipeline.on_ticker(ticker)
 
     @property
     def ingest_port(self) -> Callable:
-        return self._ingest
+        return self.ingest_ticker
 
-    def process_ticks(self, timeout: float = 0.1):
-        try:
-            tick = self._queue.get(timeout=timeout)
-            pipeline = self._pipelines.get(tick.conId)
-            if pipeline:
-                pipeline.on_tick(tick)
-
-            self.tick_bus.publish(tick.conId, tick)
-            self._queue.task_done()
-        except Empty:
-            pass
+    @property
+    def tickers(self) -> "TickerManager":
+        return self._tickers
 
     def aggregate_and_publish_candles(self, current_time: float):
         if self._last_agg_time is None:
@@ -180,6 +177,7 @@ class LiveDataHub(RuntimeModule):
                 self.candle_bus.publish(conId, bars)
 
             self._last_agg_time = current_time
+
 
 
 

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Dict
 
+from sqlalchemy import RowMapping
+
 
 @dataclass(frozen=True, slots=True)
 class PortfolioConfig:
@@ -36,7 +38,7 @@ class TradingSessionConfig:
         )
 
     @classmethod
-    def from_persistence(cls, row: dict, db: "TradingSessionDB") -> "TradingSessionConfig":
+    def from_database(cls, row: "RowMapping", db: "TradingSessionDB") -> "TradingSessionConfig":
         portfolios = tuple(
             PortfolioConfig(**p) for p in db.fetch_portfolios(account_id=row["account_id"])
         )

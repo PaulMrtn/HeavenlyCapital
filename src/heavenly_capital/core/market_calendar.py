@@ -59,14 +59,14 @@ class USMarketsCalendar:
         tomorrow_market = (now_market + timedelta(days=1)).date()
         return self._source.is_open_on_date(tomorrow_market, tz=self.tz)
 
-    def today(self, now: Optional[datetime] = None) -> str:
+    def today(self, now: Optional[datetime] = None) -> date:
         now = now or datetime.now(tz=ZoneInfo("UTC"))
 
         if now.tzinfo is None:
             now = now.replace(tzinfo=ZoneInfo("UTC"))
 
         now_market = now.astimezone(ZoneInfo(self.tz))
-        return now_market.strftime("%d-%m-%Y")
+        return now_market.date()
 
 
 

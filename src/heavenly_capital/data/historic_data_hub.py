@@ -336,7 +336,6 @@ class HistoricDataHub(RuntimeModule):
 
 
 
-
 _instance: Optional[HistoricDataHub] = None
 
 def get_historic_data_hub() -> HistoricDataHub:

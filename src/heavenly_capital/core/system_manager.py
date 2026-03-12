@@ -546,7 +546,7 @@ class SystemManager:
 
     def _wire_routing(self) -> None:
         sink = self._modules.ibkr_gateway.order_sink
-        self._modules.session_manager.init_router(sink=sink)
+        self._modules.session_manager.init_order_router(sink=sink)
 
 
     def _health_checks_runtime_modules(self) -> None:
@@ -601,17 +601,17 @@ class SystemManager:
 
     def _subscribe_local_runtime(self) -> None:
         buses = {
-            "tick_bus": self._modules.live_hub.tick_bus,
-            # "feature_bus": self._modules.feature_manager.feature_bus,
+            "feature_bus": self._modules.feature_manager.feature_bus,
         }
-
         for key, session in self._modules.session_manager.sessions.items():
-        # if key.mode == "PAPER":
-            print(key)
             session.wire_buses(buses)
             session.subscribe_live()
-
-
+            
+            
+    def _wire_live_hub_to_local_runtime(self) -> None:
+        tickers = self._modules.live_hub.tickers
+        for session in self._modules.session_manager.sessions.values():
+            session.wire_live_tickers(tickers)
 
     def launch_local_runtime(self) :
         self._modules.session_manager.initialize_sessions_from_config()
@@ -619,11 +619,10 @@ class SystemManager:
         self._modules.session_manager.health_check_loaded_sessions()
 
 
-
 # region wire and sync function
-    def _wire_gateway_sink_to_data_hub(self) -> None:
-        tick_sink = self._modules.live_hub.ingest_port
-        self._modules.ibkr_gateway.wire_tick_sink(tick_sink)
+    def _wire_gateway_sink_to_live_hub(self) -> None:
+        ticker_sink = self._modules.live_hub.ingest_port
+        self._modules.ibkr_gateway.wire_live_ticker(ticker_sink)
 
     def _wire_live_hub_to_historic_hub(self) -> None:
         candle_bus = self._modules.live_hub.candle_bus
@@ -641,10 +640,21 @@ class SystemManager:
 
     def _sync_hubs_with_contracts(self) -> None:
         contracts = self._modules.ibkr_gateway.contracts
+
         self._modules.live_hub.initialize_pipelines(contracts)
-        self._modules.historic_hub.initialize_universe(contracts)
-        self._modules.feature_manager.initialize_universe(contracts)
-        self._modules.forecast_manager.initialize_universe(contracts)
+
+        modules = [
+            self._modules.historic_hub,
+            self._modules.feature_manager,
+            self._modules.forecast_manager
+        ]
+
+        for m in modules:
+            m.initialize_universe(contracts)
+
+        for session in self._modules.session_manager.sessions.values():
+            session.load_contracts(contracts)
+
 
 # endregion
 
@@ -653,7 +663,7 @@ class SystemManager:
         await self._modules.ibkr_gateway.load_universe_snapshot()
 
         # TODO:HIGH Review the optimal order, be aware when you start() module, while True -> while self.started
-        self._wire_gateway_sink_to_data_hub()
+        self._wire_gateway_sink_to_live_hub()
         self._wire_live_hub_to_historic_hub()
         self._wire_historic_hub_to_feature_manager()
         self._wire_feature_store_to_forecast_manager()
@@ -661,11 +671,13 @@ class SystemManager:
         self._sync_hubs_with_contracts()
 
         self._modules.feature_manager.build_market_data_banks()
+
         # TODO:WARNING I dont understand this duplicated function call
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
 
-        self._subscribe_local_runtime()
+        self._wire_live_hub_to_local_runtime()
+        # self._subscribe_local_runtime()
 
         self._modules.forecast_manager.setup_models_and_store()
 
@@ -679,7 +691,7 @@ class SystemManager:
     def _runtime_loop(self) -> None:
         while True:
             now = time.time()
-            self._modules.live_hub.process_ticks(timeout=0.1)
+
             self._modules.live_hub.aggregate_and_publish_candles(current_time=now)
 
             self._modules.historic_hub.ingest_candle_5s()

@@ -5,8 +5,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
-from threading import Thread, Lock
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple
 from ib_async import Contract
 import numpy as np
 
@@ -346,12 +345,14 @@ class FeatureManager(RuntimeModule):
     # -------------------------------------------
     
 
+
     def process_candle_events(self) -> None:
         processed = False
 
         while True:
             try:
                 event = self._in_queue.get_nowait()
+
             except queue.Empty:
                 break
 
@@ -366,9 +367,8 @@ class FeatureManager(RuntimeModule):
             for vector in self._event_to_features(event):
                 self.store.commit(vector)
 
-            for vector in self._build_fusion_vectors(event.freq):
-                self.store.commit(vector)
-
+            # for vector in self._build_fusion_vectors(event.freq):
+            #     self.store.commit(vector)
 
             processed = True
             self._in_queue.task_done()

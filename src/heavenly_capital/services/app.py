@@ -1,7 +1,6 @@
 from decimal import Decimal
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
 
-from heavenly_capital.models.portfolio import PortfolioLedger
 from heavenly_capital.data.db_mock import TradingSessionDB
 
 
@@ -9,7 +8,6 @@ class SessionService:
 
     def __init__(self, db: TradingSessionDB):
         self._db = db
-        self._portfolios: Dict[str, List["PortfolioLedger"]] = {}
 
     def create_session(
             self,
@@ -27,13 +25,14 @@ class SessionService:
         self._db.insert_session(session_name, account_id, mode, context)
 
     def create_portfolio(
+            #TODO:LOW - ADD constraint on account capital
             self,
             account_id: str,
             strategy_id: str,
             portfolio_id: str,
             portfolio_name: str,
             cash_amount: Optional[Decimal | float] = None,
-            currency: str = "EUR",
+            currency: str = "USD",
             enabled: bool = True,
     ) -> None:
 
@@ -43,37 +42,57 @@ class SessionService:
 
         session_mode = sessions[0].mode.upper()
 
+        if self._db.portfolio_exists_for_portfolio_id(portfolio_id):
+            raise ValueError(
+                f"Portfolio id '{portfolio_id}' already exists in the database"
+            )
+
+        self._db.insert_portfolio(
+            account_id, strategy_id, portfolio_id, portfolio_name, currency, enabled
+        )
+
         if session_mode == "LIVE":
-            if cash_amount is not None:
+            cash_amount = self._db.get_account_total_cash(account_id, currency)
+            if cash_amount is None:
                 raise ValueError(
-                    "cash_amount cannot be specified when creating a LIVE session"
+                    f"No total_cash_balance found for LIVE account {account_id} in {currency}"
                 )
-
-            if self._db.portfolio_exists_for_account(account_id):
-                raise ValueError(
-                    f"Un portefeuille existe déjà pour le compte LIVE {account_id}"
-                )
-
-            if self._db.portfolio_exists_for_portfolio_id(portfolio_id):
-                raise ValueError(
-                    f"Portfolio id '{portfolio_id}' already exists in the database"
-                )
-
-            self._db.insert_portfolio(account_id, strategy_id, portfolio_id, portfolio_name, 0.0, currency, enabled)
-
         else:
             if cash_amount is None:
                 raise ValueError(
                     "cash_amount must be specified when creating a PAPER session"
                 )
 
-            if self._db.portfolio_exists_for_portfolio_id(portfolio_id):
-                raise ValueError(
-                    f"Portfolio with id '{portfolio_id}' already exists in the database"
-                )
+        self.register_capital_event(
+            account_id=account_id,
+            portfolio_id=portfolio_id,
+            event="INITIAL_CAPITAL",
+            amount=Decimal(cash_amount),
+            currency=currency
+        )
 
-            self._db.insert_portfolio(account_id, strategy_id, portfolio_id, portfolio_name, cash_amount, currency, enabled)
+    def register_capital_event(
+            self,
+            account_id: str,
+            portfolio_id: str,
+            event: str,  # "INITIAL_CAPITAL", "CAPITAL_ADDITION", "CAPITAL_WITHDRAWAL"
+            amount: Decimal,
+            currency: str = "USD"
+    ) -> None:
 
+        self._db.insert_capital_event(
+            account_id=account_id,
+            portfolio_id=portfolio_id,
+            event=event,
+            amount=amount,
+            currency=currency
+        )
+
+        self._db.update_portfolio_balances(
+            account_id=account_id,
+            portfolio_id=portfolio_id,
+            currency=currency
+        )
 
     def delete_portfolio(
             self,
@@ -99,3 +118,50 @@ class SessionService:
             )
 
         return self._db.portfolio_is_enabled(portfolio_id)
+
+
+    def set_model(
+            self,
+            model_name: str,
+            model_type: str,
+            version: float,
+            path: str,
+            description: Optional[str],
+            enabled: bool = True
+    ) -> None:
+
+        if version is None:
+            raise ValueError("version must be provided")
+        if model_type not in ("BUY", "SELL", "STOP_LOSS"):
+            raise ValueError(f"Invalid model_type {model_type}")
+
+        self._db.update_forecast_model(
+            model_name=model_name,
+            model_type=model_type,
+            version=version,
+            path=path,
+            description=description,
+            enabled=enabled
+        )
+
+
+    def assign_model_to_portfolio(
+            self,
+            portfolio_id: str,
+            model_name: str,
+            model_type: str,
+            version: float
+    ) -> None:
+
+        if not self._db.portfolio_is_enabled(portfolio_id):
+            raise ValueError(f"Portfolio {portfolio_id} does not exist or is disabled")
+
+        if not self._db.model_is_enabled(model_name, version):
+            raise ValueError(f"Model {model_name} v{version} does not exist or is disabled")
+
+        self._db.update_portfolio_model(
+            portfolio_id=portfolio_id,
+            model_name=model_name,
+            model_type=model_type,
+            version=version
+        )

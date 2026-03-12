@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections import namedtuple
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Optional, Literal
-
-
+from typing import Any, Optional, Literal, List, Callable
+import time
 import numpy as np # TODO:LOW - import only what we need
 
 class AssetType(StrEnum):
@@ -18,18 +17,105 @@ OHLC = namedtuple("OHLC",
                   ["open", "high", "low", "close", "volume", "tick_count", "ts_start", "ts_end"])
 
 
-@dataclass(slots=True, frozen=True)
-class TickEvent:
-    symbol: str
-    conId: int
-    last: float
-    last_size: float
-    bid: float
-    bid_size: float
-    ask: float
-    ask_size: float
-    volume: float
-    timestamp: float
+_EXPOSED_FIELDS = {
+    "symbol": "contract.symbol",
+    "conId": "contract.conId",
+    "tradingClass": "contract.tradingClass",
+    "last": "last",
+    "lastSize": "lastSize",
+    "bid": "bid",
+    "bidSize": "bidSize",
+    "ask": "ask",
+    "askSize": "askSize",
+    "volume": "volume",
+    "close": "close",
+    "timestamp": "timestamp",
+}
+
+
+class ReadOnlyTicker:
+    __slots__ = ("_ticker", "_callbacks")
+
+    def __init__(self, ticker: Any):
+        self._ticker = ticker
+        self._callbacks = []
+
+        ticker.updateEvent.connect(self._on_update)
+
+    def __getattr__(self, item):
+        path = _EXPOSED_FIELDS.get(item)
+        if not path:
+            raise AttributeError(f"{item} not exposed")
+        obj = self._ticker
+        for attr in path.split("."):
+            obj = getattr(obj, attr, None)
+            if obj is None:
+                break
+        return obj
+
+    def __getitem__(self, item):
+        return self.__getattr__(item)
+
+    def _on_update(self, ticker):
+        for cb in tuple(self._callbacks):
+            cb(self)
+
+    def subscribe(self, cb):
+        if cb not in self._callbacks:
+            self._callbacks.append(cb)
+
+    def unsubscribe(self, cb):
+        self._callbacks.remove(cb)
+
+    def as_dict(self):
+        return {k: getattr(self, k) for k in _EXPOSED_FIELDS.keys()}
+
+
+
+
+class TickerManager:
+
+    def __init__(self):
+        self.tickers: dict[int, ReadOnlyTicker] = {}
+        self._subscriptions: list[Callable[[], None]] = []
+
+        self._refresh_interval = 0.5
+        self._last_callback = 0.0
+
+    def add_ticker(self, ticker: Any) -> ReadOnlyTicker:
+        conId = ticker.contract.conId
+
+        if conId in self.tickers:
+            return self.tickers[conId]
+
+        ro = ReadOnlyTicker(ticker)
+        self.tickers[conId] = ro
+        ro.subscribe(lambda ro: self._on_ticker_update())
+
+        return ro
+
+    def _on_ticker_update(self):
+        now = time.time()
+        if now - self._last_callback >= self._refresh_interval:
+            for cb in tuple(self._subscriptions):
+                cb()
+            self._last_callback = time.time()
+
+    def subscribe(self, cb: Callable[[], None]):
+        if cb not in self._subscriptions:
+            self._subscriptions.append(cb)
+
+    def unsubscribe(self, cb: Callable[[], None]):
+        if cb in self._subscriptions:
+            self._subscriptions.remove(cb)
+
+    def get_ticker(self, conId: int) -> Optional["ReadOnlyTicker"]:
+        return self.tickers.get(conId)
+
+    def all_tickers(self):
+        return list(self.tickers.values())
+
+
 
 
 @dataclass(frozen=True, slots=True)

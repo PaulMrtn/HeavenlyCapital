@@ -125,14 +125,14 @@ class ForecastManager(RuntimeModule):
 
         self._in_queue = Queue(maxsize=1)
 
-        self._config: Optional[ForecastConfig] = None
+        self._config: Optional["ForecastConfig"] = None
         self._ports: Optional["SystemPorts"] = None
 
     def configure(self, *, config: "ForecastConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
 
-        self._registry = ModelRegistry(specs=config.specs)
+        self._registry = ModelRegistry(specs=self._config.specs)
         self._pool = ModelPool(registry=self._registry)
         self._store = ModelStore()
 
@@ -162,7 +162,7 @@ class ForecastManager(RuntimeModule):
         return self._started
 
     @property
-    def config(self) -> ForecastConfig:
+    def config(self) -> "ForecastConfig":
         if self._config is None:
             raise RuntimeError("ForecastManager: config not set (configure() not called)")
         return self._config
@@ -177,7 +177,6 @@ class ForecastManager(RuntimeModule):
         return {
             "is_healthy": True,
         }
-
 
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
@@ -223,20 +222,21 @@ class ForecastManager(RuntimeModule):
 
     def run_predictions(self) -> None:
         try:
-            feature = self._in_queue.get_nowait()
+            feature_snapshot = self._in_queue.get_nowait()
         except Empty:
             return
 
-        if feature is None:
+        if feature_snapshot is None:
             return
 
+        #self.pool.items doit être organiser de manière optimale
         for model_id, model in self._pool.items:
             for conid in self._conids:
                 self._make_prediction(
                     model_id=model_id,
                     model=model,
                     conid=conid,
-                    snapshot=feature
+                    snapshot=feature_snapshot
                 )
 
 

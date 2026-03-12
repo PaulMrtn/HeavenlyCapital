@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import runtime_checkable, Protocol, Any, Optional
 from pathlib import Path
 
@@ -43,6 +44,8 @@ class LiveHubConfig:
 @dataclass(frozen=True, slots=True)
 class HistoricHubConfig:
     pass
+
+
 
 
 
@@ -126,13 +129,16 @@ class FeatureConfig:
     )
 
 
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     model_id: str
-    kind: ModelKind
+    model_type: ModelKind
     path: Path
-    input_dim: int
     version: str
+
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,27 +146,28 @@ class ForecastConfig:
     specs: tuple[ModelSpec, ...] = (
         ModelSpec(
             model_id="test_linear_v1",
-            kind=ModelKind.BUY,
+            model_type=ModelKind.BUY,
             path=Path("ml_artifacts/mock_model.pkl"),
-            input_dim=10,
             version="1.0",
         ),
         ModelSpec(
             model_id="test3_linear_v1",
-            kind=ModelKind.STOP_LOSS,
+            model_type=ModelKind.STOP_LOSS,
             path=Path("ml_artifacts/mock_model.pkl"),
-            input_dim=5,
             version="1.0",
         ),
         ModelSpec(
             model_id="test2_linear_v1",
-            kind=ModelKind.SELL,
+            model_type=ModelKind.SELL,
             path=Path("ml_artifacts/mock_model.pkl"),
-            input_dim=8,
             version="1.0",
         ),
 
     )
+
+
+
+
 
 
 
@@ -182,7 +189,7 @@ class SessionConfig:
 
 def load_session_config(db: "TradingSessionDB") -> SessionConfig:
     rows = db.fetch_all()
-    sessions = [TradingSessionConfig.from_persistence(row, db) for row in rows]
+    sessions = [TradingSessionConfig.from_database(row, db) for row in rows]
     return SessionConfig(sessions=tuple(sessions))
 
 
@@ -249,4 +256,46 @@ class AsyncRuntimeModule(RuntimeModule):
 
     @abstractmethod
     async def stop(self) -> Any:
+        pass
+
+
+
+
+class ModuleType(str, Enum):
+    ORDERS = "orders"
+    PORTFOLIO = "portfolio"
+    RISK = "risk"
+
+
+class ModuleRouter(ABC):
+    @abstractmethod
+    def transfer(
+        self,
+        *,
+        source: ModuleType,
+        target: ModuleType,
+        payload: Any,
+    ) -> None:
+        ...
+
+
+
+class BaseModule(ABC):
+
+    def __init__(self) -> None:
+        self._router: Optional[ModuleRouter] = None
+        self._module_type: Optional[ModuleType] = None
+
+    def bind_router(self, router: ModuleRouter, module_type: ModuleType) -> None:
+        self._router = router
+        self._module_type = module_type
+
+    def send(self, target: ModuleType, payload: Any) -> None:
+        self._router.transfer(
+            source=self._module_type,
+            target=target,
+            payload=payload,
+        )
+
+    def _receive(self, source: ModuleType, payload: Any) -> None:
         pass
