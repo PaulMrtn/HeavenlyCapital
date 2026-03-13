@@ -1482,28 +1482,96 @@ class TradingSessionDB:
     @staticmethod
     def fetch_positions_and_targets(today: str) -> list[dict]:
         query = text("""
-                     SELECT p.account_id,
-                            sr.mode AS session_mode,
-                            p.portfolio_id,
-                            p.con_id,
-                            c.symbol
-                     FROM positions p
-                              JOIN contracts c ON p.con_id = c.con_id
-                              JOIN session_registry sr ON p.account_id = sr.account_id
+                     WITH portfolio_totals AS (SELECT account_id,
+                                                      portfolio_id,
+                                                      SUM(market_value) AS total_value
+                                               FROM positions
+                                               GROUP BY account_id, portfolio_id),
+                          positions_with_weight AS (SELECT p.account_id,
+                                                           sr.mode AS session_mode,
+                                                           p.portfolio_id,
+                                                           p.con_id,
+                                                           c.symbol,
+                                                           p.market_value,
+                                                           pt.total_value,
+                                                           CASE
+                                                               WHEN pt.total_value > 0
+                                                                   THEN p.market_value / pt.total_value
+                                                               ELSE 0
+                                                               END AS pos_w
+                                                    FROM positions p
+                                                             JOIN contracts c ON p.con_id = c.con_id
+                                                             JOIN session_registry sr ON p.account_id = sr.account_id
+                                                             JOIN portfolio_totals pt
+                                                                  ON p.account_id = pt.account_id
+                                                                      AND p.portfolio_id = pt.portfolio_id),
+                          targets_only AS (SELECT t.account_id,
+                                                  sr.mode         AS session_mode,
+                                                  t.portfolio_id,
+                                                  w.con_id,
+                                                  c.symbol,
+                                                  w.target_weight AS target_w
+                                           FROM portfolio_targets t
+                                                    JOIN portfolio_target_weights w ON t.target_id = w.target_id
+                                                    JOIN contracts c ON w.con_id = c.con_id
+                                                    JOIN session_registry sr ON t.account_id = sr.account_id
+                                           WHERE t.rebalance_date = :today),
+                          combined AS (
+                              -- positions existantes (avec target si elle existe)
+                              SELECT pw.account_id,
+                                     pw.session_mode,
+                                     pw.portfolio_id,
+                                     pw.con_id,
+                                     pw.symbol,
+                                     pw.pos_w,
+                                     tw.target_weight AS target_w
+                              FROM positions_with_weight pw
+                                       LEFT JOIN portfolio_targets t
+                                                 ON pw.account_id = t.account_id
+                                                     AND pw.portfolio_id = t.portfolio_id
+                                                     AND t.rebalance_date = :today
+                                       LEFT JOIN portfolio_target_weights tw
+                                                 ON t.target_id = tw.target_id
+                                                     AND pw.con_id = tw.con_id
 
-                     UNION
+                              UNION ALL
 
-                     SELECT t.account_id,
-                            sr.mode AS session_mode,
-                            t.portfolio_id,
-                            w.con_id,
-                            c.symbol
-                     FROM portfolio_targets t
-                              JOIN portfolio_target_weights w ON t.target_id = w.target_id
-                              JOIN contracts c ON w.con_id = c.con_id
-                              JOIN session_registry sr ON t.account_id = sr.account_id
-                     WHERE t.rebalance_date = :today
+                              -- titres qui n'ont pas de position mais existent dans les targets
+                              SELECT t.account_id,
+                                     t.session_mode,
+                                     t.portfolio_id,
+                                     t.con_id,
+                                     t.symbol,
+                                     NULL::NUMERIC AS pos_w,
+                                     t.target_w
+                              FROM targets_only t
+                                       LEFT JOIN positions_with_weight pw
+                                                 ON pw.account_id = t.account_id
+                                                     AND pw.portfolio_id = t.portfolio_id
+                                                     AND pw.con_id = t.con_id
+                              WHERE pw.con_id IS NULL)
 
+                     SELECT account_id,
+                            session_mode,
+                            portfolio_id,
+                            con_id,
+                            symbol,
+                            pos_w,
+                            target_w,
+                            CASE
+                                WHEN target_w IS NOT NULL AND pos_w IS NULL THEN 'BUY'
+                                WHEN target_w IS NULL AND pos_w IS NOT NULL
+                                    AND NOT EXISTS (SELECT 1
+                                                    FROM portfolio_targets t2
+                                                    WHERE t2.account_id = combined.account_id
+                                                      AND t2.portfolio_id = combined.portfolio_id
+                                                      AND t2.rebalance_date = :today) THEN 'HOLD'
+                                WHEN target_w IS NULL AND pos_w IS NOT NULL THEN 'SELL'
+                                WHEN pos_w < target_w THEN 'BUY'
+                                WHEN pos_w > target_w THEN 'SELL'
+                                ELSE 'HOLD'
+                                END AS action
+                     FROM combined
                      ORDER BY portfolio_id, con_id
                      """)
 
@@ -1520,7 +1588,7 @@ class TradingSessionDB:
                 INSERT INTO model_records
                 (model_name, version, con_id, step, decision, score, output_at, prediction_ts, trading_day)
                 VALUES (:model_name, :version, :con_id, :step, :decision, :score, :output_at, :prediction_ts, :trading_day)
-                    ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
+                ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
                 """
 
         with UnitOfWork() as conn:

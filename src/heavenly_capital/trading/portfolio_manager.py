@@ -186,8 +186,7 @@ class PortfolioManager(BaseModule):
 
         for con_id in all_instruments:
             market_data = self._tickers.get_ticker(con_id).as_dict()
-            #TODO:WARNING turn bid to last
-            last = market_data.get("bid")
+            last = market_data.get("bid")   #TODO:WARNING turn bid to last
             market_price = Decimal(str(last))
             if market_price <= 0:
                 continue

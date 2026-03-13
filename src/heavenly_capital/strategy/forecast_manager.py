@@ -13,7 +13,6 @@ from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, Mod
 from heavenly_capital.data.db_mock import TradingSessionDB
 
 
-
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
 
@@ -142,6 +141,8 @@ class ForecastManager(RuntimeModule):
         self._routing_registry: dict[tuple[int, str], list[str]] = {}
         self._in_queue = Queue(maxsize=1)
 
+        self.bus_out = EventBus(name="ForecastBus")
+
         self._registry: Optional["ModelRegistry"] = None
         self._store: Optional["ModelStore"] = None
         self._states: dict[tuple[str, int], Optional[ModelState]] = {}
@@ -223,21 +224,30 @@ class ForecastManager(RuntimeModule):
         return tsDB.fetch_positions_and_targets(today)
 
     def build_prediction_and_routing(self) -> None:
-        #TODO:WARNING Rewrite this functions, apply this rule : stop loss for every position et buy or sell for targets
         positions = self.get_positions_and_targets()
 
-        live_con_ids, paper_con_ids, other_con_ids = self._group_con_ids_by_session(positions)
+        grouped_positions = self._group_positions_by_session(positions)
+
         models_by_type = self._group_models_by_type()
 
-        self._prediction_plan = self._build_prediction_plan(live_con_ids, paper_con_ids, other_con_ids, models_by_type)
-        self._routing_registry = self._build_routing_registry(positions)
+        self._prediction_plan, self._routing_registry = self._build_plan_and_routing(grouped_positions, models_by_type)
 
-    def _group_con_ids_by_session(self, positions: list[dict]) -> tuple[
-        dict[int, str], dict[int, str], dict[int, None]]:
-        live = {p["con_id"]: p["portfolio_id"] for p in positions if p["session_mode"] == "LIVE"}
-        paper = {p["con_id"]: p["portfolio_id"] for p in positions if p["session_mode"] == "PAPER"}
-        other = {cid: None for cid in self._conids if cid not in live and cid not in paper}
-        return live, paper, other
+    def _group_positions_by_session(self, positions: list[dict]) -> dict[str, list[dict]]:
+        grouped = {"LIVE": [], "PAPER": [], "OTHER": []}
+        all_con_ids = {p["con_id"] for p in positions}
+
+        for pos in positions:
+            session = pos.get("session_mode", "OTHER")
+            if session in grouped:
+                grouped[session].append(pos)
+            else:
+                grouped["OTHER"].append(pos)
+
+        unknown_con_ids = set(self._conids) - all_con_ids
+        for con_id in unknown_con_ids:
+            grouped["OTHER"].append({"con_id": con_id, "portfolio_id": None})
+
+        return grouped
 
     def _group_models_by_type(self) -> dict[str, list[ModelSpec]]:
         model_types_order = ["STOP_LOSS", "SELL", "BUY"]
@@ -246,46 +256,40 @@ class ForecastManager(RuntimeModule):
             grouped[m.model_type.name].append(m)
         return grouped
 
-    def _build_prediction_plan(
+    def _build_plan_and_routing(
             self,
-            live_con_ids: dict[int, str],
-            paper_con_ids: dict[int, str],
-            other_con_ids: dict[int, None],
+            grouped_positions: dict[str, list[dict]],
             models_by_type: dict[str, list[ModelSpec]]
-    ) -> list[tuple[ForecastModel, int]]:
+    ) -> tuple[list[tuple[ForecastModel, int]], dict[tuple[int, str], list[str]]]:
 
-        plan: list[tuple[ForecastModel, int]] = []
-        seen_con_model: set[tuple[str, int]] = set()
-
-        for con_group in [live_con_ids, paper_con_ids, other_con_ids]:
-            for mt in ["STOP_LOSS", "SELL", "BUY"]:
-                for model in models_by_type[mt]:
-                    for conid in con_group.keys():
-                        key = (model.model_id, conid)
-                        if key not in seen_con_model:
-                            plan.append((self._pool.get(model.model_id), conid))
-                            seen_con_model.add(key)
-        return plan
-
-    @staticmethod
-    def _build_routing_registry(positions: list[dict]) -> dict[tuple[int, str], list[str]]:
-        model_types_order = ["STOP_LOSS", "SELL", "BUY"]
-
+        prediction_plan: list[tuple[ForecastModel, int]] = []
         routing_registry: dict[tuple[int, str], list[str]] = {}
 
-        for p in positions:
-            conid = p["con_id"]
-            portfolio = p["portfolio_id"]
+        seen_con_model: set[tuple[str, int]] = set()
 
-            for mt in model_types_order:
-                key = (conid, mt)
-                if key not in routing_registry:
-                    routing_registry[key] = []
+        session_order = ["LIVE", "PAPER", "OTHER"]
+        model_order = ["STOP_LOSS", "SELL", "BUY"]
 
-                if portfolio not in routing_registry[key]:
-                    routing_registry[key].append(portfolio)
+        for session in session_order:
+            for pos in grouped_positions.get(session, []):
+                con_id = pos["con_id"]
+                portfolio_id = pos.get("portfolio_id")
 
-        return routing_registry
+                for mt in model_order:
+                    key_routing = (con_id, mt)
+                    if key_routing not in routing_registry:
+                        routing_registry[key_routing] = []
+
+                    if portfolio_id and portfolio_id not in routing_registry[key_routing]:
+                        routing_registry[key_routing].append(portfolio_id)
+
+                    for model in models_by_type.get(mt, []):
+                        key_model = (model.model_id, con_id)
+                        if key_model not in seen_con_model:
+                            prediction_plan.append((self._pool.get(model.model_id), con_id))
+                            seen_con_model.add(key_model)
+
+        return prediction_plan, routing_registry
 
 
     def setup_models_and_store(self) -> None:
@@ -296,10 +300,15 @@ class ForecastManager(RuntimeModule):
         self._store.initialize_records(self._registry, self._conids)
         self.build_prediction_and_routing()
 
+
     def _route_prediction(self, conid: int, model_type: str, output: ModelOutput) -> None:
         portfolio_id = self._routing_registry.get((conid, model_type))
+
         if portfolio_id is None:
             return
+
+        for ptf_id in portfolio_ids:
+            self.bus_out.publish(entity_id=ptf_id, data={"conid": conid, "signal": output})
 
 
     def _make_prediction(self, model_id, model, conid, snapshot):
@@ -343,6 +352,13 @@ class ForecastManager(RuntimeModule):
             )
 
         self.persist_predictions()
+
+        print(self.bus_out)
+        print(self.bus_out._subscribers)
+        print(self.bus_out._subscribers_all)
+        print(self.bus_out._subscriptions)
+
+        breakpoint()
 
 
 
