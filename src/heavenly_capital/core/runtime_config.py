@@ -4,12 +4,9 @@ from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import runtime_checkable, Protocol, Any, Optional
-from pathlib import Path
 
 from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.session import TradingSessionConfig
-from heavenly_capital.strategy.artifacts import ModelKind
-
 
 #TODO : load les config depuis un ficher json ( session only )
 
@@ -35,15 +32,20 @@ class IBKRConfig:
     client_id: int = 1
 
 
-
 @dataclass(frozen=True, slots=True)
 class LiveHubConfig:
     pass
 
-
 @dataclass(frozen=True, slots=True)
 class HistoricHubConfig:
     pass
+
+@dataclass(frozen=True, slots=True)
+class ForecastConfig:
+    pass
+
+
+
 
 
 
@@ -127,46 +129,6 @@ class FeatureConfig:
         #     order=4
         # ),
     )
-
-
-
-
-@dataclass(frozen=True, slots=True)
-class ModelSpec:
-    model_id: str
-    model_type: ModelKind
-    path: Path
-    version: str
-
-
-
-
-@dataclass(frozen=True, slots=True)
-class ForecastConfig:
-    specs: tuple[ModelSpec, ...] = (
-        ModelSpec(
-            model_id="test_linear_v1",
-            model_type=ModelKind.BUY,
-            path=Path("ml_artifacts/mock_model.pkl"),
-            version="1.0",
-        ),
-        ModelSpec(
-            model_id="test3_linear_v1",
-            model_type=ModelKind.STOP_LOSS,
-            path=Path("ml_artifacts/mock_model.pkl"),
-            version="1.0",
-        ),
-        ModelSpec(
-            model_id="test2_linear_v1",
-            model_type=ModelKind.SELL,
-            path=Path("ml_artifacts/mock_model.pkl"),
-            version="1.0",
-        ),
-
-    )
-
-
-
 
 
 

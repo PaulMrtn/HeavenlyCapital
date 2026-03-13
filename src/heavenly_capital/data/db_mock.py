@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Sequence, Optional
+from typing import Sequence, Optional, List, Dict, Any
 
 from ib_async import Order, Execution, CommissionReport, Trade
 from sqlalchemy import text, RowMapping, Connection
 from sqlalchemy import create_engine
-
 
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -48,7 +49,6 @@ engine = create_postgres_engine(
     port=5432,
     dbname="trading_state_dev"
 )
-
 
 
 
@@ -1456,9 +1456,75 @@ class TradingSessionDB:
                 "enabled": enabled
             })
 
+    @staticmethod
+    def get_forecast_models_configs() -> List[Dict[str, Any]]:
+        query = text("""
+                     SELECT mr.model_name,
+                            mr.version,
+                            mr.model_type,
+                            mr.path,
+                            mr.description,
+                            pm.portfolio_id
+                     FROM models_registry mr
+                              LEFT JOIN portfolio_models pm
+                                        ON mr.model_name = pm.model_name
+                                            AND mr.version = pm.version
+                     WHERE mr.enabled = TRUE
+                     ORDER BY pm.portfolio_id NULLS LAST, mr.model_type, mr.model_name
+                     """)
 
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.mappings().all()
 
+        return [dict(row) for row in rows]
 
+    @staticmethod
+    def fetch_positions_and_targets(today: str) -> list[dict]:
+        query = text("""
+                     SELECT p.account_id,
+                            sr.mode AS session_mode,
+                            p.portfolio_id,
+                            p.con_id,
+                            c.symbol
+                     FROM positions p
+                              JOIN contracts c ON p.con_id = c.con_id
+                              JOIN session_registry sr ON p.account_id = sr.account_id
+
+                     UNION
+
+                     SELECT t.account_id,
+                            sr.mode AS session_mode,
+                            t.portfolio_id,
+                            w.con_id,
+                            c.symbol
+                     FROM portfolio_targets t
+                              JOIN portfolio_target_weights w ON t.target_id = w.target_id
+                              JOIN contracts c ON w.con_id = c.con_id
+                              JOIN session_registry sr ON t.account_id = sr.account_id
+                     WHERE t.rebalance_date = :today
+
+                     ORDER BY portfolio_id, con_id
+                     """)
+
+        with engine.connect() as conn:
+            rows = conn.execute(query, {"today": today}).mappings().all()
+            return [dict(row) for row in rows]
+
+    @staticmethod
+    def persist_model_records(records: list[dict]) -> None:
+        if not records:
+            return
+
+        query = """
+                INSERT INTO model_records
+                (model_name, version, con_id, step, decision, score, output_at, prediction_ts, trading_day)
+                VALUES (:model_name, :version, :con_id, :step, :decision, :score, :output_at, :prediction_ts, :trading_day)
+                    ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
+                """
+
+        with UnitOfWork() as conn:
+            conn.execute(text(query), records)
 
 
 

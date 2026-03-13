@@ -194,7 +194,7 @@ service.delete_portfolio(
 ### Création ou mise à jour d’un modèle
 
 ```python
-service.set_model(
+service.update_forecast_model(
     model_name="ModelBuyV1",
     model_type="BUY",  # "BUY" | "SELL" | "STOP_LOSS"
     version=1.0,
@@ -211,7 +211,7 @@ service.set_model(
 ### Attribution d’un modèle à un portefeuille
 
 ```python
-service.assign_model_to_portfolio(
+service.update_portfolio_model(
     portfolio_id="PORT001",
     model_name="ModelBuyV1",
     model_type="BUY",
@@ -240,8 +240,8 @@ service.create_portfolio(
 service.register_capital_event("ACC123", "PORT001", "CAPITAL_ADDITION", Decimal("5000.0"))
 
 # Définir un modèle de trading
-service.set_model("ModelBuyV1", "BUY", 1.0, "/models/buy_v1.pkl", "Modèle d'achat")
+service.update_forecast_model("ModelBuyV1", "BUY", 1.0, "/models/buy_v1.pkl", "Modèle d'achat")
 
 # Assigner le modèle au portefeuille
-service.assign_model_to_portfolio("PORT001", "ModelBuyV1", "BUY", 1.0)
+service.update_portfolio_model("PORT001", "ModelBuyV1", "BUY", 1.0)
 ```

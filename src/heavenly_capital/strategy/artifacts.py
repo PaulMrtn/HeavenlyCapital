@@ -3,12 +3,32 @@ from time import time
 from typing import Optional, Dict
 
 from enum import Enum
+from pathlib import Path
+
 
 
 class ModelKind(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
     STOP_LOSS = "STOP_LOSS"
+
+
+@dataclass(frozen=True, slots=True)
+class ModelSpec:
+    model_id: str
+    model_type: ModelKind
+    path: Path
+    version: str
+
+    @classmethod
+    def from_snapshot(cls, row: dict) -> "ModelSpec":
+        return cls(
+            model_id=row["model_name"],
+            model_type=ModelKind(row["model_type"]),
+            path=Path(row["path"]),
+            version=str(row["version"]),
+        )
+
 
 
 @dataclass(frozen=True)

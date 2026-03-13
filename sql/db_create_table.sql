@@ -22,6 +22,7 @@
 
 -- DROP TABLE IF EXISTS models_registry CASCADE;
 -- DROP TABLE IF EXISTS portfolio_models CASCADE;
+-- DROP TABLE IF EXISTS model_records CASCADE;
 
 -- DROP TYPE IF EXISTS session_mode;
 
@@ -455,4 +456,25 @@ CREATE TABLE portfolio_models (
     FOREIGN KEY (model_name, version)
         REFERENCES models_registry(model_name, version)
         ON DELETE RESTRICT
+);
+
+
+CREATE TABLE model_records (
+    id BIGSERIAL PRIMARY KEY,
+    model_name TEXT NOT NULL,
+    version NUMERIC(3,1) NOT NULL,
+    con_id BIGINT NOT NULL,
+
+    trading_day DATE NOT NULL,
+    step SMALLINT NOT NULL,
+    decision BOOLEAN NOT NULL,
+    forced BOOLEAN NOT NULL DEFAULT FALSE,
+    score DOUBLE PRECISION,
+    penalty DOUBLE PRECISION,
+    prediction_ts BIGINT,
+    output_at DOUBLE PRECISION NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE(model_name, version, con_id, trading_day, step)
 );

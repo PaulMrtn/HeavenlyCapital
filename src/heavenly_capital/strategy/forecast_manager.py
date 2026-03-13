@@ -3,20 +3,28 @@ from __future__ import annotations
 from pathlib import Path
 from queue import Queue, Empty
 import joblib
-from typing import Optional, Any, TYPE_CHECKING, List, Dict
+from typing import Any, TYPE_CHECKING
 from ib_async import Contract
 
-from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule, ModelSpec
-from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelState
+from typing import List, Dict, Optional
+
+from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule
+from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState
+from heavenly_capital.data.db_mock import TradingSessionDB
+
+
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
 
 
+tsDB = TradingSessionDB()
+
 
 class ModelRegistry:
-    def __init__(self, specs: tuple[ModelSpec, ...]) -> None:
-        self._specs: list[ModelSpec] = list(specs)
+
+    def __init__(self, specs: list[ModelSpec]) -> None:
+        self._specs: list[ModelSpec] = specs
         self._by_id: dict[str, ModelSpec] = {
             spec.model_id: spec for spec in specs
         }
@@ -25,25 +33,19 @@ class ModelRegistry:
         return self._by_id[model_id]
 
     def all(self) -> list[ModelSpec]:
-        return list(self._specs)
+        return self._specs
 
 
 
 class ModelStore:
-    def __init__(self) -> None:
-        self._records = {}
+    def __init__(self, trading_day: str | None = None) -> None:
+        self._records: dict[str, dict[int, list[DecisionRecord]]] = {}
+        self.trading_day: str | None = trading_day
 
     def initialize_records(self, registry: "ModelRegistry", conids: List[int]) -> None:
         self._records = {spec.model_id: {conid: [] for conid in conids} for spec in registry.all()}
 
-    def record(
-        self,
-        *,
-        model_id: str,
-        conid: int,
-        record: "DecisionRecord",
-    ) -> None:
-
+    def record(self, model_id: str, conid: int, record: "DecisionRecord") -> None:
         if model_id not in self._records:
             raise ValueError(f"Unknown model_id: {model_id}")
         if conid not in self._records[model_id]:
@@ -54,9 +56,28 @@ class ModelStore:
     def get_by_model(self, model_id: str) -> Dict[int, list["DecisionRecord"]]:
         return self._records[model_id]
 
-    def get_all(self) -> Dict[str, Dict[int, list["DecisionRecord"]]]:
-        return self._records
+    def flush(self):
+        for model_id, con_dict in self._records.items():
+            for conid in con_dict:
+                con_dict[conid].clear()
 
+    def to_payload(self) -> list[dict]:
+        return [
+            {
+                "model_name": model_id,
+                "version": getattr(r, "version", 1.0),
+                "con_id": conid,
+                "step": r.step,
+                "decision": r.decision,
+                "score": getattr(r, "score", None),  # <-- ajouter ici
+                "output_at": r.output_at,
+                "prediction_ts": r.timestamp,
+                "trading_day": self.trading_day
+            }
+            for model_id, con_dict in self._records.items()
+            for conid, rec_list in con_dict.items()
+            for r in rec_list
+        ]
 
 
 class ForecastModel:
@@ -117,13 +138,14 @@ class ForecastManager(RuntimeModule):
         self._started: bool = False
 
         self._conids: list[int] = []
+        self._prediction_plan: list[tuple[ForecastModel, int]] = []
+        self._routing_registry: dict[tuple[int, str], list[str]] = {}
+        self._in_queue = Queue(maxsize=1)
 
         self._registry: Optional["ModelRegistry"] = None
         self._store: Optional["ModelStore"] = None
         self._states: dict[tuple[str, int], Optional[ModelState]] = {}
         self._pool: Optional["ModelPool"] = None
-
-        self._in_queue = Queue(maxsize=1)
 
         self._config: Optional["ForecastConfig"] = None
         self._ports: Optional["SystemPorts"] = None
@@ -132,13 +154,13 @@ class ForecastManager(RuntimeModule):
         self._config = config
         self._ports = ports
 
-        self._registry = ModelRegistry(specs=self._config.specs)
+        self._registry = self.load_model_registry()
         self._pool = ModelPool(registry=self._registry)
-        self._store = ModelStore()
+        self._store = ModelStore(trading_day=self._ports.market_calendar.today())
 
         self._states = {
             (spec.model_id, conid): None
-            for spec in config.specs
+            for spec in self._registry.all()
             for conid in self._conids
         }
 
@@ -190,34 +212,117 @@ class ForecastManager(RuntimeModule):
     def wire_feature_store(self, queue: Queue) -> None:
         self._in_queue = queue
 
+    @staticmethod
+    def load_model_registry() -> "ModelRegistry":
+        rows = tsDB.get_forecast_models_configs()
+        specs = [ModelSpec.from_snapshot(r) for r in rows]
+        return ModelRegistry(specs)
+
+    def get_positions_and_targets(self) -> list[dict]:
+        today = self._ports.market_calendar.today()
+        return tsDB.fetch_positions_and_targets(today)
+
+    def build_prediction_and_routing(self) -> None:
+        #TODO:WARNING Rewrite this functions, apply this rule : stop loss for every position et buy or sell for targets
+        positions = self.get_positions_and_targets()
+
+        live_con_ids, paper_con_ids, other_con_ids = self._group_con_ids_by_session(positions)
+        models_by_type = self._group_models_by_type()
+
+        self._prediction_plan = self._build_prediction_plan(live_con_ids, paper_con_ids, other_con_ids, models_by_type)
+        self._routing_registry = self._build_routing_registry(positions)
+
+    def _group_con_ids_by_session(self, positions: list[dict]) -> tuple[
+        dict[int, str], dict[int, str], dict[int, None]]:
+        live = {p["con_id"]: p["portfolio_id"] for p in positions if p["session_mode"] == "LIVE"}
+        paper = {p["con_id"]: p["portfolio_id"] for p in positions if p["session_mode"] == "PAPER"}
+        other = {cid: None for cid in self._conids if cid not in live and cid not in paper}
+        return live, paper, other
+
+    def _group_models_by_type(self) -> dict[str, list[ModelSpec]]:
+        model_types_order = ["STOP_LOSS", "SELL", "BUY"]
+        grouped = {mt: [] for mt in model_types_order}
+        for m in self._registry.all():
+            grouped[m.model_type.name].append(m)
+        return grouped
+
+    def _build_prediction_plan(
+            self,
+            live_con_ids: dict[int, str],
+            paper_con_ids: dict[int, str],
+            other_con_ids: dict[int, None],
+            models_by_type: dict[str, list[ModelSpec]]
+    ) -> list[tuple[ForecastModel, int]]:
+
+        plan: list[tuple[ForecastModel, int]] = []
+        seen_con_model: set[tuple[str, int]] = set()
+
+        for con_group in [live_con_ids, paper_con_ids, other_con_ids]:
+            for mt in ["STOP_LOSS", "SELL", "BUY"]:
+                for model in models_by_type[mt]:
+                    for conid in con_group.keys():
+                        key = (model.model_id, conid)
+                        if key not in seen_con_model:
+                            plan.append((self._pool.get(model.model_id), conid))
+                            seen_con_model.add(key)
+        return plan
+
+    @staticmethod
+    def _build_routing_registry(positions: list[dict]) -> dict[tuple[int, str], list[str]]:
+        model_types_order = ["STOP_LOSS", "SELL", "BUY"]
+
+        routing_registry: dict[tuple[int, str], list[str]] = {}
+
+        for p in positions:
+            conid = p["con_id"]
+            portfolio = p["portfolio_id"]
+
+            for mt in model_types_order:
+                key = (conid, mt)
+                if key not in routing_registry:
+                    routing_registry[key] = []
+
+                if portfolio not in routing_registry[key]:
+                    routing_registry[key].append(portfolio)
+
+        return routing_registry
+
+
     def setup_models_and_store(self) -> None:
         if self._pool is None:
             raise RuntimeError("ModelPool not initialized")
 
         self._pool.load()
         self._store.initialize_records(self._registry, self._conids)
+        self.build_prediction_and_routing()
+
+    def _route_prediction(self, conid: int, model_type: str, output: ModelOutput) -> None:
+        portfolio_id = self._routing_registry.get((conid, model_type))
+        if portfolio_id is None:
+            return
 
 
     def _make_prediction(self, model_id, model, conid, snapshot):
         key = (model_id, conid)
         state = self._states.get(key)
-
         features = snapshot.get(conid, model.input_names)
 
         output, new_state = model.predict(features, state)
         self._states[key] = new_state
+
+        self._route_prediction(conid, model.spec.model_type.name, output)
 
         record = DecisionRecord.from_model_output(
             model_id=model_id,
             conid=conid,
             output=output,
         )
+        self._store.record(record=record, model_id=model_id, conid=conid)
 
-        self._store.record(
-            record=record,
-            model_id=model_id,
-            conid=conid
-        )
+    def persist_predictions(self) -> None:
+        payload = self._store.to_payload()
+        tsDB.persist_model_records(payload)
+        self._store.flush()
 
 
     def run_predictions(self) -> None:
@@ -229,15 +334,16 @@ class ForecastManager(RuntimeModule):
         if feature_snapshot is None:
             return
 
-        #self.pool.items doit être organiser de manière optimale
-        for model_id, model in self._pool.items:
-            for conid in self._conids:
-                self._make_prediction(
-                    model_id=model_id,
-                    model=model,
-                    conid=conid,
-                    snapshot=feature_snapshot
-                )
+        for model, conid in self._prediction_plan:
+            self._make_prediction(
+                model_id=model.spec.model_id,
+                model=model,
+                conid=conid,
+                snapshot=feature_snapshot
+            )
+
+        self.persist_predictions()
+
 
 
 

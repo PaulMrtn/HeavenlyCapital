@@ -110,7 +110,14 @@ class TickerManager:
             self._subscriptions.remove(cb)
 
     def get_ticker(self, conId: int) -> Optional["ReadOnlyTicker"]:
-        return self.tickers.get(conId)
+        ticker = self.tickers.get(conId)
+        if ticker is None:
+            raise ValueError(
+                "Ticker not found. Please check if IBKR Gateway is correctly connected, "
+                "ensure market data feed is active, try restarting IBKR Gateway, "
+                "and reconnect."
+            )
+        return ticker
 
     def all_tickers(self):
         return list(self.tickers.values())

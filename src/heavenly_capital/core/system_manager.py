@@ -672,13 +672,13 @@ class SystemManager:
 
         self._modules.feature_manager.build_market_data_banks()
 
-        # TODO:WARNING I dont understand this duplicated function call
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
 
         self._wire_live_hub_to_local_runtime()
         # self._subscribe_local_runtime()
 
+        # TODO:WARNING This aint market data type, sort function above to
         self._modules.forecast_manager.setup_models_and_store()
 
 
