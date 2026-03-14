@@ -13,9 +13,11 @@ from heavenly_capital.core.system_manager import RuntimeModule
 from heavenly_capital.models.market_data import ReadOnlyTicker, TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.monitoring.error_service import HealthCheckError
+from heavenly_capital.trading.router import GlobalOrderRouter
+
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
-from heavenly_capital.trading.risk_monitor import RiskMonitor
+from heavenly_capital.trading.risk_manager import RiskManager
 
 
 if TYPE_CHECKING:
@@ -41,7 +43,6 @@ class TradingSessionKey:
     account_id: str
     portfolio_id: str
     mode: TradingMode
-
 
 
 
@@ -102,95 +103,6 @@ class MarketDaySessionSnapshot:
     payload: Dict[str, Any]
 
 
-@dataclass(frozen=True)
-class RoutedOrder:
-    seq: int
-    session_key: TradingSessionKey
-    order: OrderTracker
-
-
-class GlobalOrderRouter:
-
-    def __init__(
-            self,
-            *,
-            sink: Callable[["TradingSessionKey", "OrderTracker"], None] | None,
-            start_worker: bool = True,
-            name: str = "global-order-router",
-    ) -> None:
-        self._sink = sink
-
-        self._lock = RLock()
-        self._cv = Condition(self._lock)
-
-        self._seq = 0
-        self._live: Deque[RoutedOrder] = deque()
-        self._paper: Deque[RoutedOrder] = deque()
-
-        self._closed = False
-        self._worker: Optional[Thread] = None
-
-        if start_worker:
-            # TODO:HIGHEST Replace by our poolthread CRITICAL
-            self._worker = Thread(target=self._run, name=name, daemon=True)
-            self._worker.start()
-
-    def close(self) -> None:
-        with self._cv:
-            self._closed = True
-            self._cv.notify_all()
-
-        if self._worker is not None:
-            # TODO:HIGH : add .join() to threadPool
-            self._worker.join()
-
-    def route_order(self, *, session_key: TradingSessionKey, order: "OrderTracker") -> None:
-        with self._cv:
-            if self._closed:
-                return
-
-            self._seq += 1
-            ro = RoutedOrder(seq=self._seq, session_key=session_key, order=order)
-
-            if session_key.mode == TradingMode.LIVE:
-                self._live.append(ro)
-            else:
-                self._paper.append(ro)
-
-            self._cv.notify()
-
-    def _pop_next(self) -> Optional["RoutedOrder"]:
-
-        with self._lock:
-            if self._live:
-                return self._live.popleft()
-            if self._paper:
-                return self._paper.popleft()
-            return None
-
-    def _run(self) -> None:
-        #TODO:LOW - Rename this thread function
-        while True:
-            with self._cv:
-                while not self._closed and not self._live and not self._paper:
-                    self._cv.wait()
-
-                if self._closed and not self._live and not self._paper:
-                    return
-
-            routed_order = self._pop_next()
-            if routed_order is None:
-                continue
-
-            try:
-                self._sink(routed_order.session_key, routed_order.order)
-            except Exception as e:
-                print(f"Error while routing order : {e}")
-
-
-    def pending_count(self) -> int:
-        with self._lock:
-            return len(self._live) + len(self._paper)
 
 
 class TradingSession:
@@ -222,13 +134,13 @@ class TradingSession:
         return self._order_router
 
     @staticmethod
-    def _build_modules() -> tuple["OrderManager", "PortfolioManager", "RiskMonitor"]:
+    def _build_modules() -> tuple["OrderManager", "PortfolioManager", "RiskManager"]:
         orders = OrderManager()
         portfolio = PortfolioManager()
-        risk = RiskMonitor()
+        risk = RiskManager()
         return orders, portfolio, risk
 
-    def _inject_modules(self, *, orders: "OrderManager", portfolio: "PortfolioManager", risk: "RiskMonitor") -> None:
+    def _inject_modules(self, *, orders: "OrderManager", portfolio: "PortfolioManager", risk: "RiskManager") -> None:
         for m in (orders, portfolio, risk):
             m.configure(session_id=self.session_id, key=self.key, ports=self.ports)
 
@@ -289,15 +201,6 @@ class TradingSession:
     def wire_forecast_signal(self, bus: "EventBus"):
         self.stack.portfolio.wire_forecast_manager(bus)
         # self.stack.risk.wire_forecast_manager(bus)
-
-    def wire_buses(self, buses: dict[str, "EventBus"]) -> None:
-        pass
-        # self.stack.risk.wire_live_tick_bus(buses["feature_bus"])
-
-    def subscribe_live(self) -> None:
-        pass
-        # self.stack.risk.subscribe_to_features()
-
 
 
 
@@ -428,12 +331,7 @@ class SessionManager(RuntimeModule):
     def load_sessions_state_from_database(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
-            # session.stack.risk.load_risk_state()
 
-    def load_session_forecast_model(self) -> None:
-        for session in self.sessions.values():
-            session.stack.portfolio.load_forecast_model()
-            # session.stack.risk.load_forecast_model()
 
     def load_sessions_portfolio_orders(self) -> None:
         for session in self.sessions.values():

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from heavenly_capital.core.session_manager import TradingSessionKey
 
 
-class RiskMonitor(BaseModule):
+class RiskManager(BaseModule):
     def __init__(self) -> None:
         super().__init__()
         self._session_id: Optional[UUID] = None
@@ -53,12 +53,6 @@ class RiskMonitor(BaseModule):
 
         self.dispatch(ModuleType.ORDERS, "authorize_order", auth_payload)
 
-    def load_risk_state(self) -> None:
-        if not self._configured:
-            raise RuntimeError("RiskMonitor: bootstrap_risk_state() called before configure()")
-
-        snapshot = self._ports.data_access.get_risk_snapshot(self._key.account_id)
-        self._state = RiskState.from_snapshot(snapshot)
 
     @property
     def risk_state(self) -> Optional[RiskSnapshot]:

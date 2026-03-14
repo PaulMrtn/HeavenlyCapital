@@ -39,7 +39,6 @@ class ModelInput:
     input_at: str
 
 
-# for the model generator
 @dataclass(slots=True, frozen=True)
 class ModelOutput:
     decision: bool
@@ -50,6 +49,15 @@ class ModelOutput:
     penalty: Optional[float] = None
 
 
+@dataclass(frozen=True)
+class ModelSignal:
+    conid: int
+    model_id: str
+    model_type: str
+    output: ModelOutput
+
+
+
 @dataclass
 class ModelState:
     dummy: Optional[float] = None
@@ -57,7 +65,6 @@ class ModelState:
     counters: Dict[str, int] = field(default_factory=dict)
     flags: Dict[str, bool] = field(default_factory=dict)
     cache: Dict[str, float] = field(default_factory=dict)
-
 
 
 @dataclass

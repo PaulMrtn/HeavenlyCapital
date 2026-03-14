@@ -7,7 +7,8 @@ from ib_async import Contract, Execution, CommissionReport, Fill, Trade
 
 from heavenly_capital.core.runtime_config import BaseModule, ModuleType
 from heavenly_capital.data.db_mock import TradingSessionDB
-from heavenly_capital.models.order import OrderTracker, OrderRequest, OrderStatus, TrackerEventContext
+from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEventContext
+from heavenly_capital.strategy.artifacts import ModelSignal
 
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
@@ -130,10 +131,9 @@ class OrderManager(BaseModule):
     def _handle_orders_request(self, orders):
         self.stage_orders(orders)
 
-    def _process_authorization(self, auth_payload: dict[str, Any]) -> None:
-
-        con_id = auth_payload.get("con_id")
-        authorized = auth_payload.get("authorized", False)
+    def _process_authorization(self, event: "ModelSignal") -> None:
+        con_id = event.conid
+        authorized = event.output.decision
 
         if con_id is None or con_id not in self._pending_orders:
             return
@@ -154,9 +154,6 @@ class OrderManager(BaseModule):
             session_key=self._key,
             order=order
         )
-
-        print(order)
-
 
 
 

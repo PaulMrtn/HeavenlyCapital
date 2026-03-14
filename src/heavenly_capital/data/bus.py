@@ -96,10 +96,12 @@ class EventBus:
             target_callbacks = list(callbacks_specific) + list(callbacks_all)
 
         for cb in target_callbacks:
-            try:
-                cb(entity_id, data)
-            except Exception as e:
-                print(f"[{self.name}] Erreur Callback pour {entity_id}: {e}")
+            cb(entity_id, data)
+
+            # try:
+            #     cb(entity_id, data)
+            # except Exception as e:
+            #     print(f"[{self.name}] Erreur Callback pour {entity_id}: {e}")
 
 
     #TODO:MEDIUM necessaire de garder une copy du dernier publish ? overflow memory

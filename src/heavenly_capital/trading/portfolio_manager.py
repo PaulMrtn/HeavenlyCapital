@@ -13,11 +13,10 @@ from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget
 from heavenly_capital.data.db_mock import TradingSessionDB
 
-
 if TYPE_CHECKING:
     from heavenly_capital.core.system_manager import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey
-
+    from heavenly_capital.strategy.artifacts import ModelOutput, ModelSignal
 
 
 UPDATE_INTERVAL = 5
@@ -135,11 +134,9 @@ class PortfolioManager(BaseModule):
             callback=self._handle_signal
         )
 
-    def _handle_signal(self, portfolio_id, payload):
-        model_output = payload["model_output"]
-        if model_output.decision:
-            print(f"Portfolio {portfolio_id} received signal {payload["model_type"]} for {payload['conid']}")
-            self.authorize_order(payload["conid"])
+    def _handle_signal(self, portfolio_id, signal: "ModelSignal"):
+        if signal.output.decision:
+            self.authorize_order(signal)
 
     @staticmethod
     def _build_portfolio_snapshot(
@@ -206,7 +203,8 @@ class PortfolioManager(BaseModule):
 
         total_value = self._portfolio.total_value
 
-        all_instruments = set(self._portfolio.positions.keys()) | set(self._portfolio_target.weights.keys())
+        all_instruments = (set(self._portfolio.positions.keys())
+                           | set(self._portfolio_target.weights.keys()))
 
         for con_id in all_instruments:
             market_data = self._tickers.get_ticker(con_id).as_dict()
@@ -275,14 +273,11 @@ class PortfolioManager(BaseModule):
 
         self.update_database(time.time())
 
+    def authorize_order(self, signal: ModelSignal) -> None:
+        if not signal.output.decision:
+            return
 
-    def authorize_order(self, con_id: int) -> None:
-        auth_payload = {
-            "con_id": con_id,
-            "authorized":True
-        }
-
-        self.dispatch(ModuleType.ORDERS, "authorize_order", auth_payload)
+        self.dispatch(ModuleType.ORDERS, "authorize_order", signal)
 
     def _handle_order_tracking(self, order: OrderTracker):
         self.live_orders.append(order)
@@ -357,18 +352,25 @@ class PortfolioManager(BaseModule):
             portfolio_id=order.request.portfolio_id
         )
 
-
-
     def authorize_all_current_orders(self) -> None:
-        #TODO:WARNING Temporary Function
+        # WARNING: Temporary testing helper
         if not self._portfolio or not self._portfolio_target:
             return
 
-        all_instruments = set(self._portfolio.positions.keys()) | set(self._portfolio_target.weights.keys())
+        all_instruments = (
+                set(self._portfolio.positions.keys())
+                | set(self._portfolio_target.weights.keys())
+        )
 
-        for con_id in all_instruments:
-            self.authorize_order(con_id)
+        for conid in all_instruments:
+            signal = ModelSignal(
+                conid=conid,
+                model_id="mock",
+                model_type="mock",
+                output=ModelOutput(decision=True)
+            )
 
+            self.authorize_order(signal)
 
 
 

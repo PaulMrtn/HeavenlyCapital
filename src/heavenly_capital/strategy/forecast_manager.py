@@ -9,7 +9,7 @@ from ib_async import Contract
 from typing import List, Dict, Optional
 
 from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule
-from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState
+from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState, ModelSignal
 from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.data.bus import EventBus
 
@@ -330,18 +330,19 @@ class ForecastManager(RuntimeModule):
         self._store.initialize_records(self._registry, self._conids)
         self.build_prediction_and_routing()
 
+    def _route_prediction(self, signal: ModelSignal) -> None:
+        portfolio_ids = self._routing_registry.get(
+            (signal.conid, signal.model_type)
+        )
 
-    def _route_prediction(self, conid: int, model_type: str, output: "ModelOutput") -> None:
-        portfolio_ids = self._routing_registry.get((conid, model_type))
-        if portfolio_ids is None:
+        if not portfolio_ids:
             return
 
         for ptf_id in portfolio_ids:
-            self.bus_out.publish(entity_id=ptf_id,
-                                 data={ "conid": conid,
-                                        "model_output": output,
-                                        "model_type": model_type}
-                                 )
+            self.bus_out.publish(
+                entity_id=ptf_id,
+                data=signal
+            )
 
 
     def _make_prediction(self, model_id, model, conid, snapshot):
@@ -352,7 +353,14 @@ class ForecastManager(RuntimeModule):
         output, new_state = model.predict(features, state)
         self._states[key] = new_state
 
-        self._route_prediction(conid, model.spec.model_type.name, output)
+        signal = ModelSignal(
+            conid=conid,
+            model_id=model_id,
+            model_type=model.spec.model_type.name,
+            output=output
+        )
+
+        self._route_prediction(signal)
 
         record = DecisionRecord.from_model_output(
             model_id=model_id,
