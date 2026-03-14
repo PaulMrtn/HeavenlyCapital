@@ -548,7 +548,6 @@ class SystemManager:
         sink = self._modules.ibkr_gateway.order_sink
         self._modules.session_manager.init_order_router(sink=sink)
 
-
     def _health_checks_runtime_modules(self) -> None:
         modules_to_check = (
             self._modules.ibkr_gateway,
@@ -599,27 +598,15 @@ class SystemManager:
 
     # endregion
 
-    def _subscribe_local_runtime(self) -> None:
-        buses = {
-            "feature_bus": self._modules.feature_manager.feature_bus,
-        }
-        for key, session in self._modules.session_manager.sessions.items():
-            session.wire_buses(buses)
-            session.subscribe_live()
-            
-            
-    def _wire_live_hub_to_local_runtime(self) -> None:
-        tickers = self._modules.live_hub.tickers
-        for session in self._modules.session_manager.sessions.values():
-            session.wire_live_tickers(tickers)
 
     def launch_local_runtime(self) :
         self._modules.session_manager.initialize_sessions_from_config()
-        self._modules.session_manager.load_session_state_from_database()
+        self._modules.session_manager.load_sessions_state_from_database()
         self._modules.session_manager.health_check_loaded_sessions()
 
 
 # region wire and sync function
+
     def _wire_gateway_sink_to_live_hub(self) -> None:
         ticker_sink = self._modules.live_hub.ingest_port
         self._modules.ibkr_gateway.wire_live_ticker(ticker_sink)
@@ -636,6 +623,16 @@ class SystemManager:
         # TODO: Bus event, where PM / RM can subscribe
         store = self._modules.feature_manager.out_queue
         self._modules.forecast_manager.wire_feature_store(store)
+
+    def _wire_live_hub_to_local_runtime(self) -> None:
+        tickers = self._modules.live_hub.tickers
+        for session in self._modules.session_manager.sessions.values():
+            session.wire_live_tickers(tickers)
+
+    def _wire_forecast_manager_to_local_runtime(self):
+        forecast_bus = self._modules.forecast_manager.bus_out
+        for session in self._modules.session_manager.sessions.values():
+            session.wire_forecast_signal(forecast_bus)
 
 
     def _sync_hubs_with_contracts(self) -> None:
@@ -671,11 +668,11 @@ class SystemManager:
         self._sync_hubs_with_contracts()
 
         self._modules.feature_manager.build_market_data_banks()
-
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
 
         self._wire_live_hub_to_local_runtime()
+        self._wire_forecast_manager_to_local_runtime()
         # self._subscribe_local_runtime()
 
         # TODO:WARNING This aint market data type, sort function above to

@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
 
 from heavenly_capital.core.runtime_config import BaseModule, ModuleType
+from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget
@@ -37,6 +38,9 @@ class PortfolioManager(BaseModule):
         self._portfolio_target: Optional["PortfolioTarget"] = None
         self._tickers = None
         self.live_orders: list[OrderTracker] = []
+
+        self._in_bus: Optional["EventBus"] = None
+        self._in_token: Optional[int] = None
 
         self._last_db_update_interval = -1
 
@@ -116,6 +120,26 @@ class PortfolioManager(BaseModule):
         self._tickers = tickers_manager
         self._tickers.subscribe(self.refresh_portfolio)
 
+    def wire_forecast_manager(self, bus: "EventBus"):
+        self._in_bus = bus
+
+        #TODO:WARNING : Rewrite wire logic and use start, stop, configure with session manager
+        self.subscribe_to_forecast_manager()
+
+    def subscribe_to_forecast_manager(self) -> None:
+        if self._in_token is None and self._in_bus is None:
+            raise RuntimeError("PortfolioManager: input bus not set (call wire_forecast_manager() first)")
+
+        self._in_token =  self._in_bus.subscribe(
+            entity_id=self._key.portfolio_id,
+            callback=self._handle_signal
+        )
+
+    def _handle_signal(self, portfolio_id, payload):
+        model_output = payload["model_output"]
+        if model_output.decision:
+            print(f"Portfolio {portfolio_id} received signal {payload["model_type"]} for {payload['conid']}")
+            self.authorize_order(payload["conid"])
 
     @staticmethod
     def _build_portfolio_snapshot(
@@ -335,9 +359,6 @@ class PortfolioManager(BaseModule):
 
 
 
-
-
-
     def authorize_all_current_orders(self) -> None:
         #TODO:WARNING Temporary Function
         if not self._portfolio or not self._portfolio_target:
@@ -347,7 +368,6 @@ class PortfolioManager(BaseModule):
 
         for con_id in all_instruments:
             self.authorize_order(con_id)
-
 
 
 

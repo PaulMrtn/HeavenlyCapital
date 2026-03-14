@@ -286,6 +286,9 @@ class TradingSession:
         self.stack.portfolio.wire_ticker_manager(ticker_manager)
         self.stack.risk.wire_ticker_manager(ticker_manager)
 
+    def wire_forecast_signal(self, bus: "EventBus"):
+        self.stack.portfolio.wire_forecast_manager(bus)
+        # self.stack.risk.wire_forecast_manager(bus)
 
     def wire_buses(self, buses: dict[str, "EventBus"]) -> None:
         pass
@@ -294,6 +297,8 @@ class TradingSession:
     def subscribe_live(self) -> None:
         pass
         # self.stack.risk.subscribe_to_features()
+
+
 
 
 
@@ -420,20 +425,19 @@ class SessionManager(RuntimeModule):
 
             # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session
 
-    def load_session_state_from_database(self) -> None:
+    def load_sessions_state_from_database(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
             # session.stack.risk.load_risk_state()
+
     def load_session_forecast_model(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_forecast_model()
             # session.stack.risk.load_forecast_model()
 
-    def load_session_portfolio_orders(self) -> None:
+    def load_sessions_portfolio_orders(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_orders()
-
-
 
 
     def health_check_loaded_sessions(self) -> None:
@@ -452,13 +456,6 @@ class SessionManager(RuntimeModule):
             raise HealthCheckError(failures)
 
         # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session with a new fonction
-
-
-
-
-
-
-
 
 
 

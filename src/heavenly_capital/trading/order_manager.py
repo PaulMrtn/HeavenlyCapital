@@ -155,6 +155,8 @@ class OrderManager(BaseModule):
             order=order
         )
 
+        print(order)
+
 
 
 

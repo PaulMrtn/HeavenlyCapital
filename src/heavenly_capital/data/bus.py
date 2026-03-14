@@ -19,9 +19,9 @@ class EventBus:
         self._subscribers_all: List[Subscriber] = []
 
         self._next_token: int = 1
-        self._subscriptions: Dict[int, tuple[str, Optional[int], Subscriber]] = {}
+        self._subscriptions: Dict[int, tuple[str, Optional[Hashable], Subscriber]] = {}
 
-    def subscribe(self, entity_id: int, callback: Callable[[Hashable, Any], None]):
+    def subscribe(self, entity_id: Hashable, callback: Callable[[Hashable, Any], None]):
         with self._lock:
             if entity_id not in self._subscribers:
                 self._subscribers[entity_id] = []
@@ -41,7 +41,7 @@ class EventBus:
             self._subscriptions[token] = ("all", None, callback)
             return token
 
-    def subscribe_many(self, entity_ids: list[int], callback: Callable[[Hashable, Any], None]) -> list[int]:
+    def subscribe_many(self, entity_ids: list[Hashable], callback: Callable[[Hashable, Any], None]) -> list[int]:
         tokens: list[int] = []
         with self._lock:
             for entity_id in entity_ids:

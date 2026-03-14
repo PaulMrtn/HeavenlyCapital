@@ -11,6 +11,7 @@ from typing import List, Dict, Optional
 from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule
 from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState
 from heavenly_capital.data.db_mock import TradingSessionDB
+from heavenly_capital.data.bus import EventBus
 
 
 if TYPE_CHECKING:
@@ -230,7 +231,9 @@ class ForecastManager(RuntimeModule):
 
         models_by_type = self._group_models_by_type()
 
-        self._prediction_plan, self._routing_registry = self._build_plan_and_routing(grouped_positions, models_by_type)
+        self._prediction_plan, self._routing_registry = self._build_plan_and_routing(
+            grouped_positions, models_by_type
+        )
 
     def _group_positions_by_session(self, positions: list[dict]) -> dict[str, list[dict]]:
         grouped = {"LIVE": [], "PAPER": [], "OTHER": []}
@@ -245,21 +248,40 @@ class ForecastManager(RuntimeModule):
 
         unknown_con_ids = set(self._conids) - all_con_ids
         for con_id in unknown_con_ids:
-            grouped["OTHER"].append({"con_id": con_id, "portfolio_id": None})
+            grouped["OTHER"].append(
+                {"con_id": con_id, "portfolio_id": None, "action": "BUY"}
+            )
 
         return grouped
 
     def _group_models_by_type(self) -> dict[str, list[ModelSpec]]:
         model_types_order = ["STOP_LOSS", "SELL", "BUY"]
         grouped = {mt: [] for mt in model_types_order}
+
         for m in self._registry.all():
             grouped[m.model_type.name].append(m)
+
         return grouped
+
+    @staticmethod
+    def _models_for_position(pos: dict) -> list[str]:
+        action = pos.get("action")
+
+        if action == "HOLD":
+            return ["STOP_LOSS"]
+
+        if action == "SELL":
+            return ["STOP_LOSS", "SELL"]
+
+        if action == "BUY":
+            return ["BUY"]
+
+        return []
 
     def _build_plan_and_routing(
             self,
             grouped_positions: dict[str, list[dict]],
-            models_by_type: dict[str, list[ModelSpec]]
+            models_by_type: dict[str, list[ModelSpec]],
     ) -> tuple[list[tuple[ForecastModel, int]], dict[tuple[int, str], list[str]]]:
 
         prediction_plan: list[tuple[ForecastModel, int]] = []
@@ -268,25 +290,33 @@ class ForecastManager(RuntimeModule):
         seen_con_model: set[tuple[str, int]] = set()
 
         session_order = ["LIVE", "PAPER", "OTHER"]
-        model_order = ["STOP_LOSS", "SELL", "BUY"]
 
         for session in session_order:
             for pos in grouped_positions.get(session, []):
+
                 con_id = pos["con_id"]
                 portfolio_id = pos.get("portfolio_id")
 
-                for mt in model_order:
-                    key_routing = (con_id, mt)
-                    if key_routing not in routing_registry:
-                        routing_registry[key_routing] = []
+                model_types = self._models_for_position(pos)
 
-                    if portfolio_id and portfolio_id not in routing_registry[key_routing]:
-                        routing_registry[key_routing].append(portfolio_id)
+                for mt in model_types:
+
+                    routing_key = (con_id, mt)
+
+                    if routing_key not in routing_registry:
+                        routing_registry[routing_key] = []
+
+                    if portfolio_id and portfolio_id not in routing_registry[routing_key]:
+                        routing_registry[routing_key].append(portfolio_id)
 
                     for model in models_by_type.get(mt, []):
+
                         key_model = (model.model_id, con_id)
+
                         if key_model not in seen_con_model:
-                            prediction_plan.append((self._pool.get(model.model_id), con_id))
+                            prediction_plan.append(
+                                (self._pool.get(model.model_id), con_id)
+                            )
                             seen_con_model.add(key_model)
 
         return prediction_plan, routing_registry
@@ -301,14 +331,17 @@ class ForecastManager(RuntimeModule):
         self.build_prediction_and_routing()
 
 
-    def _route_prediction(self, conid: int, model_type: str, output: ModelOutput) -> None:
-        portfolio_id = self._routing_registry.get((conid, model_type))
-
-        if portfolio_id is None:
+    def _route_prediction(self, conid: int, model_type: str, output: "ModelOutput") -> None:
+        portfolio_ids = self._routing_registry.get((conid, model_type))
+        if portfolio_ids is None:
             return
 
         for ptf_id in portfolio_ids:
-            self.bus_out.publish(entity_id=ptf_id, data={"conid": conid, "signal": output})
+            self.bus_out.publish(entity_id=ptf_id,
+                                 data={ "conid": conid,
+                                        "model_output": output,
+                                        "model_type": model_type}
+                                 )
 
 
     def _make_prediction(self, model_id, model, conid, snapshot):
@@ -326,6 +359,7 @@ class ForecastManager(RuntimeModule):
             conid=conid,
             output=output,
         )
+
         self._store.record(record=record, model_id=model_id, conid=conid)
 
     def persist_predictions(self) -> None:
@@ -352,14 +386,6 @@ class ForecastManager(RuntimeModule):
             )
 
         self.persist_predictions()
-
-        print(self.bus_out)
-        print(self.bus_out._subscribers)
-        print(self.bus_out._subscribers_all)
-        print(self.bus_out._subscriptions)
-
-        breakpoint()
-
 
 
 

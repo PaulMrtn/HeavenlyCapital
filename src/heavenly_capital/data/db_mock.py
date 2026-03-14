@@ -1300,7 +1300,6 @@ class TradingSessionDB:
             self._update_positions(conn, portfolio)
             self._update_portfolio_market_values(conn, portfolio)
 
-
     @staticmethod
     def _update_positions(conn, portfolio: Portfolio) -> None:
         query = text("""
@@ -1312,6 +1311,8 @@ class TradingSessionDB:
                      WHERE account_id = :account_id
                        AND portfolio_id = :portfolio_id
                        AND con_id = :con_id
+                       AND :market_price IS NOT NULL
+                       AND :market_price <> -1
                      """)
 
         for con_id, pos in portfolio.iter_db_positions():
