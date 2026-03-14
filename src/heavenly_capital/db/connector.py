@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from typing import Generator
 
+import duckdb
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection, Engine
 
@@ -45,7 +46,6 @@ def get_keychain_password(account: str, service: str) -> str:
 
 
 
-# --- DB CONFIGURATION SINGLETON ---
 class DBConfig:
     __instance = None
 
@@ -73,7 +73,6 @@ class DBConfig:
 
 
 
-# --- DB CONNECTOR ---
 class DBConnector:
     def __init__(self, config: DBConfig):
         self._engine: Engine = create_engine(
@@ -117,11 +116,43 @@ class DBConnector:
 
 
 
+class DuckDBConnector:
+    __instance = None
 
-# --- INITIALIZATION ---
+    def __new__(cls, db_path: Path):
+        if cls.__instance is None:
+            cls.__instance = super().__new__(cls)
+            cls.__instance._init(db_path)
+        return cls.__instance
+
+    def _init(self, db_path: Path):
+        self.db_path = db_path
+
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = duckdb.connect(str(db_path))\
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        return self._conn
+
+    def execute(self, query: str, parameters=None):
+        if parameters:
+            return self._conn.execute(query, parameters)
+        return self._conn.execute(query)
+
+    def executemany(self, query: str, parameters_list):
+        return self._conn.executemany(query, parameters_list)
+
+    def fetchall(self, query: str):
+        return self._conn.execute(query).fetchall()
+
+
 
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 load_env(ENV_PATH)
 
 DB_CONFIG = DBConfig()
 DB_CONNECTOR = DBConnector(DB_CONFIG)
+
+DUCKDB_PATH = Path(__file__).resolve().parent.parent / "storage" / "market_data_dev.duckdb"
+DUCKDB_CONNECTOR = DuckDBConnector(DUCKDB_PATH)

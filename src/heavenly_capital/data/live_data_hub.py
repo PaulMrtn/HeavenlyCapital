@@ -176,6 +176,11 @@ class LiveDataHub(RuntimeModule):
                 bars = pipeline.aggregate_all(ts_start, ts_end)
                 self.candle_bus.publish(conId, bars)
 
+                print({conId:bars})
+                persist_bars({conId: bars})
+
+            breakpoint()
+
             self._last_agg_time = current_time
 
 
