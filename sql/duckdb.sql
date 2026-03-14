@@ -34,7 +34,7 @@ CREATE TABLE ohlcv_5s (
     ask_low DOUBLE PRECISION,
     ask_close DOUBLE PRECISION,
     ask_volume DOUBLE PRECISION,
-    ask_tick_count BIGINT
+    ask_tick_count BIGINT,
 
     UNIQUE(instrument_id, ts_start)
 );
@@ -42,3 +42,5 @@ CREATE TABLE ohlcv_5s (
 
 CREATE INDEX idx_ohlcv_5s_instrument_ts
 ON ohlcv_5s (instrument_id, ts_start);
+
+
