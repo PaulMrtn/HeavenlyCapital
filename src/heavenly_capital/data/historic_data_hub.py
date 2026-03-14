@@ -14,7 +14,7 @@ from heavenly_capital.models.market_data import CandleEvent
 from heavenly_capital.models.market_data import OHLC
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
 
 
 # TODO:LOW add this cst

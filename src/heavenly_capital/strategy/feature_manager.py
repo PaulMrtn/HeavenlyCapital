@@ -15,7 +15,7 @@ from heavenly_capital.models.market_data import CandleEvent, MarketDataBank
 from heavenly_capital.strategy.features import FEATURE_REGISTRY, FeatureCache
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
 
 
 

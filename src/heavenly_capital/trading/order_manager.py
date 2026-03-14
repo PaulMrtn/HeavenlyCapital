@@ -11,7 +11,7 @@ from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEve
 from heavenly_capital.strategy.artifacts import ModelSignal
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey, GlobalOrderRouter
 
 

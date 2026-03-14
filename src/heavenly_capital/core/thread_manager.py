@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, TYPE_CHECKING
 from heavenly_capital.core.runtime_config import ThreadConfig, RuntimeModule
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
 
 
 PoolName = str

@@ -12,7 +12,7 @@ from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEve
 from heavenly_capital.models.tickers import UniverseSnapshot, TickerUniverseSnapshot
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
 
 
 from heavenly_capital.data.db_mock import TradingSessionDB

@@ -1,4 +1,4 @@
- # core/system_manager.py
+ # core/kernel.py
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from datetime import datetime, timezone, date
 from uuid import UUID, uuid4
 
 from heavenly_capital.core.runtime_config import RuntimeConfig, RuntimeModule, AsyncRuntimeModule
-from heavenly_capital.core.market_clock import MarketStateChangeEvent
+from heavenly_capital.core.clock import MarketStateChangeEvent
 from heavenly_capital.core.runtime_config import get_global_runtime_config
 from heavenly_capital.core.thread_manager import ThreadManager
 from heavenly_capital.strategy.feature_manager import FeatureManager

@@ -14,7 +14,7 @@ from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Posi
 from heavenly_capital.data.db_mock import TradingSessionDB
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey
     from heavenly_capital.strategy.artifacts import ModelOutput, ModelSignal
 

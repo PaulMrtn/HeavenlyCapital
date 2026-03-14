@@ -10,7 +10,7 @@ from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.market_data import OHLC, TickerManager
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.ibkr.gateway import Contract
 
 

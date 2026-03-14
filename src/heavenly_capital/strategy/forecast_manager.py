@@ -15,7 +15,7 @@ from heavenly_capital.data.bus import EventBus
 
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
 
 
 tsDB = TradingSessionDB()

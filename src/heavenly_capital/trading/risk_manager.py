@@ -7,7 +7,7 @@ from heavenly_capital.core.runtime_config import BaseModule, ModuleType
 from heavenly_capital.models.risk import RiskSnapshot, RiskState
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey
 
 

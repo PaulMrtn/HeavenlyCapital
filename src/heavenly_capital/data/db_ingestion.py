@@ -90,7 +90,7 @@ from typing import Protocol, TYPE_CHECKING
 from datetime import date
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import MarketDaySession
+    from heavenly_capital.core.kernel import MarketDaySession
 
 class DataIngestionLayer(Protocol):
     pass

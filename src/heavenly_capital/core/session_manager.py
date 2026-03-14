@@ -9,7 +9,7 @@ from typing import Any, Callable, Deque, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
 
 from heavenly_capital.core.runtime_config import SessionConfig, ModuleRouter, ModuleType
-from heavenly_capital.core.system_manager import RuntimeModule
+from heavenly_capital.core.kernel import RuntimeModule
 from heavenly_capital.models.market_data import ReadOnlyTicker, TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.monitoring.error_service import HealthCheckError
@@ -21,7 +21,7 @@ from heavenly_capital.trading.risk_manager import RiskManager
 
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.system_manager import SystemPorts
+    from heavenly_capital.core.kernel import SystemPorts
 
 
 
