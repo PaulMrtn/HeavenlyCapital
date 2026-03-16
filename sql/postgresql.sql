@@ -13,6 +13,7 @@
 -- DROP TABLE IF EXISTS universes CASCADE;
 -- DROP TABLE IF EXISTS universe_membership CASCADE;
 
+
 -- DROP TABLE IF EXISTS portfolio_targets CASCADE;
 -- DROP TABLE IF EXISTS portfolio_target_weights CASCADE;
 
@@ -478,3 +479,5 @@ CREATE TABLE model_records (
 
     UNIQUE(model_name, version, con_id, trading_day, step)
 );
+
+

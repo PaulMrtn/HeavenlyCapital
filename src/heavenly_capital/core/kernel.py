@@ -353,7 +353,7 @@ class SystemManager:
         self.run_readiness_checks(checks=checks)
 
         # TODO : add / remove not in prod
-        if self._market_calendar.is_open_today() :
+        if not self._market_calendar.is_open_today() :
             return self.shutdown(
             scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
             code=ExitCode.MARKET_CLOSED_TODAY,

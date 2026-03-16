@@ -172,16 +172,18 @@ class LiveDataHub(RuntimeModule):
             ts_end = current_time - (current_time % 5)
             ts_start = ts_end - 5
 
+            batch_to_persist = {}
+
             for conId, pipeline in self._pipelines.items():
                 bars = pipeline.aggregate_all(ts_start, ts_end)
                 self.candle_bus.publish(conId, bars)
 
-                print({conId:bars})
-                persist_bars({conId: bars})
+                batch_to_persist[conId] = bars
 
-            breakpoint()
+            tsDB.persist_bars(batch_to_persist)
 
             self._last_agg_time = current_time
+
 
 
 

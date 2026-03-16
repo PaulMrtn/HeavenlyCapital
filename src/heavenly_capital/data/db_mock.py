@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Sequence, Optional, List, Dict, Any
 
 from ib_async import Order, Execution, CommissionReport, Trade
@@ -58,7 +58,7 @@ class TradingSessionDB:
     @staticmethod
     def insert_session(session_name: str, account_id: str, mode: str, context: dict | None = None) -> None:
         query = text("""
-            INSERT INTO session_registry (session_name, account_id, mode, context)
+            INSERT INTO trading.session_registry (session_name, account_id, mode, context)
             VALUES (:session_name, :account_id, :mode, :context)
         """)
 
@@ -83,7 +83,7 @@ class TradingSessionDB:
         enabled: bool = True
     ) -> None:
         query = text("""
-            INSERT INTO portfolio_registry
+            INSERT INTO trading.portfolio_registry
                 (account_id, portfolio_id, portfolio_name, strategy_id, currency, enabled)
             VALUES
                 (:account_id, :portfolio_id, :portfolio_name, :strategy_id, :currency, :enabled)
@@ -106,7 +106,7 @@ class TradingSessionDB:
     @staticmethod
     def delete_portfolio(account_id: str, portfolio_id: str) -> dict | None:
         query = text("""
-            DELETE FROM portfolio_registry
+            DELETE FROM trading.portfolio_registry
             WHERE account_id = :account_id
               AND portfolio_id = :portfolio_id
             RETURNING id
@@ -127,14 +127,14 @@ class TradingSessionDB:
 
     @staticmethod
     def fetch_all() -> Sequence[RowMapping]:
-        query = text("SELECT session_name, account_id, mode, context FROM session_registry")
+        query = text("SELECT session_name, account_id, mode, context FROM trading.session_registry")
         with engine.connect() as conn:
             return conn.execute(query).mappings().all()
 
 
     @staticmethod
     def fetch_by_account(account_id: str) -> Sequence[RowMapping]:
-        query = text("SELECT session_name, account_id, mode, context FROM session_registry WHERE account_id = :account_id")
+        query = text("SELECT session_name, account_id, mode, context FROM trading.session_registry WHERE account_id = :account_id")
         with engine.connect() as conn:
             return conn.execute(query, {"account_id": account_id}).mappings().all()
 
@@ -143,7 +143,7 @@ class TradingSessionDB:
     def exists_for_account(account_id: str) -> bool:
         query = text("""
             SELECT 1
-            FROM session_registry
+            FROM trading.session_registry
             WHERE account_id = :account_id
             LIMIT 1
         """)
@@ -161,7 +161,7 @@ class TradingSessionDB:
     def exists_for_portfolio(portfolio_id: str) -> bool:
         query = text("""
             SELECT 1
-            FROM portfolio_registry
+            FROM trading.portfolio_registry
             WHERE portfolio_id = :portfolio_id
             LIMIT 1
         """)
@@ -179,7 +179,7 @@ class TradingSessionDB:
     def portfolio_exists_for_account(account_id: str) -> bool:
         query = text("""
             SELECT 1
-            FROM portfolio_registry
+            FROM trading.portfolio_registry
             WHERE account_id = :account_id
             LIMIT 1
         """)
@@ -197,7 +197,7 @@ class TradingSessionDB:
     def portfolio_exists_for_portfolio_id(portfolio_id: str) -> bool:
         query = text("""
             SELECT 1
-            FROM portfolio_registry
+            FROM trading.portfolio_registry
             WHERE portfolio_id = :portfolio_id
             LIMIT 1
         """)
@@ -215,7 +215,7 @@ class TradingSessionDB:
     def portfolio_is_enabled(portfolio_id: str) -> bool:
         query = text("""
             SELECT 1
-            FROM portfolio_registry
+            FROM trading.portfolio_registry
             WHERE portfolio_id = :portfolio_id
               AND enabled = TRUE
             LIMIT 1
@@ -234,7 +234,7 @@ class TradingSessionDB:
     def fetch_portfolios(account_id: str, only_enabled: bool = True) -> list[dict]:
         query = """
                 SELECT portfolio_id, portfolio_name, strategy_id, account_id
-                FROM portfolio_registry
+                FROM trading.portfolio_registry
                 WHERE account_id = :account_id \
                 """
 
@@ -258,7 +258,7 @@ class TradingSessionDB:
     ) -> None:
 
         query = text("""
-            INSERT INTO instruments (symbol, currency, long_name, sector)
+            INSERT INTO trading.instruments (symbol, currency, long_name, sector)
             VALUES (:symbol, :currency, :long_name, :sector)
             RETURNING instrument_id
         """)
@@ -277,12 +277,12 @@ class TradingSessionDB:
     @staticmethod
     def insert_contract(contract) -> None:
         query = text("""
-            INSERT INTO contracts (
+            INSERT INTO trading.contracts (
                 con_id, instrument_id, symbol, sec_type, exchange, primary_exchange, currency, local_symbol, trading_class
             )
             VALUES (
                 :con_id,
-                (SELECT instrument_id FROM instruments WHERE symbol = :symbol AND currency = :currency), 
+                (SELECT instrument_id FROM trading.instruments WHERE symbol = :symbol AND currency = :currency), 
                 :symbol, :sec_type, :exchange, :primary_exchange, :currency, :local_symbol, :trading_class
             )
             ON CONFLICT (con_id) DO NOTHING;
@@ -307,7 +307,7 @@ class TradingSessionDB:
     def fetch_contracts() -> list[dict]:
         query = """
             SELECT con_id, symbol, sec_type, exchange, primary_exchange, currency
-            FROM contracts
+            FROM trading.contracts
         """
         query = text(query)
         with engine.connect() as conn:
@@ -319,7 +319,7 @@ class TradingSessionDB:
     @staticmethod
     def insert_order(order: "Order", account_id: str, portfolio_id: str, con_id: int) -> None:
         query = text("""
-                     INSERT INTO orders (perm_id, account_id, portfolio_id, con_id, action, order_ref, order_type, tif,
+                     INSERT INTO trading.orders (perm_id, account_id, portfolio_id, con_id, action, order_ref, order_type, tif,
                                          quantity,
                                          lmt_price, aux_price, status, filled_quantity, remaining_quantity,
                                          avg_fill_price,
@@ -360,7 +360,7 @@ class TradingSessionDB:
     def order_exists(perm_id: int) -> bool:
         query = text("""
                      SELECT 1
-                     FROM orders
+                     FROM trading.orders
                      WHERE perm_id = :perm_id
                      LIMIT 1
                      """)
@@ -378,7 +378,7 @@ class TradingSessionDB:
     def update_order_status(perm_id: int, status: str, filled_quantity: float, remaining_quantity: float,
                             avg_fill_price: float) -> None:
         query = text("""
-                     UPDATE orders
+                     UPDATE trading.orders
                      SET status             = :status,
                          filled_quantity    = :filled_quantity,
                          remaining_quantity = :remaining_quantity,
@@ -403,7 +403,7 @@ class TradingSessionDB:
     @staticmethod
     def insert_execution(conn : "Connection", execution: "Execution", account_id: str, portfolio_id: str, con_id: int) -> None:
         query = text("""
-            INSERT INTO executions (
+            INSERT INTO trading.executions (
                 exec_id, perm_id, account_id, portfolio_id, con_id,
                 side, shares, price, execution_time,
                 cum_qty, avg_price, last_liquidity, pending_price_revision
@@ -471,7 +471,7 @@ class TradingSessionDB:
         price: Decimal,
     ) -> None:
         query = text("""
-            INSERT INTO trade_lots (
+            INSERT INTO trading.trade_lots (
                 portfolio_id,
                 con_id,
                 buy_exec_id,
@@ -550,7 +550,7 @@ class TradingSessionDB:
     def _select_open_lots(portfolio_id: str, con_id: int):
         query = text("""
             SELECT id, open_quantity, price
-            FROM trade_lots
+            FROM trading.trade_lots
             WHERE portfolio_id = :portfolio_id
               AND con_id = :con_id
               AND open_quantity > 0
@@ -575,7 +575,7 @@ class TradingSessionDB:
         realized_pnl: Decimal,
     ) -> None:
         query = text("""
-            INSERT INTO trade_lot_consumption (
+            INSERT INTO trading.trade_lot_consumption (
                 lot_id,
                 sell_exec_id,
                 quantity,
@@ -608,7 +608,7 @@ class TradingSessionDB:
         quantity: Decimal,
     ) -> None:
         query = text("""
-            UPDATE trade_lots
+            UPDATE trading.trade_lots
             SET open_quantity = open_quantity - :qty,
                 closed_quantity = closed_quantity + :qty,
                 updated_at = NOW()
@@ -633,7 +633,7 @@ class TradingSessionDB:
 
         query_exec = text("""
                           SELECT side, shares, price
-                          FROM executions
+                          FROM trading.executions
                           WHERE account_id = :account_id
                             AND portfolio_id = :portfolio_id
                             AND con_id = :con_id
@@ -668,7 +668,7 @@ class TradingSessionDB:
 
         if net_qty > 0:
             query_upsert = text("""
-                                INSERT INTO positions(account_id, portfolio_id, con_id, quantity, avg_cost)
+                                INSERT INTO trading.positions(account_id, portfolio_id, con_id, quantity, avg_cost)
                                 VALUES (:account_id, :portfolio_id, :con_id, :quantity, :avg_cost)
                                 ON CONFLICT(account_id, portfolio_id, con_id)
                                     DO UPDATE SET quantity   = :quantity,
@@ -685,7 +685,7 @@ class TradingSessionDB:
         else:
             query_delete = text("""
                                 DELETE
-                                FROM positions
+                                FROM trading.positions
                                 WHERE account_id = :account_id
                                   AND portfolio_id = :portfolio_id
                                   AND con_id = :con_id
@@ -709,8 +709,8 @@ class TradingSessionDB:
                             p.market_value,
                             p.unrealized_pnl,
                             p.updated_at
-                     FROM positions p
-                              JOIN contracts c
+                     FROM trading.positions p
+                              JOIN trading.contracts c
                                    ON p.con_id = c.con_id
                      WHERE p.portfolio_id = :portfolio_id
                      """)
@@ -724,7 +724,7 @@ class TradingSessionDB:
     def _get_realized_pnl_from_fifo(conn: "Connection", exec_id: int) -> Decimal:
         query = text("""
                      SELECT COALESCE(SUM(realized_pnl), 0)
-                     FROM trade_lot_consumption
+                     FROM trading.trade_lot_consumption
                      WHERE sell_exec_id = :exec_id
                      """)
 
@@ -819,7 +819,7 @@ class TradingSessionDB:
         )
 
         query = text("""
-                     INSERT INTO portfolio_ledger (account_id,
+                     INSERT INTO trading.portfolio_ledger (account_id,
                                                    portfolio_id,
                                                    con_id,
                                                    exec_id,
@@ -967,8 +967,8 @@ class TradingSessionDB:
                 c.currency,
                 i.long_name,
                 i.sector
-            FROM contracts c
-            LEFT JOIN instruments i
+            FROM trading.contracts c
+            LEFT JOIN trading.instruments i
                 ON c.instrument_id = i.instrument_id
         """
         query = text(query)
@@ -989,7 +989,7 @@ class TradingSessionDB:
     ) -> None:
 
         insert_target_query = text("""
-                                   INSERT INTO portfolio_targets (account_id, portfolio_id, strategy_id, rebalance_date, tolerance)
+                                   INSERT INTO trading.portfolio_targets (account_id, portfolio_id, strategy_id, rebalance_date, tolerance)
                                    VALUES (:account_id, :portfolio_id, :strategy_id, :rebalance_date, :tolerance)
                                    ON CONFLICT (account_id, portfolio_id, rebalance_date)
                                        DO UPDATE SET strategy_id = EXCLUDED.strategy_id,
@@ -1010,12 +1010,12 @@ class TradingSessionDB:
                 }
             ).scalar()
 
-            delete_weights_query = text("DELETE FROM portfolio_target_weights WHERE target_id = :target_id")
+            delete_weights_query = text("DELETE FROM trading.portfolio_target_weights WHERE target_id = :target_id")
             conn.execute(delete_weights_query, {"target_id": target_id})
 
             if weights:
                 insert_weight_query = text("""
-                                           INSERT INTO portfolio_target_weights (target_id, con_id, target_weight)
+                                           INSERT INTO trading.portfolio_target_weights (target_id, con_id, target_weight)
                                            VALUES (:target_id, :con_id, :target_weight)
                                            """)
                 weight_rows = [
@@ -1030,8 +1030,8 @@ class TradingSessionDB:
         query = text("""
             SELECT t.target_id, t.rebalance_date, t.tolerance,
                    w.con_id, w.target_weight
-            FROM portfolio_targets t
-            JOIN portfolio_target_weights w ON t.target_id = w.target_id
+            FROM trading.portfolio_targets t
+            JOIN trading.portfolio_target_weights w ON t.target_id = w.target_id
             WHERE t.portfolio_id = :portfolio_id
               AND t.rebalance_date = :rebalance_date
         """)
@@ -1044,7 +1044,7 @@ class TradingSessionDB:
     def check_rebalance_date(portfolio_id: str, today: datetime) -> bool:
         query = text("""
                      SELECT 1
-                     FROM portfolio_targets
+                     FROM trading.portfolio_targets
                      WHERE portfolio_id = :portfolio_id
                        AND rebalance_date = :today
                      LIMIT 1
@@ -1062,7 +1062,7 @@ class TradingSessionDB:
             return
 
         query = text("""
-            INSERT INTO account_margins (
+            INSERT INTO trading.account_margins (
                 account_id, currency, equity_with_loan, full_available_funds, full_excess_liquidity,
                 full_init_margin_req, full_maint_margin_req, gross_position_value, net_liquidation,
                 total_cash_value, buying_power, cushion, lookahead_next_change, updated_at
@@ -1112,7 +1112,7 @@ class TradingSessionDB:
             return
 
         query = text("""
-                     INSERT INTO account_balances (account_id, currency, total_cash_balance, accrued_cash,
+                     INSERT INTO trading.account_balances (account_id, currency, total_cash_balance, accrued_cash,
                                                    net_liquidation_by_currency,
                                                    stock_market_value, unrealized_pnl, exchange_rate,
                                                    net_dividend, updated_at)
@@ -1158,7 +1158,7 @@ class TradingSessionDB:
     def get_account_total_cash(account_id: str, currency: str = "USD") -> Optional[Decimal]:
         query = text("""
                      SELECT total_cash_balance
-                     FROM account_balances
+                     FROM trading.account_balances
                      WHERE account_id = :account_id
                        AND currency = :currency
                      LIMIT 1
@@ -1184,7 +1184,7 @@ class TradingSessionDB:
         amount = self._quantize(amount)
 
         query = text("""
-                     INSERT INTO portfolio_capital (account_id, portfolio_id, type, amount, currency, created_at)
+                     INSERT INTO trading.portfolio_capital (account_id, portfolio_id, type, amount, currency, created_at)
                      VALUES (:account_id, :portfolio_id, :type, :amount, :currency, NOW())
                      ON CONFLICT (portfolio_id, type, created_at) DO NOTHING
                      """)
@@ -1215,7 +1215,7 @@ class TradingSessionDB:
                                                                   WHEN type = 'CAPITAL_WITHDRAWAL' THEN -amount
                                                                   END
                                                       ), 0) AS capital_cash
-                                      FROM portfolio_capital
+                                      FROM trading.portfolio_capital
                                       WHERE portfolio_id = :portfolio_id
                                       GROUP BY portfolio_id),
                           ledger AS (SELECT portfolio_id,
@@ -1228,7 +1228,7 @@ class TradingSessionDB:
                                                      ), 0)                                                    AS ledger_cash,
                                             COALESCE(SUM(CASE WHEN type = 'REALIZED_PNL' THEN amount END), 0) AS realized_pnl,
                                             COALESCE(SUM(CASE WHEN type = 'COMMISSION' THEN amount END), 0)   AS total_commissions
-                                     FROM portfolio_ledger
+                                     FROM trading.portfolio_ledger
                                      WHERE portfolio_id = :portfolio_id
                                      GROUP BY portfolio_id)
                      SELECT COALESCE(c.capital_cash, 0) + COALESCE(l.ledger_cash, 0) AS total_cash_balance,
@@ -1251,7 +1251,7 @@ class TradingSessionDB:
             }
 
             upsert = text("""
-                          INSERT INTO portfolio_balances (portfolio_id, account_id, currency,
+                          INSERT INTO trading.portfolio_balances (portfolio_id, account_id, currency,
                                                           total_cash_balance, realized_pnl, total_commissions,
                                                           updated_at)
                           VALUES (:portfolio_id, :account_id, :currency,
@@ -1270,7 +1270,7 @@ class TradingSessionDB:
     def get_portfolio_balance(portfolio_id: str, account_id: str, currency: str = "USD") -> PortfolioBalance:
         query = text("""
                      SELECT total_cash_balance, stock_market_value, unrealized_pnl
-                     FROM portfolio_balances
+                     FROM trading.portfolio_balances
                      WHERE portfolio_id = :portfolio_id
                        AND account_id = :account_id
                        AND currency = :currency
@@ -1303,7 +1303,7 @@ class TradingSessionDB:
     @staticmethod
     def _update_positions(conn, portfolio: Portfolio) -> None:
         query = text("""
-                     UPDATE positions
+                     UPDATE trading.positions
                      SET market_price   = :market_price,
                          market_value   = :market_value,
                          unrealized_pnl = :unrealized_pnl,
@@ -1336,7 +1336,7 @@ class TradingSessionDB:
     ) -> None:
 
         query = text("""
-                     UPDATE portfolio_balances
+                     UPDATE trading.portfolio_balances
                      SET stock_market_value = :stock_market_value,
                          unrealized_pnl     = :unrealized_pnl,
                          updated_at         = NOW()
@@ -1359,7 +1359,7 @@ class TradingSessionDB:
     def model_is_enabled(model_name: str, version: float) -> bool:
         query = text("""
                      SELECT 1
-                     FROM models_registry
+                     FROM trading.models_registry
                      WHERE model_name = :model_name
                        AND version = :version
                        AND enabled = TRUE
@@ -1385,7 +1385,7 @@ class TradingSessionDB:
     ) -> None:
 
         query = text("""
-                     INSERT INTO portfolio_models (portfolio_id,
+                     INSERT INTO trading.portfolio_models (portfolio_id,
                                                    model_type,
                                                    model_name,
                                                    version,
@@ -1423,7 +1423,7 @@ class TradingSessionDB:
     ) -> None:
 
         query = text("""
-                     INSERT INTO models_registry (model_name,
+                     INSERT INTO trading.models_registry (model_name,
                                                   model_type,
                                                   version,
                                                   path,
@@ -1466,8 +1466,8 @@ class TradingSessionDB:
                             mr.path,
                             mr.description,
                             pm.portfolio_id
-                     FROM models_registry mr
-                              LEFT JOIN portfolio_models pm
+                     FROM trading.models_registry mr
+                              LEFT JOIN trading.portfolio_models pm
                                         ON mr.model_name = pm.model_name
                                             AND mr.version = pm.version
                      WHERE mr.enabled = TRUE
@@ -1486,7 +1486,7 @@ class TradingSessionDB:
                      WITH portfolio_totals AS (SELECT account_id,
                                                       portfolio_id,
                                                       SUM(market_value) AS total_value
-                                               FROM positions
+                                               FROM trading.positions
                                                GROUP BY account_id, portfolio_id),
                           positions_with_weight AS (SELECT p.account_id,
                                                            sr.mode AS session_mode,
@@ -1500,9 +1500,9 @@ class TradingSessionDB:
                                                                    THEN p.market_value / pt.total_value
                                                                ELSE 0
                                                                END AS pos_w
-                                                    FROM positions p
-                                                             JOIN contracts c ON p.con_id = c.con_id
-                                                             JOIN session_registry sr ON p.account_id = sr.account_id
+                                                    FROM trading.positions p
+                                                             JOIN trading.contracts c ON p.con_id = c.con_id
+                                                             JOIN trading.session_registry sr ON p.account_id = sr.account_id
                                                              JOIN portfolio_totals pt
                                                                   ON p.account_id = pt.account_id
                                                                       AND p.portfolio_id = pt.portfolio_id),
@@ -1512,10 +1512,10 @@ class TradingSessionDB:
                                                   w.con_id,
                                                   c.symbol,
                                                   w.target_weight AS target_w
-                                           FROM portfolio_targets t
-                                                    JOIN portfolio_target_weights w ON t.target_id = w.target_id
-                                                    JOIN contracts c ON w.con_id = c.con_id
-                                                    JOIN session_registry sr ON t.account_id = sr.account_id
+                                           FROM trading.portfolio_targets t
+                                                    JOIN trading.portfolio_target_weights w ON t.target_id = w.target_id
+                                                    JOIN trading.contracts c ON w.con_id = c.con_id
+                                                    JOIN trading.session_registry sr ON t.account_id = sr.account_id
                                            WHERE t.rebalance_date = :today),
                           combined AS (
                               -- positions existantes (avec target si elle existe)
@@ -1527,11 +1527,11 @@ class TradingSessionDB:
                                      pw.pos_w,
                                      tw.target_weight AS target_w
                               FROM positions_with_weight pw
-                                       LEFT JOIN portfolio_targets t
+                                       LEFT JOIN trading.portfolio_targets t
                                                  ON pw.account_id = t.account_id
                                                      AND pw.portfolio_id = t.portfolio_id
                                                      AND t.rebalance_date = :today
-                                       LEFT JOIN portfolio_target_weights tw
+                                       LEFT JOIN trading.portfolio_target_weights tw
                                                  ON t.target_id = tw.target_id
                                                      AND pw.con_id = tw.con_id
 
@@ -1563,7 +1563,7 @@ class TradingSessionDB:
                                 WHEN target_w IS NOT NULL AND pos_w IS NULL THEN 'BUY'
                                 WHEN target_w IS NULL AND pos_w IS NOT NULL
                                     AND NOT EXISTS (SELECT 1
-                                                    FROM portfolio_targets t2
+                                                    FROM trading.portfolio_targets t2
                                                     WHERE t2.account_id = combined.account_id
                                                       AND t2.portfolio_id = combined.portfolio_id
                                                       AND t2.rebalance_date = :today) THEN 'HOLD'
@@ -1586,7 +1586,7 @@ class TradingSessionDB:
             return
 
         query = """
-                INSERT INTO model_records
+                INSERT INTO trading.model_records
                 (model_name, version, con_id, step, decision, score, output_at, prediction_ts, trading_day)
                 VALUES (:model_name, :version, :con_id, :step, :decision, :score, :output_at, :prediction_ts, :trading_day)
                 ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
@@ -1595,9 +1595,67 @@ class TradingSessionDB:
         with UnitOfWork() as conn:
             conn.execute(text(query), records)
 
+    @staticmethod
+    def persist_bars(bars_dict: dict[int, dict[str, Any]]) -> None:
+        if not bars_dict:
+            return
 
+        rows = []
 
+        excluded_values = {-1, None}
 
+        for instrument_id, ohlc_dict in bars_dict.items():
+            last = ohlc_dict['last']
+            bid = ohlc_dict['bid']
+            ask = ohlc_dict['ask']
+
+            row_data = {
+                "instrument_id": instrument_id,
+                "ts_start": last.ts_start,
+                "ts_end": last.ts_end,
+                "last_open": last.open,
+                "last_high": last.high,
+                "last_low": last.low,
+                "last_close": last.close,
+                "last_volume": last.volume,
+                "last_tick_count": last.tick_count,
+                "bid_open": bid.open,
+                "bid_high": bid.high,
+                "bid_low": bid.low,
+                "bid_close": bid.close,
+                "bid_volume": bid.volume,
+                "bid_tick_count": bid.tick_count,
+                "ask_open": ask.open,
+                "ask_high": ask.high,
+                "ask_low": ask.low,
+                "ask_close": ask.close,
+                "ask_volume": ask.volume,
+                "ask_tick_count": ask.tick_count,
+            }
+
+            if not any(value in excluded_values for value in row_data.values()):
+                rows.append(row_data)
+
+        if not rows:
+            return
+
+        insert_sql = """
+                     INSERT INTO market.ohlcv_5s (instrument_id, ts_start, ts_end,
+                                                  last_open, last_high, last_low, last_close, last_volume,
+                                                  last_tick_count,
+                                                  bid_open, bid_high, bid_low, bid_close, bid_volume, bid_tick_count,
+                                                  ask_open, ask_high, ask_low, ask_close, ask_volume, ask_tick_count)
+                     VALUES (:instrument_id,
+                             to_timestamp(:ts_start),
+                             to_timestamp(:ts_end),
+                             :last_open, :last_high, :last_low, :last_close, :last_volume, :last_tick_count,
+                             :bid_open, :bid_high, :bid_low, :bid_close, :bid_volume, :bid_tick_count,
+                             :ask_open, :ask_high, :ask_low, :ask_close, :ask_volume, :ask_tick_count)
+                     ON CONFLICT (instrument_id, ts_start) DO NOTHING
+                     """
+
+        with UnitOfWork() as conn:
+            conn.execute(text(insert_sql), rows)
 
 
     # UTILITIES

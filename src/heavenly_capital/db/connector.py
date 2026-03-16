@@ -154,5 +154,5 @@ load_env(ENV_PATH)
 DB_CONFIG = DBConfig()
 DB_CONNECTOR = DBConnector(DB_CONFIG)
 
-DUCKDB_PATH = Path(__file__).resolve().parent.parent / "storage" / "market_data_dev.duckdb"
+DUCKDB_PATH = Path(__file__).resolve().parent.parent / "storage" / "market_data_lab_dev.duckdb"
 DUCKDB_CONNECTOR = DuckDBConnector(DUCKDB_PATH)

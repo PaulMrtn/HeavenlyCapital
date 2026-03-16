@@ -20,11 +20,8 @@ class InMemorySessionDAL:
         self._store = None
 
     def get_risk_snapshot(self, account_id: str) -> "RiskSnapshot":
-        as_of = datetime.now(timezone.utc)
-
         return RiskSnapshot(
             account_id=account_id,
-            as_of=as_of,
             stop_loss_pct_by_symbol={"AAPL": Decimal("0.05")},
             stop_loss_price_by_symbol={"AAPL": Decimal("175.50")},
         )
