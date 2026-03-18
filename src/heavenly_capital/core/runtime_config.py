@@ -44,91 +44,12 @@ class HistoricHubConfig:
 class ForecastConfig:
     pass
 
-
-
-
-
-
-
-
-@dataclass(frozen=True, slots=True)
-class FeatureSpec:
-    id: str
-    plugin: str
-    freq: str | list[str]
-    kind: str | list[str]
-    name: str = ""
-    fields: str = "close"
-    order: int = None
-    scope: str = "per_asset"
-    cache: bool = False
-    params: dict[str, Any] = field(default_factory=dict)
-
-
-
 @dataclass(frozen=True, slots=True)
 class FeatureConfig:
-    maxlen_by_freq: dict[str, Optional[int]] = field(
-        default_factory=lambda: {
-        "5s": 10, # or max(window)
-        "30s": 10,
-        "1m": 10,
-        "5m": 10,
-        "10m": 10,
-        "30m": 10,
-        "1h": 10,
-    })
+    pass
 
-    specs: tuple[FeatureSpec, ...] = (
-        FeatureSpec(
-            id="return",
-            name="",
-            plugin="return",
-            fields="close",
-            freq=["5s", "30s", "1m", "5m", "10m", "30m", "1h"],
-            kind="last",
-            order=1,
-            scope="per_asset",
-            cache=True,
 
-        ),
-        FeatureSpec(
-            id="volatility",
-            name="",
-            plugin="volatility",
-            fields="close",
-            freq=["5s", "30s", "1m", "5m", "10m", "30m", "1h"],
-            kind="last",
-            order=2,
-            scope="per_asset",
-            cache=True,
-            params={"window":5}
-        ),
 
-        FeatureSpec(
-            id="correlation",
-            name="",
-            plugin="correlation",
-            fields="close",
-            freq=["5s", "30s", "1m", "5m", "10m", "30m", "1h"],
-            kind="last",
-            order=3,
-            scope="cross_asset",
-            cache=True,
-            params={"window": 5}
-        ),
-        #
-        # FeatureSpec(
-        #     id="rel_return",
-        #     fields="return",          # intra feature
-        #     cross_field="avg_return", # cross feature
-        #     scope="derived",
-        #     plugin="relative_spread",
-        #     kind="last",
-        #     freq="5s",
-        #     order=4
-        # ),
-    )
 
 
 

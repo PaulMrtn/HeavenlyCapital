@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+import json
 from typing import Sequence, Optional, List, Dict, Any
 
 from ib_async import Order, Execution, CommissionReport, Trade
@@ -9,8 +10,10 @@ from sqlalchemy import create_engine
 
 from decimal import Decimal, ROUND_HALF_UP
 
+# TODO:LOW – these objects should remain in the business layer and not be used directly in functions
 from heavenly_capital.models.account import AccountState
 from heavenly_capital.models.portfolio import PortfolioBalance, Portfolio
+from heavenly_capital.strategy.artifacts import FeatureSpec
 
 
 class UnitOfWork:
@@ -1656,6 +1659,138 @@ class TradingSessionDB:
 
         with UnitOfWork() as conn:
             conn.execute(text(insert_sql), rows)
+
+
+    @staticmethod
+    def feature_exists(uid: str) -> bool:
+        query = text("""
+            SELECT 1
+            FROM trading.feature_registry
+            WHERE uid = :uid
+            LIMIT 1
+        """)
+
+        with engine.connect() as conn:
+            result = conn.execute(query, {"uid": uid})
+            row = result.mappings().first()
+
+        return row is not None
+
+
+
+
+    @staticmethod
+    def insert_feature(
+        uid: str,
+        category: str,
+        plugin: str,
+        scope: str,
+        kind: str,
+        fields: str,
+        freqs: list[str],
+        params: dict,
+        priority: int,
+        cache: bool = False,
+        is_active: bool = True
+    ) -> None:
+
+        query = text("""
+            INSERT INTO trading.feature_registry (
+                uid,
+                category,
+                plugin,
+                scope,
+                kind,
+                fields,
+                freqs,
+                params,
+                priority,
+                cache,
+                is_active
+            ) VALUES (
+                :uid,
+                :category,
+                :plugin,
+                :scope,
+                :kind,
+                :fields,
+                CAST(:freqs AS jsonb),
+                CAST(:params AS jsonb),
+                :priority,
+                :cache,
+                :is_active
+            )
+        """)
+
+        with engine.begin() as conn:
+            conn.execute(query, {
+                "uid": uid,
+                "category": category,
+                "plugin": plugin,
+                "scope": scope,
+                "kind": kind,
+                "fields": fields,
+                "freqs": json.dumps(freqs),
+                "params": json.dumps(params),
+                "priority": priority,
+                "cache": cache,
+                "is_active": is_active
+            })
+
+
+    @staticmethod
+    def update_feature_status(uid: str, is_active: bool) -> None:
+        query = text("UPDATE trading.feature_registry SET is_active = :is_active WHERE uid = :uid")
+
+        with engine.begin() as conn:
+            conn.execute(query, {"uid": uid, "is_active": is_active})
+
+
+
+    @staticmethod
+    def get_features_config() -> List[Dict[str, Any]]:
+        query = text("""
+            SELECT
+                category,
+                plugin,
+                scope,
+                kind,
+                fields,
+                freqs,
+                params,
+                priority,
+                cache,
+                is_active
+                
+            FROM trading.feature_registry
+            WHERE is_active = TRUE
+            ORDER BY priority
+        """)
+
+        with engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.mappings().all()
+
+        specs = []
+        for row in rows:
+            freqs = row["freqs"]
+            params = row["params"]
+
+            if isinstance(freqs, str):
+                freqs = json.loads(freqs)
+
+            if isinstance(params, str):
+                params = json.loads(params)
+
+            row = dict(row)
+            row["freqs"] = freqs
+            row["params"] = params
+            specs.append(row)
+
+        return specs
+
+
+
 
 
     # UTILITIES

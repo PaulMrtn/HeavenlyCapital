@@ -1,23 +1,39 @@
 from __future__ import annotations
 
 import queue
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List
 from ib_async import Contract
 import numpy as np
 
-from heavenly_capital.core.runtime_config import FeatureConfig, RuntimeModule, FeatureSpec
+from heavenly_capital.core.runtime_config import FeatureConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
+from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.market_data import CandleEvent, MarketDataBank
+from heavenly_capital.strategy.artifacts import FeatureSpec
 from heavenly_capital.strategy.features import FEATURE_REGISTRY, FeatureCache
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
 
 
+
+MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
+    "5s": 10, # or max(window)
+    "30s": 10,
+    "1m": 10,
+    "5m": 10,
+    "10m": 10,
+    "30m": 10,
+    "1h": 10,
+}
+
+
+tsDB = TradingSessionDB()
 
 @dataclass
 class FeatureVector:
@@ -41,20 +57,20 @@ class FeatureVector:
 
 
 class FeatureRegistry:
-    def __init__(self, specs: tuple[FeatureSpec, ...]):
+    def __init__(self, specs: List["FeatureSpec"]):
         self._specs = self._expand_specs(specs)
         self._build_index()
 
     @staticmethod
-    def _expand_specs(specs: tuple[FeatureSpec, ...]) -> list[FeatureSpec]:
-        expanded: list[FeatureSpec] = []
+    def _expand_specs(specs: List["FeatureSpec"]) -> list["FeatureSpec"]:
+        expanded: list["FeatureSpec"] = []
 
         for s in specs:
             freqs = s.freq if isinstance(s.freq, list) else [s.freq]
             kinds = s.kind if isinstance(s.kind, list) else [s.kind]
 
             for f, k in product(freqs, kinds):
-                unique_name = f"{s.id}_{s.fields}_{k}_{f}"
+                unique_name = f"{s.category}_{s.fields}_{k}_{f}"
 
                 new_spec = replace(
                     s,
@@ -68,14 +84,14 @@ class FeatureRegistry:
 
 
     def _build_index(self):
-        by_sfk: dict[tuple[str, str, str], list[FeatureSpec]] = defaultdict(list)
+        by_sfk: dict[tuple[str, str, str], list["FeatureSpec"]] = defaultdict(list)
 
         for spec in self._specs:
             key = (spec.scope, str(spec.freq), str(spec.kind))
             by_sfk[key].append(spec)
 
         for key in by_sfk:
-            by_sfk[key].sort(key=lambda s: s.order)
+            by_sfk[key].sort(key=lambda s: s.priority)
 
         self._specs_by_sfk = dict(by_sfk)
         self._feature_names_by_sfk = {
@@ -87,7 +103,7 @@ class FeatureRegistry:
             for k, v in by_sfk.items()
         }
 
-    def get_specs(self, *, scope: str, freq: str, kind: str) -> list[FeatureSpec]:
+    def get_specs(self, *, scope: str, freq: str, kind: str) -> list["FeatureSpec"]:
         return self._specs_by_sfk.get((scope, str(freq), str(kind)), [])
 
     def get_feature_names(self, *, scope: str, freq: str, kind: str) -> tuple[str, ...]:
@@ -125,11 +141,8 @@ class FeatureStore:
     def build_snapshot(self) -> FeatureSnapshot:
         return FeatureSnapshot(by_conid=dict(self._latest))
 
-
-    # ------ API -----------------------
-
-    def get_history(self, conId: int, name: str) -> list[tuple[float, float]]:
-        return list(self._history.get(conId, {}).get(name, []))
+    def get_latest(self, conId: int, name: str) -> float | None:
+        return self._latest.get(conId, {}).get(name)
 
     def get_feature_map(self, name: str) -> dict[int, float]:
         result = {}
@@ -138,9 +151,29 @@ class FeatureStore:
                 result[conId] = feats[name]
         return result
 
-    def get_latest(self, conId: int, name: str) -> float | None:
-        return self._latest.get(conId, {}).get(name)
+    def get_global(self, name: str, agg: str) -> float:
+        values = self.get_feature_map(name).values()
+        vals = [v for v in values if v is not None and not np.isnan(v)]
 
+        if not vals:
+            return np.nan
+
+        if agg == "mean":
+            return float(np.nanmean(vals))
+        if agg == "median":
+            return float(np.nanmedian(vals))
+        if agg == "std":
+            return float(np.nanstd(vals))
+        if agg == "max":
+            return float(np.nanmax(vals))
+        if agg == "min":
+            return float(np.nanmin(vals))
+
+        raise ValueError(f"Unknown aggregation: {agg}")
+
+
+    def get_history(self, conId: int, name: str) -> list[tuple[float, float]]:
+        return list(self._history.get(conId, {}).get(name, []))
 
     # -----------------------------------
 
@@ -153,7 +186,10 @@ class FeatureManager(RuntimeModule):
 
         self._conids: list[int] = []
         self._banks: dict[str, "MarketDataBank"] = {}
+
         self._last_seen: Dict[Tuple[int, str, str], float] = {}
+        self._seen_conids_by_freq: dict[str, set[int]] = defaultdict(set)
+        self._pending_derived: Dict[str, bool] = self._init_pending_derived()
         self._pending_snapshot = False
 
         self._registry: Optional["FeatureRegistry"] = None
@@ -172,7 +208,7 @@ class FeatureManager(RuntimeModule):
         self._config = config
         self._ports = ports
 
-        self._registry = FeatureRegistry(specs=config.specs)
+        self._registry = self.load_features_registry()
         self.store: FeatureStore = FeatureStore()
 
         self._configured = True
@@ -222,6 +258,12 @@ class FeatureManager(RuntimeModule):
             "is_healthy": True,
         }
 
+    @staticmethod
+    def load_features_registry() -> "FeatureRegistry":
+        rows = tsDB.get_features_config()
+        specs = [FeatureSpec.from_snapshot(r) for r in rows]
+        return FeatureRegistry(specs)
+
     def initialize_universe(self, contracts: dict[str, "Contract"]) -> None:
         conids: list[int] = []
         for c in contracts.values():
@@ -234,12 +276,16 @@ class FeatureManager(RuntimeModule):
     def build_market_data_banks(self) -> None:
         self._banks.clear()
 
-        for freq, lookback in self.config.maxlen_by_freq.items():
+        for freq, lookback in MAXLEN_BY_FREQ.items():
             self._banks[str(freq)] = MarketDataBank(
                 freq=str(freq),
                 conIds=self._conids,
                 lookback=int(lookback),
             )
+
+    @staticmethod
+    def _init_pending_derived() -> Dict[str, bool]:
+        return {freq: False for freq in MAXLEN_BY_FREQ.keys()}
 
     def wire_historic_candle_bus(self, candle_bus: "EventBus") -> None:
         self._in_bus = candle_bus
@@ -261,6 +307,11 @@ class FeatureManager(RuntimeModule):
             return False
 
         self._last_seen[key] = float(event.ohlc.ts_end)
+
+        self._seen_conids_by_freq[event.freq].add(event.conId)
+        if set(self._seen_conids_by_freq[event.freq]) == set(self._conids):
+            self._pending_derived[event.freq] = True
+
         return True
 
     def _update_bank(self, event: "CandleEvent") -> bool | None:
@@ -318,32 +369,30 @@ class FeatureManager(RuntimeModule):
 
 
 
-# ------------------- WARNING --------------
-#     def _build_fusion_vectors(self, freq: str) -> list[FeatureVector]:
-#         vectors: list[FeatureVector] = []
-# 
-#         specs = self._registry.get_specs(scope="derived", freq=freq, kind="last")
-#         for spec in specs:
-#             plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
-#             if plugin_fn is None:
-#                 continue
-# 
-#             result = plugin_fn(spec=spec, store=self.store, freq=freq)
-#             for conId, value in result.items():
-#                 fv = FeatureVector(
-#                     data=np.array([value]),
-#                     feature_names=[spec.name],
-#                     conId=conId,
-#                     freq=freq,
-#                     scope="derived",
-#                     updated_at=time.time()
-#                 )
-#                 vectors.append(fv)
-# 
-#         return vectors
+    def _build_fusion_vectors(self, freq: str) -> list[FeatureVector]:
+        vectors: list[FeatureVector] = []
 
-    # -------------------------------------------
-    
+        specs = self._registry.get_specs(scope="derived", freq=freq, kind="last")
+
+        for spec in specs:
+            plugin_fn = FEATURE_REGISTRY.get(spec.plugin)
+            if plugin_fn is None:
+                continue
+
+            result = plugin_fn(spec=spec, store=self.store, freq=freq)
+
+            for conId, value in result.items():
+                fv = FeatureVector(
+                    data=np.array([value]),
+                    feature_names=tuple([spec.name]),
+                    conId=conId,
+                    freq=freq,
+                    scope="derived",
+                    updated_at=time.time()
+                )
+                vectors.append(fv)
+
+        return vectors
 
 
     def process_candle_events(self) -> None:
@@ -364,21 +413,27 @@ class FeatureManager(RuntimeModule):
                 self._in_queue.task_done()
                 continue
 
+
             for vector in self._event_to_features(event):
                 self.store.commit(vector)
 
-            # for vector in self._build_fusion_vectors(event.freq):
-            #     self.store.commit(vector)
+
+            for freq, pending in self._pending_derived.items():
+                if pending:
+                    for vector in self._build_fusion_vectors(freq):
+                        self.store.commit(vector)
+
+                    self._pending_derived[freq] = True
+                    self._seen_conids_by_freq[freq].clear()
 
             processed = True
             self._in_queue.task_done()
+
 
         if processed or self._pending_snapshot:
             snapshot = self.store.build_snapshot()
             self.out_queue.put(snapshot)
             self._pending_snapshot = False
-
-
 
 
 

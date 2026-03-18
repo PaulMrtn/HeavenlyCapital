@@ -165,3 +165,49 @@ class SessionService:
             model_type=model_type,
             version=version
         )
+
+
+    def add_feature(
+        self,
+        uid: str,
+        category: str,
+        plugin: str,
+        scope: str,
+        kind: str,
+        fields: str,
+        freqs: list[str],
+        priority: int,
+        params: Optional[Dict[str, Any]] = None,
+        cache: bool = False,
+        is_active: bool = True,
+    ) -> None:
+
+        if self._db.feature_exists(uid):
+            raise ValueError(f"Feature with uid '{uid}' already exists in DB")
+
+        params = params or {}
+        self._db.insert_feature(
+            uid=uid,
+            category=category,
+            plugin=plugin,
+            scope=scope,
+            kind=kind,
+            fields=fields,
+            freqs=freqs,
+            params=params,
+            priority=priority,
+            cache=cache,
+            is_active=is_active
+        )
+
+    def activate_feature(self, uid: str) -> None:
+        if not self._db.feature_exists(uid):
+            raise ValueError(f"No feature with uid '{uid}' in DB")
+
+        self._db.update_feature_status(uid, True)
+
+    def deactivate_feature(self, uid: str) -> None:
+        if not self._db.feature_exists(uid):
+            raise ValueError(f"No feature with uid '{uid}' in DB")
+
+        self._db.update_feature_status(uid, False)

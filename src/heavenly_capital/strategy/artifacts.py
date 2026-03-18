@@ -1,9 +1,43 @@
 from dataclasses import dataclass, field
 from time import time
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 from enum import Enum
 from pathlib import Path
+
+
+
+@dataclass(frozen=True, slots=True)
+class FeatureSpec:
+    category: str
+    plugin: str
+    freq: str | list[str]
+    kind: str | list[str]
+    name: str = ""
+    fields: str = "close"
+    priority: int = None
+    scope: str = "per_asset"
+    cache: bool = False
+    params: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_snapshot(cls, row: dict) -> "FeatureSpec":
+        freqs = row.get("freqs") or []
+        params = row.get("params") or {}
+
+        return cls(
+            category=row["category"],
+            plugin=row["plugin"],
+            freq=freqs,
+            kind=row["kind"],
+            fields=row.get("fields", "close"),
+            priority=row.get("priority"),
+            scope=row.get("scope", "per_asset"),
+            cache=row.get("cache", False),
+            params=params,
+            name=row.get("name", "")
+        )
+
 
 
 
@@ -28,7 +62,6 @@ class ModelSpec:
             path=Path(row["path"]),
             version=str(row["version"]),
         )
-
 
 
 @dataclass(frozen=True)

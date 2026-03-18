@@ -1,29 +1,31 @@
--- DROP TABLE IF EXISTS portfolio_registry CASCADE;
--- DROP TABLE IF EXISTS portfolio_capital CASCADE;
--- DROP TABLE IF EXISTS session_registry CASCADE;
--- DROP TABLE IF EXISTS contracts CASCADE;
--- DROP TABLE IF EXISTS orders CASCADE;
--- DROP TABLE IF EXISTS executions CASCADE;
--- DROP TABLE IF EXISTS positions CASCADE;
--- DROP TABLE IF EXISTS trade_lots CASCADE;
--- DROP TABLE IF EXISTS trade_lot_consumption CASCADE;
--- DROP TABLE IF EXISTS portfolio_ledger CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_capital CASCADE;
+-- DROP TABLE IF EXISTS trading.session_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.contracts CASCADE;
+-- DROP TABLE IF EXISTS trading.orders CASCADE;
+-- DROP TABLE IF EXISTS trading.executions CASCADE;
+-- DROP TABLE IF EXISTS trading.positions CASCADE;
+-- DROP TABLE IF EXISTS trading.trade_lots CASCADE;
+-- DROP TABLE IF EXISTS trading.trade_lot_consumption CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_ledger CASCADE;
 
--- DROP TABLE IF EXISTS instruments CASCADE;
--- DROP TABLE IF EXISTS universes CASCADE;
--- DROP TABLE IF EXISTS universe_membership CASCADE;
+-- DROP TABLE IF EXISTS trading.instruments CASCADE;
+-- DROP TABLE IF EXISTS trading.universes CASCADE;
+-- DROP TABLE IF EXISTS trading.universe_membership CASCADE;
 
 
--- DROP TABLE IF EXISTS portfolio_targets CASCADE;
--- DROP TABLE IF EXISTS portfolio_target_weights CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_targets CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_target_weights CASCADE;
 
--- DROP TABLE IF EXISTS account_balances CASCADE;
--- DROP TABLE IF EXISTS portfolio_balances CASCADE;
--- DROP TABLE IF EXISTS account_margins CASCADE;
+-- DROP TABLE IF EXISTS trading.account_balances CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_balances CASCADE;
+-- DROP TABLE IF EXISTS trading.account_margins CASCADE;
 
--- DROP TABLE IF EXISTS models_registry CASCADE;
--- DROP TABLE IF EXISTS portfolio_models CASCADE;
--- DROP TABLE IF EXISTS model_records CASCADE;
+-- DROP TABLE IF EXISTS trading.models_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_models CASCADE;
+-- DROP TABLE IF EXISTS trading.model_records CASCADE;
+
+-- DROP TABLE IF EXISTS trading.feature_registry CASCADE;
 
 -- DROP TYPE IF EXISTS session_mode;
 
@@ -33,7 +35,7 @@
 
 CREATE TYPE session_mode AS ENUM ('LIVE', 'PAPER');
 
-CREATE TABLE session_registry (
+CREATE TABLE trading.session_registry (
     id SERIAL PRIMARY KEY,
     session_name TEXT NOT NULL,
     account_id CHAR(9) NOT NULL UNIQUE,
@@ -42,10 +44,10 @@ CREATE TABLE session_registry (
 );
 
 
-CREATE TABLE portfolio_registry (
+CREATE TABLE trading.portfolio_registry (
     id SERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL
-        REFERENCES session_registry(account_id) ON DELETE CASCADE,
+        REFERENCES trading.session_registry(account_id) ON DELETE CASCADE,
     portfolio_id TEXT NOT NULL UNIQUE,
     strategy_id TEXT NOT NULL,
     portfolio_name TEXT NOT NULL ,
@@ -57,7 +59,7 @@ CREATE TABLE portfolio_registry (
     UNIQUE(portfolio_id)
 );
 
-CREATE TABLE portfolio_capital (
+CREATE TABLE trading.portfolio_capital (
     id BIGSERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
     portfolio_id TEXT NOT NULL,
@@ -71,13 +73,13 @@ CREATE TABLE portfolio_capital (
     UNIQUE (portfolio_id, type, created_at),
 
     FOREIGN KEY (account_id, portfolio_id)
-        REFERENCES portfolio_registry(account_id, portfolio_id)
+        REFERENCES trading.portfolio_registry(account_id, portfolio_id)
         ON DELETE CASCADE
 );
 
 
 
-CREATE TABLE orders (
+CREATE TABLE trading.orders (
     id BIGSERIAL PRIMARY KEY,                  -- ID interne unique
     perm_id BIGINT NOT NULL UNIQUE,
     account_id CHAR(9) NOT NULL,
@@ -109,20 +111,20 @@ CREATE TABLE orders (
 
     -- Foreign Keys
     FOREIGN KEY (account_id)
-        REFERENCES session_registry(account_id)
+        REFERENCES trading.session_registry(account_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id, portfolio_id)
-        REFERENCES portfolio_registry(account_id, portfolio_id)
+        REFERENCES trading.portfolio_registry(account_id, portfolio_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (con_id)
-        REFERENCES contracts(con_id)
+        REFERENCES trading.contracts(con_id)
         ON DELETE RESTRICT
 );
 
 
-CREATE TABLE executions (
+CREATE TABLE trading.executions (
     id BIGSERIAL PRIMARY KEY,                               -- ID interne unique
     exec_id TEXT NOT NULL UNIQUE,
     perm_id BIGINT NOT NULL,
@@ -143,15 +145,15 @@ CREATE TABLE executions (
 
     -- Foreign Keys
     FOREIGN KEY (perm_id)
-        REFERENCES orders(perm_id)
+        REFERENCES trading.orders(perm_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id)
-        REFERENCES session_registry(account_id)
+        REFERENCES trading.session_registry(account_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id, portfolio_id)
-        REFERENCES portfolio_registry(account_id, portfolio_id)
+        REFERENCES trading.portfolio_registry(account_id, portfolio_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (con_id)
@@ -160,7 +162,7 @@ CREATE TABLE executions (
 );
 
 
-CREATE TABLE positions (
+CREATE TABLE trading.positions (
     account_id CHAR(9) NOT NULL,
     portfolio_id TEXT NOT NULL,
     con_id BIGINT NOT NULL,
@@ -175,20 +177,20 @@ CREATE TABLE positions (
     PRIMARY KEY (account_id, portfolio_id, con_id),
 
     FOREIGN KEY (account_id, portfolio_id)
-        REFERENCES portfolio_registry(account_id, portfolio_id)
+        REFERENCES trading.portfolio_registry(account_id, portfolio_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (con_id)
-        REFERENCES contracts(con_id)
+        REFERENCES trading.contracts(con_id)
         ON DELETE RESTRICT
 );
 
 
-CREATE TABLE trade_lots (
+CREATE TABLE trading.trade_lots (
     id BIGSERIAL PRIMARY KEY,                     -- Identifiant unique du lot
     portfolio_id TEXT NOT NULL,                   -- Portefeuille auquel appartient le lot
     con_id BIGINT NOT NULL,                       -- Contrat acheté
-    buy_exec_id TEXT NOT NULL REFERENCES executions(exec_id), -- Exécution d'achat
+    buy_exec_id TEXT NOT NULL REFERENCES trading.executions(exec_id), -- Exécution d'achat
     open_quantity NUMERIC(15,3) NOT NULL,        -- Quantité encore ouverte
     closed_quantity NUMERIC(15,3) DEFAULT 0,     -- Quantité déjà vendue
     price NUMERIC(15,4) NOT NULL,                -- Prix d'achat par unité
@@ -198,19 +200,19 @@ CREATE TABLE trade_lots (
     UNIQUE (portfolio_id, buy_exec_id),
 
     FOREIGN KEY (portfolio_id)
-        REFERENCES portfolio_registry(portfolio_id)
+        REFERENCES trading.portfolio_registry(portfolio_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (con_id)
-        REFERENCES contracts(con_id)
+        REFERENCES trading.contracts(con_id)
         ON DELETE RESTRICT
 );
 
 
-CREATE TABLE trade_lot_consumption (
+CREATE TABLE trading.trade_lot_consumption (
     id BIGSERIAL PRIMARY KEY,                     -- Identifiant unique de consommation
-    lot_id BIGINT NOT NULL REFERENCES trade_lots(id) ON DELETE CASCADE, -- Lot consommé
-    sell_exec_id TEXT NOT NULL REFERENCES executions(exec_id),             -- Exécution de vente partielle
+    lot_id BIGINT NOT NULL REFERENCES trading.trade_lots(id) ON DELETE CASCADE, -- Lot consommé
+    sell_exec_id TEXT NOT NULL REFERENCES trading.executions(exec_id),             -- Exécution de vente partielle
     quantity NUMERIC(15,3) NOT NULL,             -- Quantité vendue depuis ce lot
     realized_pnl NUMERIC(15,4) NOT NULL,         -- PnL réalisé sur cette portion
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -219,13 +221,13 @@ CREATE TABLE trade_lot_consumption (
 
 
 
-CREATE TABLE portfolio_ledger (
+CREATE TABLE trading.portfolio_ledger (
     id BIGSERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
     portfolio_id TEXT NOT NULL,
 
     con_id BIGINT,                               -- null si opération cash pure
-    exec_id TEXT NOT NULL REFERENCES executions(exec_id),    -- null si pas lié à une execution
+    exec_id TEXT NOT NULL REFERENCES trading.executions(exec_id),    -- null si pas lié à une execution
     type TEXT NOT NULL CHECK (type IN (
         'TRADE_DEBIT', 'TRADE_CREDIT', 'COMMISSION',
         'REALIZED_PNL', 'DIVIDEND', 'FX'
@@ -238,21 +240,21 @@ CREATE TABLE portfolio_ledger (
     UNIQUE (exec_id, type),
 
     FOREIGN KEY (account_id)
-        REFERENCES session_registry(account_id)
+        REFERENCES trading.session_registry(account_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id, portfolio_id)
-        REFERENCES portfolio_registry(account_id, portfolio_id)
+        REFERENCES trading.portfolio_registry(account_id, portfolio_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (con_id)
-        REFERENCES contracts(con_id)
+        REFERENCES trading.contracts(con_id)
         ON DELETE RESTRICT
 );
 
 
 
-CREATE TABLE contracts (
+CREATE TABLE trading.contracts (
     con_id BIGINT PRIMARY KEY,
     instrument_id BIGINT,
     symbol TEXT NOT NULL,
@@ -264,12 +266,12 @@ CREATE TABLE contracts (
     trading_class TEXT,
 
     FOREIGN KEY (instrument_id)
-        REFERENCES instruments(instrument_id)
+        REFERENCES trading.instruments(instrument_id)
         ON DELETE CASCADE
 );
 
 
-CREATE TABLE instruments (
+CREATE TABLE trading.instruments (
     instrument_id BIGSERIAL PRIMARY KEY,
     symbol TEXT NOT NULL UNIQUE,
     currency CHAR(3) NOT NULL,
@@ -279,19 +281,19 @@ CREATE TABLE instruments (
 );
 
 
-CREATE TABLE universes (
+CREATE TABLE trading.universes (
     universe_id SMALLSERIAL PRIMARY KEY,
     code TEXT NOT NULL UNIQUE, -- 'SP500', 'NASDAQ100'
     name TEXT NOT NULL
 );
 
-INSERT INTO universes (code, name) VALUES
+INSERT INTO trading.universes (code, name) VALUES
 ('SP500', 'S&P 500'),
 ('NASDAQ100', 'Nasdaq 100');
 
 
 
-CREATE TABLE universe_membership (
+CREATE TABLE trading.universe_membership (
     membership_id BIGSERIAL PRIMARY KEY,
     instrument_id BIGINT NOT NULL,
     universe_id SMALLINT NOT NULL,
@@ -300,17 +302,17 @@ CREATE TABLE universe_membership (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     FOREIGN KEY (instrument_id)
-        REFERENCES instruments (instrument_id)
+        REFERENCES trading.instruments (instrument_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (universe_id)
-        REFERENCES universes (universe_id)
+        REFERENCES trading.universes (universe_id)
         ON DELETE CASCADE
 );
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-ALTER TABLE universe_membership
+ALTER TABLE trading.universe_membership
 ADD CONSTRAINT no_overlap
 EXCLUDE USING gist (
     instrument_id WITH =,
@@ -320,7 +322,7 @@ EXCLUDE USING gist (
 
 
 
-CREATE TABLE portfolio_targets (
+CREATE TABLE trading.portfolio_targets (
     target_id BIGSERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
     portfolio_id TEXT NOT NULL,
@@ -332,11 +334,11 @@ CREATE TABLE portfolio_targets (
     UNIQUE (account_id, portfolio_id, rebalance_date),
 
     FOREIGN KEY (account_id, portfolio_id)
-        REFERENCES portfolio_registry(account_id, portfolio_id)
+        REFERENCES trading.portfolio_registry(account_id, portfolio_id)
         ON DELETE CASCADE
 );
 
-CREATE TABLE portfolio_target_weights (
+CREATE TABLE trading.portfolio_target_weights (
     target_id BIGINT NOT NULL,
     con_id BIGINT NOT NULL,
     target_weight NUMERIC(9,6) NOT NULL
@@ -345,17 +347,17 @@ CREATE TABLE portfolio_target_weights (
     PRIMARY KEY (target_id, con_id),
 
     FOREIGN KEY (target_id)
-        REFERENCES portfolio_targets(target_id)
+        REFERENCES trading.portfolio_targets(target_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (con_id)
-        REFERENCES contracts(con_id)
+        REFERENCES trading.contracts(con_id)
         ON DELETE RESTRICT
 );
 
 
 
-CREATE TABLE account_margins (
+CREATE TABLE trading.account_margins (
     id SERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
     currency CHAR(3) NOT NULL,
@@ -375,12 +377,12 @@ CREATE TABLE account_margins (
     UNIQUE(account_id, currency),
 
     FOREIGN KEY (account_id)
-        REFERENCES session_registry(account_id)
+        REFERENCES trading.session_registry(account_id)
         ON DELETE CASCADE
 );
 
 
-CREATE TABLE account_balances (
+CREATE TABLE trading.account_balances (
     id SERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
     currency CHAR(3) NOT NULL,
@@ -397,11 +399,11 @@ CREATE TABLE account_balances (
     UNIQUE(account_id, currency),
 
     FOREIGN KEY (account_id)
-        REFERENCES session_registry(account_id)
+        REFERENCES trading.session_registry(account_id)
         ON DELETE CASCADE
 );
 
-CREATE TABLE portfolio_balances (
+CREATE TABLE trading.portfolio_balances (
     portfolio_id TEXT PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
     currency CHAR(3) DEFAULT 'USD',
@@ -416,12 +418,12 @@ CREATE TABLE portfolio_balances (
     UNIQUE(account_id, portfolio_id),
 
     FOREIGN KEY (portfolio_id)
-        REFERENCES portfolio_registry(portfolio_id)
+        REFERENCES trading.portfolio_registry(portfolio_id)
         ON DELETE CASCADE
 );
 
 
-CREATE TABLE models_registry (
+CREATE TABLE trading.models_registry (
     id SERIAL PRIMARY KEY,
     model_name TEXT NOT NULL,
     model_type TEXT NOT NULL CHECK (model_type IN ('BUY','SELL','STOP_LOSS')),
@@ -436,7 +438,7 @@ CREATE TABLE models_registry (
 );
 
 
-CREATE TABLE portfolio_models (
+CREATE TABLE trading.portfolio_models (
     portfolio_id TEXT NOT NULL,
     model_type TEXT NOT NULL CHECK (
         model_type IN ('BUY','SELL','STOP_LOSS')
@@ -451,16 +453,16 @@ CREATE TABLE portfolio_models (
     PRIMARY KEY (portfolio_id, model_type),
 
     FOREIGN KEY (portfolio_id)
-        REFERENCES portfolio_registry(portfolio_id)
+        REFERENCES trading.portfolio_registry(portfolio_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (model_name, version)
-        REFERENCES models_registry(model_name, version)
+        REFERENCES trading.models_registry(model_name, version)
         ON DELETE RESTRICT
 );
 
 
-CREATE TABLE model_records (
+CREATE TABLE trading.model_records (
     id BIGSERIAL PRIMARY KEY,
     model_name TEXT NOT NULL,
     version NUMERIC(3,1) NOT NULL,
@@ -481,3 +483,18 @@ CREATE TABLE model_records (
 );
 
 
+CREATE TABLE trading.feature_registry (
+    uid TEXT PRIMARY KEY,
+    category TEXT,
+    plugin TEXT,
+    scope TEXT,
+    kind TEXT,
+    fields TEXT,
+    freqs JSONB,
+    params JSONB,
+    priority INT,
+    cache BOOLEAN,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+ -- TODO:LOW add unique constraint on priority label

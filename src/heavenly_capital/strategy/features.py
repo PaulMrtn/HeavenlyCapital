@@ -1,7 +1,12 @@
 from __future__ import annotations
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, TYPE_CHECKING
 
 import numpy as np
+
+from heavenly_capital.strategy.artifacts import FeatureSpec
+
+if TYPE_CHECKING:
+    from heavenly_capital.strategy.feature_manager import FeatureStore
 
 
 FEATURE_REGISTRY: Dict[str, Callable] = {}
@@ -60,7 +65,22 @@ def plugin_correlation(*, spec, cache: "CrossFeatureCache"):
 
     return max_corr
 
+@feature_plugin("relative_spread")
+def plugin_relative_spread(*, spec, store, freq):
+    basket = spec.params.get("basket")
+    cache = DerivedFeatureCache(store, freq, basket)
 
+    inputs = cache.resolve_inputs(spec)
+    ret = inputs["ret"]
+
+    cross = cache.resolve_cross(spec)
+
+    result = {
+        conId: (v - cross if not np.isnan(v) else np.nan)
+        for conId, v in ret.items()
+    }
+
+    return result
 
 
 class FeatureCache:
@@ -159,54 +179,66 @@ class CrossFeatureCache:
         return self._cache_features.get(name, np.nan)
 
 
-# -------------------------------------------
-#
-# @feature_plugin("relative_spread")
-# def plugin_relative_spread(*, spec, store, freq):
-#     basket = spec.params.get("basket")  # optionnel
-#     cache = DerivedFeatureCache(store, freq, basket)
-#
-#     # features per_asset
-#     intra = store.get_feature_map(spec.fields)
-#     # feature cross (globale ou panier)
-#     cross_value = cache.get_cross_feature(spec.cross_field)
-#
-#     result = {}
-#     for conId, r in intra.items():
-#         result[conId] = r - cross_value if not np.isnan(r) else np.nan
-#
-#     return result  # dict[conId, float]
-#
-#
-#
-# class DerivedFeatureCache:
-#     def __init__(self, store: FeatureStore, freq: str, basket: list[int] | None = None):
-#         self.store = store
-#         self.freq = freq
-#         self.basket = basket  # optionnel, si tu veux limiter le cross à un panier
-#         self._cache_features: dict[str, float] = {}
-#
-#     def get_feature(self, name: str, conId: int) -> float:
-#         # Si la feature est déjà calculée dans le cache local
-#         if name in self._cache_features:
-#             return self._cache_features[name]
-#
-#         # Sinon on lit dans le store
-#         value = self.store.get_latest(conId, name)
-#         return value if value is not None else np.nan
-#
-#     def get_cross_feature(self, name: str) -> float:
-#         # cross_feature globale ou panier
-#         if self.basket:
-#             values = [self.store.get_latest(c, name) for c in self.basket]
-#             return float(np.nanmean([v for v in values if v is not None]))
-#         return self.store.get_global(name)
-#
-#     def store_feature(self, name: str, value: float, conId: int):
-#         # On stocke dans le cache local
-#         self._cache_features[f"{conId}_{name}"] = value
-#         # On commitera ensuite dans le store avec conId
-#
-#
+class DerivedFeatureCache:
+    def __init__(self, store: "FeatureStore", freq: str, basket: list[int] | None = None):
+        self.store = store
+        self.freq = freq
+        self.basket = basket
+        self._cache_features: dict[str, float] = {}
 
-# -------------------------------------------
+
+    def resolve_inputs(self, spec: "FeatureSpec") -> dict[str, dict[int, float]]:
+        inputs = {}
+
+        for key, cfg in spec.params.get("inputs", {}).items():
+            name = f"{cfg['category']}_{spec.fields}_{spec.kind}_{self.freq}"
+            inputs[key] = self.store.get_feature_map(name)
+
+        return inputs
+
+    def resolve_cross(self, spec: "FeatureSpec") -> float:
+        cfg = spec.params.get("cross", {})
+
+        name = f"{cfg['category']}_{spec.fields}_{spec.kind}_{self.freq}"
+        agg = cfg.get("agg", "mean")
+
+        return self.get_cross_feature(name=name, agg=agg)
+
+
+    def get_cross_feature(self, name: str, agg: str) -> float:
+        if self.basket:
+            values = [self.store.get_latest(c, name) for c in self.basket]
+            vals = [v for v in values if v is not None and not np.isnan(v)]
+
+            if not vals:
+                return np.nan
+
+            if agg == "mean":
+                return float(np.nanmean(vals))
+            if agg == "median":
+                return float(np.nanmedian(vals))
+            if agg == "std":
+                return float(np.nanstd(vals))
+            if agg == "max":
+                return float(np.nanmax(vals))
+            if agg == "min":
+                return float(np.nanmin(vals))
+
+            raise ValueError(f"Unknown aggregation: {agg}")
+
+        return self.store.get_global(name, agg)
+
+
+    # TODO:LOW Finish cache option
+    def get_feature(self, name: str, conId: int) -> float:
+        if name in self._cache_features:
+            return self._cache_features[name]
+
+        value = self.store.get_latest(conId, name)
+        return value if value is not None else np.nan
+
+    def store_feature(self, name: str, value: float, conId: int):
+        self._cache_features[f"{conId}_{name}"] = value
+
+
+
