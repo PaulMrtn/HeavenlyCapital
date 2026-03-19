@@ -63,6 +63,8 @@ def plugin_correlation(*, spec, cache: "CrossFeatureCache"):
     mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
     max_corr = np.nanmax(corr_matrix[mask])
 
+    # TODO:LOW You use max() here, for scalar but you had to handle this matrix
+
     return max_corr
 
 @feature_plugin("relative_spread")

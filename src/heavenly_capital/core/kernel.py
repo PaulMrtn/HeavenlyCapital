@@ -693,11 +693,5 @@ class SystemManager:
 
             self._modules.historic_hub.ingest_candle_5s()
             self._modules.historic_hub.dispatch_candle_events()
-
             self._modules.feature_manager.process_candle_events()
             self._modules.forecast_manager.run_predictions()
-
-            # Update portfolio and risk monitor
-            # if timimg opportunity then Order Manager send order
-            # suscribe each module to his bus (ticker, features, ...)
-

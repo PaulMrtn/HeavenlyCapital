@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
 from itertools import product
 from queue import Queue
-from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List
+from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List, Set
 from ib_async import Contract
 import numpy as np
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
-    "5s": 10, # or max(window)
+    "5s": 10, #TODO:WARNING or max(window) check the params in the table feature_registry
     "30s": 10,
     "1m": 10,
     "5m": 10,
@@ -34,6 +34,7 @@ MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
 
 
 tsDB = TradingSessionDB()
+
 
 @dataclass
 class FeatureVector:
@@ -175,7 +176,11 @@ class FeatureStore:
     def get_history(self, conId: int, name: str) -> list[tuple[float, float]]:
         return list(self._history.get(conId, {}).get(name, []))
 
-    # -----------------------------------
+@dataclass
+class FreqState:
+    pending: bool = False
+    last_derived_ts: float | None = None
+    seen_conids: Set[int] = field(default_factory=set)
 
 
 class FeatureManager(RuntimeModule):
@@ -188,8 +193,7 @@ class FeatureManager(RuntimeModule):
         self._banks: dict[str, "MarketDataBank"] = {}
 
         self._last_seen: Dict[Tuple[int, str, str], float] = {}
-        self._seen_conids_by_freq: dict[str, set[int]] = defaultdict(set)
-        self._pending_derived: Dict[str, bool] = self._init_pending_derived()
+        self._freq_states: dict[str, FreqState] = self._init_freq_state()
         self._pending_snapshot = False
 
         self._registry: Optional["FeatureRegistry"] = None
@@ -284,8 +288,8 @@ class FeatureManager(RuntimeModule):
             )
 
     @staticmethod
-    def _init_pending_derived() -> Dict[str, bool]:
-        return {freq: False for freq in MAXLEN_BY_FREQ.keys()}
+    def _init_freq_state() -> dict[str, FreqState]:
+        return {freq: FreqState() for freq in MAXLEN_BY_FREQ}
 
     def wire_historic_candle_bus(self, candle_bus: "EventBus") -> None:
         self._in_bus = candle_bus
@@ -299,7 +303,7 @@ class FeatureManager(RuntimeModule):
     def _on_candle_event(self, conId: int, event: "CandleEvent") -> None:
         self._in_queue.put(event)
 
-    def _bool_process_event(self, event: "CandleEvent") -> bool:
+    def _mark_event_seen(self, event: "CandleEvent") -> bool:
         key = (int(event.conId), str(event.kind), str(event.freq))
         last_seen = self._last_seen.get(key)
 
@@ -308,9 +312,11 @@ class FeatureManager(RuntimeModule):
 
         self._last_seen[key] = float(event.ohlc.ts_end)
 
-        self._seen_conids_by_freq[event.freq].add(event.conId)
-        if set(self._seen_conids_by_freq[event.freq]) == set(self._conids):
-            self._pending_derived[event.freq] = True
+        state = self._freq_states[event.freq]
+        state.seen_conids.add(event.conId)
+
+        if state.seen_conids == set(self._conids):
+            state.pending = True
 
         return True
 
@@ -401,7 +407,6 @@ class FeatureManager(RuntimeModule):
         while True:
             try:
                 event = self._in_queue.get_nowait()
-
             except queue.Empty:
                 break
 
@@ -409,31 +414,38 @@ class FeatureManager(RuntimeModule):
                 self._in_queue.task_done()
                 continue
 
-            if not self._bool_process_event(event):
+            if not self._mark_event_seen(event):
                 self._in_queue.task_done()
                 continue
-
 
             for vector in self._event_to_features(event):
                 self.store.commit(vector)
 
+            for freq, state in self._freq_states.items():
+                if not state.pending:
+                    continue
 
-            for freq, pending in self._pending_derived.items():
-                if pending:
-                    for vector in self._build_fusion_vectors(freq):
-                        self.store.commit(vector)
+                ts = event.ohlc.ts_end
+                if state.last_derived_ts == ts:
+                    continue
 
-                    self._pending_derived[freq] = True
-                    self._seen_conids_by_freq[freq].clear()
+                for vector in self._build_fusion_vectors(freq):
+                    self.store.commit(vector)
+
+                state.last_derived_ts = ts
+                state.seen_conids.clear()
+                state.pending = False
 
             processed = True
             self._in_queue.task_done()
-
 
         if processed or self._pending_snapshot:
             snapshot = self.store.build_snapshot()
             self.out_queue.put(snapshot)
             self._pending_snapshot = False
+
+
+
 
 
 

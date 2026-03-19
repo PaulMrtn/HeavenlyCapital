@@ -13,8 +13,6 @@ from decimal import Decimal, ROUND_HALF_UP
 # TODO:LOW – these objects should remain in the business layer and not be used directly in functions
 from heavenly_capital.models.account import AccountState
 from heavenly_capital.models.portfolio import PortfolioBalance, Portfolio
-from heavenly_capital.strategy.artifacts import FeatureSpec
-
 
 class UnitOfWork:
     def __enter__(self):
