@@ -49,19 +49,12 @@ class FeatureConfig:
     pass
 
 
-
-
-
-
-
-
-
 @dataclass(frozen=True, slots=True)
 class ThreadConfig:
-    critical: int = 2
-    standard: int = 4
-    bulk: int = 2
-    audit: int = 1
+    pass
+
+
+
 
 
 

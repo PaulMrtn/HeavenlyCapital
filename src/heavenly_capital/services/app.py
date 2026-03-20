@@ -17,7 +17,7 @@ class SessionService:
             context: Dict[str, Any] = None,
     ) -> None:
 
-        if self._db.exists_for_account(account_id):
+        if self._db.session_exists_for_account(account_id):
             raise ValueError(
                 f"A session already exists for account_id={account_id}"
             )
@@ -36,13 +36,13 @@ class SessionService:
             enabled: bool = True,
     ) -> None:
 
-        sessions = self._db.fetch_by_account(account_id)
+        sessions = self._db.fetch_sessions_by_account(account_id)
         if not sessions:
             raise ValueError(f"No session found for account_id={account_id}")
 
         session_mode = sessions[0].mode.upper()
 
-        if self._db.portfolio_exists_for_portfolio_id(portfolio_id):
+        if self._db.exists_for_portfolio(portfolio_id):
             raise ValueError(
                 f"Portfolio id '{portfolio_id}' already exists in the database"
             )
@@ -100,7 +100,7 @@ class SessionService:
             portfolio_id: str,
     ) -> None:
 
-        if not self._db.portfolio_exists_for_portfolio_id(portfolio_id):
+        if not self._db.exists_for_portfolio(portfolio_id):
             raise ValueError(
                 f"No portfolio with id '{portfolio_id}' exists in the database"
             )
@@ -112,7 +112,7 @@ class SessionService:
             )
 
     def is_portfolio_enabled(self, portfolio_id: str) -> bool:
-        if not self._db.portfolio_exists_for_portfolio_id(portfolio_id):
+        if not self._db.exists_for_portfolio(portfolio_id):
             raise ValueError(
                 f"No portfolio with id '{portfolio_id}' exists in the database"
             )

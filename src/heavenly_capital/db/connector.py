@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 from typing import Generator
 
-import duckdb
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection, Engine
 
@@ -10,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 
-# --- ENV LOADER ---
+
 def load_env(dotenv_path: Path):
     if not dotenv_path.exists():
         raise FileNotFoundError(f"{dotenv_path} doesn't exist")
@@ -90,7 +89,7 @@ class DBConnector:
         return self._engine
 
     @contextmanager
-    def get_connection(self) -> Generator[Connection, None]:
+    def get_connection(self) -> Generator[Connection, None, None]:
         conn = self._engine.connect()
         try:
             yield conn
@@ -117,22 +116,13 @@ class DBConnector:
 
 
 class DuckDBConnector:
-    __instance = None
-
-    def __new__(cls, db_path: Path):
-        if cls.__instance is None:
-            cls.__instance = super().__new__(cls)
-            cls.__instance._init(db_path)
-        return cls.__instance
-
-    def _init(self, db_path: Path):
-        self.db_path = db_path
-
+    def __init__(self, db_path: Path):
+        import duckdb
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = duckdb.connect(str(db_path))\
+        self._conn = duckdb.connect(str(db_path))
 
     @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
+    def conn(self):
         return self._conn
 
     def execute(self, query: str, parameters=None):
@@ -147,12 +137,15 @@ class DuckDBConnector:
         return self._conn.execute(query).fetchall()
 
 
+def create_duckdb_connector(db_name: str = "market_data_lab_dev.duckdb"):
+    base_path = Path(__file__).resolve().parent.parent / "storage"
+    db_path = base_path / db_name
+    return DuckDBConnector(db_path)
 
-ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+
+ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
 load_env(ENV_PATH)
 
 DB_CONFIG = DBConfig()
 DB_CONNECTOR = DBConnector(DB_CONFIG)
-
-DUCKDB_PATH = Path(__file__).resolve().parent.parent / "storage" / "market_data_lab_dev.duckdb"
-DUCKDB_CONNECTOR = DuckDBConnector(DUCKDB_PATH)

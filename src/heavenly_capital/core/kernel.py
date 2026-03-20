@@ -14,7 +14,8 @@ from uuid import UUID, uuid4
 from heavenly_capital.core.runtime_config import RuntimeConfig, RuntimeModule, AsyncRuntimeModule
 from heavenly_capital.core.clock import MarketStateChangeEvent
 from heavenly_capital.core.runtime_config import get_global_runtime_config
-from heavenly_capital.core.thread_manager import ThreadManager
+from heavenly_capital.core.thread import ThreadManager
+from heavenly_capital.db.reader import DataAccessLayer
 from heavenly_capital.strategy.feature_manager import FeatureManager
 from heavenly_capital.strategy.forecast_manager import ForecastManager
 from heavenly_capital.data.live_data_hub import LiveDataHub
@@ -22,8 +23,7 @@ from heavenly_capital.data.historic_data_hub import HistoricDataHub
 from heavenly_capital.ibkr.gateway import IBKRGateway
 from heavenly_capital.core.session_manager import SessionManager
 
-from heavenly_capital.data.db_access import DataAccessLayer
-from heavenly_capital.data.db_ingestion import DataIngestionLayer
+from heavenly_capital.db.writer_async import DataIngestionLayer
 from heavenly_capital.data.db_mock import TradingSessionDB
 
 from heavenly_capital.monitoring.error_service import NullErrorService, ErrorService, HealthCheckError
@@ -168,7 +168,7 @@ class RuntimeRegistry:
 # endregion
 
 
-class SystemManager:
+class Kernel:
     _instance = None
 
     # TODO:HIGH CHECK DE TOUT LES THREADS, LEUR PRESENCE DE LOCK SUR LES VARIABLES
@@ -368,8 +368,8 @@ class SystemManager:
         await self._execute_boot_plan(boot_plan)
         return None
 
-#endregion
 
+#endregion
 
 
 
@@ -426,7 +426,7 @@ class SystemManager:
 # region TemporaryFunction
     def on_market_state_change(self, event: MarketStateChangeEvent):
         print(
-            f"[SystemManager] Market state change: "
+            f"[Kernel] Market state change: "
             f"{event.previous.name} → {event.current.name}"
         )
         return
@@ -573,7 +573,7 @@ class SystemManager:
         from heavenly_capital.data.live_data_hub import get_live_data_hub
         from heavenly_capital.data.historic_data_hub import get_historic_data_hub
         from heavenly_capital.ibkr.gateway import get_ibkr_gateway
-        from heavenly_capital.core.thread_manager import get_thread_manager
+        from heavenly_capital.core.thread import get_thread_manager
         from heavenly_capital.core.session_manager import get_session_manager
 
         # TODO:WARNING handle this import to
@@ -679,6 +679,9 @@ class SystemManager:
         self._modules.forecast_manager.setup_models_and_store()
 
 
+
+
+
     def start_runtime_thread(self) -> None:
         if self._thread is None:
             self._thread = threading.Thread(target=self._runtime_loop, daemon=True)
@@ -686,6 +689,8 @@ class SystemManager:
 
 
     def _runtime_loop(self) -> None:
+
+        # TODO:LOW replace True with a buffer notification
         while True:
             now = time.time()
 

@@ -134,14 +134,14 @@ class TradingSessionDB:
 
 
     @staticmethod
-    def fetch_by_account(account_id: str) -> Sequence[RowMapping]:
+    def fetch_sessions_by_account(account_id: str) -> Sequence[RowMapping]:
         query = text("SELECT session_name, account_id, mode, context FROM trading.session_registry WHERE account_id = :account_id")
         with engine.connect() as conn:
             return conn.execute(query, {"account_id": account_id}).mappings().all()
 
 
     @staticmethod
-    def exists_for_account(account_id: str) -> bool:
+    def session_exists_for_account(account_id: str) -> bool:
         query = text("""
             SELECT 1
             FROM trading.session_registry
@@ -171,24 +171,6 @@ class TradingSessionDB:
             result = conn.execute(
                 query,
                 {"portfolio_id": portfolio_id}
-            )
-            row = result.mappings().first()
-
-        return row is not None
-
-    @staticmethod
-    def portfolio_exists_for_account(account_id: str) -> bool:
-        query = text("""
-            SELECT 1
-            FROM trading.portfolio_registry
-            WHERE account_id = :account_id
-            LIMIT 1
-        """)
-
-        with engine.connect() as conn:
-            result = conn.execute(
-                query,
-                {"account_id": account_id}
             )
             row = result.mappings().first()
 
@@ -891,7 +873,7 @@ class TradingSessionDB:
                 avg_fill_price=order_status.avgFillPrice
             )
 
-            #TODO: retry_order(order_id) add cancelOrder()
+            #TODO:LOW retry_order(order_id) add cancelOrder()
 
     def update_fill_in_db(
             self,
@@ -1268,7 +1250,7 @@ class TradingSessionDB:
 
 
     @staticmethod
-    def get_portfolio_balance(portfolio_id: str, account_id: str, currency: str = "USD") -> PortfolioBalance:
+    def get_portfolio_balance(portfolio_id: str, account_id: str, currency: str = "USD") -> dict:
         query = text("""
                      SELECT total_cash_balance, stock_market_value, unrealized_pnl
                      FROM trading.portfolio_balances
@@ -1286,14 +1268,18 @@ class TradingSessionDB:
             }).first()
 
         if result is None:
-            return PortfolioBalance(Decimal("0"), Decimal("0"), Decimal("0"))
+            return {
+                "total_cash_balance": Decimal("0"),
+                "stock_market_value": Decimal("0"),
+                "unrealized_pnl": Decimal("0")
+            }
 
         total_cash_balance, stock_market_value, unrealized_pnl = result
-        return PortfolioBalance(
-            cash=Decimal(total_cash_balance),
-            stock_market_value=Decimal(stock_market_value),
-            unrealized_pnl=Decimal(unrealized_pnl)
-        )
+        return {
+            "total_cash_balance": Decimal(total_cash_balance),
+            "stock_market_value": Decimal(stock_market_value),
+            "unrealized_pnl": Decimal(unrealized_pnl)
+        }
 
 
     def update_portfolio_in_db(self, portfolio: "Portfolio") -> None:

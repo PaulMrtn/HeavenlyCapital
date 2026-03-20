@@ -10,7 +10,7 @@ from heavenly_capital.core.runtime_config import BaseModule, ModuleType
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
-from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget
+from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget, PortfolioBalance
 from heavenly_capital.data.db_mock import TradingSessionDB
 
 if TYPE_CHECKING:
@@ -138,20 +138,26 @@ class PortfolioManager(BaseModule):
         if signal.output.decision:
             self.authorize_order(signal)
 
+
     @staticmethod
-    def _build_portfolio_snapshot(
+    def build_portfolio_snapshot(
             account_id: str,
             portfolio_id: str,
             positions: Dict[int, Position],
+            balance: dict
     ) -> PortfolioSnapshot:
 
-        balance = tsDB.get_portfolio_balance(portfolio_id, account_id)
+        _balance = PortfolioBalance(
+            cash=balance["total_cash_balance"],
+            stock_market_value=balance["stock_market_value"],
+            unrealized_pnl=balance["unrealized_pnl"]
+        )
 
         return PortfolioSnapshot(
             portfolio_id=portfolio_id,
             account_id=account_id,
             base_currency="USD",
-            balance=balance,
+            balance=_balance,
             positions=positions,
         )
 
@@ -160,6 +166,7 @@ class PortfolioManager(BaseModule):
             account_id: str,
             portfolio_id: str,
     ) -> PortfolioSnapshot:
+
         rows = tsDB.fetch_positions(portfolio_id=portfolio_id)
 
         positions: Dict[int, Position] = {}
@@ -170,13 +177,14 @@ class PortfolioManager(BaseModule):
                 avg_price=Decimal(r["avg_cost"]),
             )
 
-        portfolio = self._build_portfolio_snapshot(
+        balance = tsDB.get_portfolio_balance(portfolio_id, account_id)
+
+        return self.build_portfolio_snapshot(
             account_id=account_id,
             portfolio_id=portfolio_id,
             positions=positions,
+            balance=balance
         )
-
-        return portfolio
 
 
     @staticmethod

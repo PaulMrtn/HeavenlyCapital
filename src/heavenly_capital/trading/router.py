@@ -38,7 +38,6 @@ class GlobalOrderRouter:
         self._worker: Optional[Thread] = None
 
         if start_worker:
-            # TODO:HIGHEST Replace by our poolthread CRITICAL
             self._worker = Thread(target=self._run, name=name, daemon=True)
             self._worker.start()
 
