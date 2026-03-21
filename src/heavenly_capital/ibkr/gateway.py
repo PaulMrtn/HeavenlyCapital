@@ -15,10 +15,6 @@ if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
 
 
-from heavenly_capital.data.db_mock import TradingSessionDB
-
-tsDB = TradingSessionDB()
-
 
 CLIENTS_CONFIG = [
     {
@@ -119,7 +115,7 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # --- order / trade API ----------
 
-# Check si dans l'objet OGR cette fonction qui compatible (nouvelle signature)
+# TODO:LOW Check si dans l'objet OGR cette fonction qui compatible (nouvelle signature)
 
     def order_sink(self, session_key: "TradingSessionKey", tracker: "OrderTracker") -> None:
         if not self._configured or not self._started:
@@ -173,10 +169,9 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # --- Gestion des contrats ----
 
-    @staticmethod
-    def get_universe_snapshot(universe_id: str) -> UniverseSnapshot:
+    def get_universe_snapshot(self, universe_id: str) -> UniverseSnapshot:
         # TODO: MEDIUM Move this function in the correct module
-        contracts = tsDB.fetch_instruments()
+        contracts = self._ports.db_service.reader.fetch_instruments()
         constituents = {}
 
         for c in contracts:
@@ -253,7 +248,7 @@ class IBKRGateway(AsyncRuntimeModule):
         accounts = await self.manager.get_account_state()
 
         for account in accounts:
-            tsDB.update_account_state_in_db(account)
+            self._ports.db_service.writer.update_account_state_in_db(account)
 
     def place_order(self, account_id: str, contract: "Contract", order: "Order") -> None:
         client = self.manager.get_client_by_id(account_id)

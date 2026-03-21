@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Any, TYPE_CHECKING, Callable, Dict, cast
+from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
 
 from ib_async import Contract, Ticker
 
 from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
-from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.market_data import OHLC, TickerManager
 
 if TYPE_CHECKING:
@@ -14,7 +13,6 @@ if TYPE_CHECKING:
     from heavenly_capital.ibkr.gateway import Contract
 
 
-tsDB = TradingSessionDB()
 
 class OHLCAggregator:
     def __init__(self):
@@ -180,7 +178,7 @@ class LiveDataHub(RuntimeModule):
 
                 batch_to_persist[conId] = bars
 
-            tsDB.persist_bars(batch_to_persist)
+            self._ports.db_service.writer.persist_bars(batch_to_persist)
 
             self._last_agg_time = current_time
 

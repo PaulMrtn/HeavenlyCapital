@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod, ABC
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import runtime_checkable, Protocol, Any, Optional
 
@@ -24,13 +24,9 @@ from heavenly_capital.models.session import TradingSessionConfig
 #     sessions: list[SessionConfig]
 
 
-
 @dataclass(frozen=True, slots=True)
 class IBKRConfig:
-    host: str = "127.0.0.1"
-    port: int = 4002
-    client_id: int = 1
-
+    pass
 
 @dataclass(frozen=True, slots=True)
 class LiveHubConfig:
@@ -54,17 +50,13 @@ class ThreadConfig:
     pass
 
 
-
-
-
-
 @dataclass(frozen=True, slots=True)
 class SessionConfig:
     sessions: tuple[TradingSessionConfig, ...]
 
 
 def load_session_config(db: "TradingSessionDB") -> SessionConfig:
-    rows = db.fetch_all()
+    rows = db.fetch_all_sessions()
     sessions = [TradingSessionConfig.from_database(row, db) for row in rows]
     return SessionConfig(sessions=tuple(sessions))
 
@@ -123,7 +115,6 @@ class RuntimeModule(Protocol):
     def health_check(self) -> dict[str, Any]: ...
 
 
-
 class AsyncRuntimeModule(RuntimeModule):
 
     @abstractmethod
@@ -133,7 +124,6 @@ class AsyncRuntimeModule(RuntimeModule):
     @abstractmethod
     async def stop(self) -> Any:
         pass
-
 
 
 
@@ -153,7 +143,6 @@ class ModuleRouter(ABC):
         payload: Any,
     ) -> None:
         ...
-
 
 
 class BaseModule(ABC):

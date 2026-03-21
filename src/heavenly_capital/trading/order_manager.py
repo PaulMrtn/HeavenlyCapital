@@ -6,16 +6,12 @@ from uuid import UUID
 from ib_async import Contract, Execution, CommissionReport, Fill, Trade
 
 from heavenly_capital.core.runtime_config import BaseModule, ModuleType
-from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEventContext
 from heavenly_capital.strategy.artifacts import ModelSignal
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.core.session_manager import TradingSessionKey, GlobalOrderRouter
-
-
-tsDB = TradingSessionDB()
 
 
 class OrderManager(BaseModule):
@@ -76,19 +72,17 @@ class OrderManager(BaseModule):
         if handler:
             handler(data)
 
-    @staticmethod
-    def _persist_order_status(trade: "Trade", ctx: "TrackerEventContext") -> None:
-        tsDB.update_order_in_db(
+
+    def _persist_order_status(self, trade: "Trade", ctx: "TrackerEventContext") -> None:
+        self._ports.db_service.writer.update_order_in_db(
             trade=trade,
             perm_id=ctx.perm_id,
             portfolio_id=ctx.portfolio_id,
             account_id=ctx.account_id
         )
 
-
-    @staticmethod
-    def _persist_fill(fill: "Fill", ctx: "TrackerEventContext") -> None:
-        tsDB.update_fill_in_db(
+    def _persist_fill(self, fill: "Fill", ctx: "TrackerEventContext") -> None:
+        self._ports.db_service.writer.update_fill_in_db(
             execution=fill.execution,
             fill=fill,
             account_id=ctx.account_id,
@@ -96,9 +90,8 @@ class OrderManager(BaseModule):
             con_id=ctx.con_id
         )
 
-    @staticmethod
-    def _persist_commission(execution: "Execution", commission: "CommissionReport", ctx: "TrackerEventContext") -> None:
-        tsDB.update_commission_in_db(
+    def _persist_commission(self, execution: "Execution", commission: "CommissionReport", ctx: "TrackerEventContext") -> None:
+        self._ports.db_service.writer.update_commission_in_db(
             execution=execution,
             commission=commission,
             account_id=ctx.account_id,

@@ -93,11 +93,9 @@ pip install heavenly-capital
 ```python
 from decimal import Decimal
 from heavenly_capital.services.app import SessionService
-from heavenly_capital.data.db_mock import TradingSessionDB
 
 # Initialiser la base de données simulée et le service
-db = TradingSessionDB()
-service = SessionService(db=db)
+service = SessionService()
 ```
 
 ---

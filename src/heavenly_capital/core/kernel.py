@@ -16,14 +16,14 @@ from heavenly_capital.core.clock import MarketStateChangeEvent
 from heavenly_capital.core.runtime_config import get_global_runtime_config
 from heavenly_capital.core.thread import ThreadManager
 from heavenly_capital.db.reader import DataAccessLayer
+from heavenly_capital.db.writer import DataIngestionLayer
 from heavenly_capital.strategy.feature_manager import FeatureManager
 from heavenly_capital.strategy.forecast_manager import ForecastManager
-from heavenly_capital.data.live_data_hub import LiveDataHub
-from heavenly_capital.data.historic_data_hub import HistoricDataHub
+from heavenly_capital.data.live import LiveDataHub
+from heavenly_capital.data.historic import HistoricDataHub
 from heavenly_capital.ibkr.gateway import IBKRGateway
 from heavenly_capital.core.session_manager import SessionManager
 
-from heavenly_capital.db.writer_async import DataIngestionLayer
 from heavenly_capital.data.db_mock import TradingSessionDB
 
 from heavenly_capital.monitoring.error_service import NullErrorService, ErrorService, HealthCheckError
@@ -139,14 +139,19 @@ class ObservabilityPorts(Protocol):
 class FullSystemPorts(MarketPorts, StoragePorts, ObservabilityPorts, Protocol):
     pass
 
+@dataclass(frozen=True, slots=True)
+class DatabaseService:
+    reader: Any
+    writer: Any
+
+
 
 @dataclass(frozen=True, slots=True)
 class SystemPorts:
     market_clock: Any
     market_calendar: Any
 
-    data_ingestion: Any
-    data_access: Any
+    db_service: DatabaseService
 
     log_service: Any
     metric_service: Any
@@ -185,10 +190,8 @@ class Kernel:
             self,
             market_clock,
             market_calendar,
-
-            data_ingestion: DataIngestionLayer,
-            data_access: DataAccessLayer,
-
+            reader: DataAccessLayer,
+            writer: DataIngestionLayer,
             log_service: Optional[LogService] = None,
             metric_service: Optional[MetricService] = None,
             error_service: Optional[ErrorService] = None,
@@ -205,9 +208,7 @@ class Kernel:
         self._market_clock.subscribe(self.on_market_state_change)
         self._market_calendar = market_calendar
 
-        # self._data_service = DataServices(dil, dal)
-        self._data_ingestion = data_ingestion
-        self._data_access = data_access
+        self._db_service = DatabaseService(reader, writer)
 
         # obs = Observability (log, metrics, error, notif)
         self._logs = log_service or NullLogService()
@@ -487,8 +488,7 @@ class Kernel:
         return SystemPorts(
             market_clock=self._market_clock,
             market_calendar=self._market_calendar,
-            data_ingestion=self._data_ingestion,
-            data_access=self._data_access,
+            db_service=self._db_service,
             log_service=self._logs,
             metric_service=self._metrics,
             error_service=self._error,
@@ -570,8 +570,8 @@ class Kernel:
         # TODO : handle this import
         from heavenly_capital.strategy.forecast_manager import get_forecast_manager
         from heavenly_capital.strategy.feature_manager import get_feature_manager
-        from heavenly_capital.data.live_data_hub import get_live_data_hub
-        from heavenly_capital.data.historic_data_hub import get_historic_data_hub
+        from heavenly_capital.data.live import get_live_data_hub
+        from heavenly_capital.data.historic import get_historic_data_hub
         from heavenly_capital.ibkr.gateway import get_ibkr_gateway
         from heavenly_capital.core.thread import get_thread_manager
         from heavenly_capital.core.session_manager import get_session_manager

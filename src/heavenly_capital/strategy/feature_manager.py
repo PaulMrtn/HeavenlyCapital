@@ -12,7 +12,6 @@ import numpy as np
 
 from heavenly_capital.core.runtime_config import FeatureConfig, RuntimeModule
 from heavenly_capital.data.bus import EventBus
-from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.models.market_data import CandleEvent, MarketDataBank
 from heavenly_capital.strategy.artifacts import FeatureSpec
 from heavenly_capital.strategy.features import FEATURE_REGISTRY, FeatureCache
@@ -31,9 +30,6 @@ MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
     "30m": 10,
     "1h": 10,
 }
-
-
-tsDB = TradingSessionDB()
 
 
 @dataclass
@@ -262,9 +258,8 @@ class FeatureManager(RuntimeModule):
             "is_healthy": True,
         }
 
-    @staticmethod
-    def load_features_registry() -> "FeatureRegistry":
-        rows = tsDB.get_features_config()
+    def load_features_registry(self) -> "FeatureRegistry":
+        rows = self._ports.db_service.reader.get_features_config()
         specs = [FeatureSpec.from_snapshot(r) for r in rows]
         return FeatureRegistry(specs)
 

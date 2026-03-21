@@ -11,7 +11,6 @@ from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget, PortfolioBalance
-from heavenly_capital.data.db_mock import TradingSessionDB
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
@@ -20,8 +19,6 @@ if TYPE_CHECKING:
 
 
 UPDATE_INTERVAL = 5
-
-tsDB = TradingSessionDB()
 
 
 class PortfolioManager(BaseModule):
@@ -95,7 +92,7 @@ class PortfolioManager(BaseModule):
         today = self._ports.market_calendar.today()
         portfolio_id = self._key.portfolio_id
 
-        if tsDB.check_rebalance_date(portfolio_id, today):
+        if self._ports.db_service.reader.check_rebalance_date(portfolio_id, today):
             self._portfolio_target = self.get_portfolio_target(
                 portfolio_id=portfolio_id,
                 rebalance_date=today
@@ -167,7 +164,7 @@ class PortfolioManager(BaseModule):
             portfolio_id: str,
     ) -> PortfolioSnapshot:
 
-        rows = tsDB.fetch_positions(portfolio_id=portfolio_id)
+        rows = self._ports.db_service.reader.fetch_positions(portfolio_id=portfolio_id)
 
         positions: Dict[int, Position] = {}
         for r in rows:
@@ -177,7 +174,7 @@ class PortfolioManager(BaseModule):
                 avg_price=Decimal(r["avg_cost"]),
             )
 
-        balance = tsDB.get_portfolio_balance(portfolio_id, account_id)
+        balance = self._ports.db_service.reader.get_portfolio_balance(portfolio_id, account_id)
 
         return self.build_portfolio_snapshot(
             account_id=account_id,
@@ -186,11 +183,9 @@ class PortfolioManager(BaseModule):
             balance=balance
         )
 
+    def get_portfolio_target(self, portfolio_id: str, rebalance_date: str) -> "PortfolioTarget":
 
-    @staticmethod
-    def get_portfolio_target(portfolio_id: str, rebalance_date: str) -> "PortfolioTarget":
-
-        rows = tsDB.fetch_portfolio_targets(
+        rows = self._ports.db_service.reader.fetch_portfolio_targets(
             portfolio_id=portfolio_id,
             rebalance_date=rebalance_date)
 
@@ -268,7 +263,7 @@ class PortfolioManager(BaseModule):
 
         if current_interval != self._last_db_update_interval:
             self._last_db_update_interval = current_interval
-            tsDB.update_portfolio_in_db(self._portfolio)
+            self._ports.db_service.writer.update_portfolio_in_db(self._portfolio)
 
 
     def refresh_portfolio(self) -> None:
@@ -353,9 +348,9 @@ class PortfolioManager(BaseModule):
                 f"Tried to sell {fill_qty}, but only {position.quantity + fill_qty} available."
             )
 
-    @staticmethod
-    def _update_portfolio_balance(order: OrderTracker) -> None:
-        tsDB.update_portfolio_balances(
+
+    def _update_portfolio_balance(self, order: OrderTracker) -> None:
+        self._ports.db_service.writer.update_portfolio_balances(
             account_id=order.request.account_id,
             portfolio_id=order.request.portfolio_id
         )

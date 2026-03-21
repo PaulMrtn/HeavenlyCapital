@@ -10,15 +10,11 @@ from typing import List, Dict, Optional
 
 from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule
 from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState, ModelSignal
-from heavenly_capital.data.db_mock import TradingSessionDB
 from heavenly_capital.data.bus import EventBus
 
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
-
-
-tsDB = TradingSessionDB()
 
 
 class ModelRegistry:
@@ -214,15 +210,14 @@ class ForecastManager(RuntimeModule):
     def wire_feature_store(self, queue: Queue) -> None:
         self._in_queue = queue
 
-    @staticmethod
-    def load_model_registry() -> "ModelRegistry":
-        rows = tsDB.get_forecast_models_configs()
+    def load_model_registry(self) -> "ModelRegistry":
+        rows = self._ports.db_service.reader.get_forecast_models_configs()
         specs = [ModelSpec.from_snapshot(r) for r in rows]
         return ModelRegistry(specs)
 
     def get_positions_and_targets(self) -> list[dict]:
         today = self._ports.market_calendar.today()
-        return tsDB.fetch_positions_and_targets(today)
+        return self._ports.db_service.reader.fetch_positions_and_targets(today)
 
     def build_prediction_and_routing(self) -> None:
         positions = self.get_positions_and_targets()
@@ -372,7 +367,7 @@ class ForecastManager(RuntimeModule):
 
     def persist_predictions(self) -> None:
         payload = self._store.to_payload()
-        tsDB.persist_model_records(payload)
+        self._ports.db_service.writer.persist_model_records(payload)
         self._store.flush()
 
 

@@ -1,13 +1,16 @@
 from decimal import Decimal
 from typing import Optional, Dict, Any
 
-from heavenly_capital.data.db_mock import TradingSessionDB
+from heavenly_capital.db.connector import DB_CONNECTOR
+from heavenly_capital.db.reader import DataAccessLayer
+from heavenly_capital.db.writer import DataIngestionLayer
 
 
 class SessionService:
 
-    def __init__(self, db: TradingSessionDB):
-        self._db = db
+    def __init__(self):
+        self._reader = DataAccessLayer(DB_CONNECTOR)
+        self._writer = DataIngestionLayer(DB_CONNECTOR)
 
     def create_session(
             self,
@@ -17,12 +20,12 @@ class SessionService:
             context: Dict[str, Any] = None,
     ) -> None:
 
-        if self._db.session_exists_for_account(account_id):
+        if self._reader.session_exists_for_account(account_id):
             raise ValueError(
                 f"A session already exists for account_id={account_id}"
             )
 
-        self._db.insert_session(session_name, account_id, mode, context)
+        self._writer.insert_session(session_name, account_id, mode, context)
 
     def create_portfolio(
             #TODO:LOW - ADD constraint on account capital
@@ -36,23 +39,23 @@ class SessionService:
             enabled: bool = True,
     ) -> None:
 
-        sessions = self._db.fetch_sessions_by_account(account_id)
+        sessions = self._reader.fetch_sessions_by_account(account_id)
         if not sessions:
             raise ValueError(f"No session found for account_id={account_id}")
 
         session_mode = sessions[0].mode.upper()
 
-        if self._db.exists_for_portfolio(portfolio_id):
+        if self._reader.exists_for_portfolio(portfolio_id):
             raise ValueError(
                 f"Portfolio id '{portfolio_id}' already exists in the database"
             )
 
-        self._db.insert_portfolio(
+        self._writer.insert_portfolio(
             account_id, strategy_id, portfolio_id, portfolio_name, currency, enabled
         )
 
         if session_mode == "LIVE":
-            cash_amount = self._db.get_account_total_cash(account_id, currency)
+            cash_amount = self._reader.get_account_total_cash(account_id, currency)
             if cash_amount is None:
                 raise ValueError(
                     f"No total_cash_balance found for LIVE account {account_id} in {currency}"
@@ -80,7 +83,7 @@ class SessionService:
             currency: str = "USD"
     ) -> None:
 
-        self._db.insert_capital_event(
+        self._writer.insert_capital_event(
             account_id=account_id,
             portfolio_id=portfolio_id,
             event=event,
@@ -88,7 +91,7 @@ class SessionService:
             currency=currency
         )
 
-        self._db.update_portfolio_balances(
+        self._writer.update_portfolio_balances(
             account_id=account_id,
             portfolio_id=portfolio_id,
             currency=currency
@@ -100,24 +103,24 @@ class SessionService:
             portfolio_id: str,
     ) -> None:
 
-        if not self._db.exists_for_portfolio(portfolio_id):
+        if not self._reader.exists_for_portfolio(portfolio_id):
             raise ValueError(
                 f"No portfolio with id '{portfolio_id}' exists in the database"
             )
 
-        deleted = self._db.delete_portfolio(account_id, portfolio_id)
+        deleted = self._writer.delete_portfolio(account_id, portfolio_id)
         if not deleted:
             raise ValueError(
                 f"No portfolio named '{portfolio_id}' found for account_id={account_id}"
             )
 
     def is_portfolio_enabled(self, portfolio_id: str) -> bool:
-        if not self._db.exists_for_portfolio(portfolio_id):
+        if not self._reader.exists_for_portfolio(portfolio_id):
             raise ValueError(
                 f"No portfolio with id '{portfolio_id}' exists in the database"
             )
 
-        return self._db.portfolio_is_enabled(portfolio_id)
+        return self._reader.portfolio_is_enabled(portfolio_id)
 
 
     def set_model(
@@ -135,7 +138,7 @@ class SessionService:
         if model_type not in ("BUY", "SELL", "STOP_LOSS"):
             raise ValueError(f"Invalid model_type {model_type}")
 
-        self._db.update_forecast_model(
+        self._writer.update_forecast_model(
             model_name=model_name,
             model_type=model_type,
             version=version,
@@ -153,13 +156,13 @@ class SessionService:
             version: float
     ) -> None:
 
-        if not self._db.portfolio_is_enabled(portfolio_id):
+        if not self._reader.portfolio_is_enabled(portfolio_id):
             raise ValueError(f"Portfolio {portfolio_id} does not exist or is disabled")
 
-        if not self._db.model_is_enabled(model_name, version):
+        if not self._reader.model_is_enabled(model_name, version):
             raise ValueError(f"Model {model_name} v{version} does not exist or is disabled")
 
-        self._db.update_portfolio_model(
+        self._writer.update_portfolio_model(
             portfolio_id=portfolio_id,
             model_name=model_name,
             model_type=model_type,
@@ -182,11 +185,11 @@ class SessionService:
         is_active: bool = True,
     ) -> None:
 
-        if self._db.feature_exists(uid):
+        if self._reader.feature_exists(uid):
             raise ValueError(f"Feature with uid '{uid}' already exists in DB")
 
         params = params or {}
-        self._db.insert_feature(
+        self._writer.insert_feature(
             uid=uid,
             category=category,
             plugin=plugin,
@@ -201,13 +204,13 @@ class SessionService:
         )
 
     def activate_feature(self, uid: str) -> None:
-        if not self._db.feature_exists(uid):
+        if not self._reader.feature_exists(uid):
             raise ValueError(f"No feature with uid '{uid}' in DB")
 
-        self._db.update_feature_status(uid, True)
+        self._writer.update_feature_status(uid, True)
 
     def deactivate_feature(self, uid: str) -> None:
-        if not self._db.feature_exists(uid):
+        if not self._reader.feature_exists(uid):
             raise ValueError(f"No feature with uid '{uid}' in DB")
 
-        self._db.update_feature_status(uid, False)
+        self._writer.update_feature_status(uid, False)

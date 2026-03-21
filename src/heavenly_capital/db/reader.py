@@ -14,6 +14,17 @@ class DataAccessLayer:
     def __init__(self, connector: DBConnector):
         self._connector = connector
 
+
+    def fetch_all_sessions(self) -> Sequence[RowMapping]:
+        query = text("""
+                     SELECT session_name, account_id, mode, context
+                     FROM trading.session_registry
+                     """)
+
+        with self._connector.get_connection() as conn:
+            return conn.execute(query).mappings().all()
+
+
     def fetch_sessions_by_account(self, account_id: str) -> Sequence[RowMapping]:
         query = text("""
             SELECT session_name, account_id, mode, context
@@ -37,6 +48,20 @@ class DataAccessLayer:
             result = conn.execute(query, {"account_id": account_id})
             return result.mappings().first() is not None
 
+
+    def exists_for_portfolio(self, portfolio_id: str) -> bool:
+        query = text("""
+            SELECT 1
+            FROM trading.portfolio_registry
+            WHERE portfolio_id = :portfolio_id
+            LIMIT 1
+        """)
+
+        with self._connector.get_connection() as conn:
+            result = conn.execute(query, {"portfolio_id": portfolio_id})
+            row = result.mappings().first()
+
+        return row is not None
 
     def portfolio_exists_for_account(self, account_id: str) -> bool:
         query = text("""
