@@ -11,73 +11,72 @@ Coming soon ...
 ## Folder Structure 
 
 ```tree
-trading_system/
+heavenly_capital/
 │
 ├── core/
 │   ├── __init__.py
-│   ├── system_manager.py         # Composant central SystemManager
-│   ├── market_clock.py           # Singleton pour le cadencement temporel
-│   ├── session_manager.py        # Gestion des TradingSession
-│   ├── thread_manager.py         # Gestion des pools et threads I/O
-│   └── job_manager.py            # Orchestration des tâches et jobs
+│   ├── calendar.py           # Gestion du calendrier interne
+│   ├── clock.py              # Horloge système et synchronisation
+│   ├── kernel.py             # Logique centrale du moteur
+│   └── thread.py             # Gestion des threads et pools
 │
 ├── data/
 │   ├── __init__.py
-│   ├── database_connector.py     # Gestion DB, pool, sessions
-│   ├── data_ingestion.py         # DIL
-│   ├── data_access.py            # DAL
-│   ├── live_data_hub.py          # Flux temps réel
-│   └── live_history_buffer.py    # Cache/Buffer central
+│   ├── bus.py                # Bus de communication des données
+│   ├── historic.py           # Accès aux données historiques
+│   └── live.py               # Flux de données en temps réel
 │
-├── trading/
+├── db/
 │   ├── __init__.py
-│   ├── portfolio_manager.py
-│   ├── order_manager.py
-│   ├── risk_monitor.py
-│   ├── global_order_router.py
-│   └── ibkr_gateway.py
+│   ├── connector.py          # Connexion à la base de données
+│   ├── reader.py             # Lecture depuis DB
+│   └── writer.py             # Écriture vers DB
 │
-├── pipeline/
+├── ibkr/
 │   ├── __init__.py
-│   ├── pipeline_manager.py
-│   ├── asset_selection.py
-│   ├── filter_manager.py
-│   ├── portfolio_optimizer.py
-│   ├── risk_manager.py
-│   └── data_integrity_engine.py
+│   ├── client.py             # Client IBKR
+│   └── gateway.py            # Passerelle et gestion des ordres
 │
-├── strategy/
+├── models/
 │   ├── __init__.py
-│   ├── forecast_manager.py 
-│   ├── strategy_engine.py
-│   └── backtest_engine.py
-│       ├── parametric_optimizer.py
-│       └── shock_simulator.py
+│   ├── account.py            # Modèles de comptes
+│   ├── config.py             # Paramètres et configuration
+│   ├── market_data.py        # Structures de données marché
+│   ├── mock.py               # Données mock pour tests
+│   ├── order.py              # Modèles d’ordres
+│   ├── portfolio.py          # Modèles de portefeuilles
+│   ├── risk.py               # Modèles de risques
+│   ├── runtime.py            # État du runtime
+│   ├── session.py            # Gestion des sessions
+│   ├── system.py             # Configuration système globale
+│   └── tickers.py            # Informations sur les instruments
 │
 ├── monitoring/
 │   ├── __init__.py
-│   ├── log_service.py
-│   ├── metric_service.py
-│   ├── error_service.py
-│   └── notification_service.py
+│   ├── error_service.py      # Gestion des erreurs
+│   ├── health_service.py     # Monitoring de santé du système
+│   ├── log_service.py        # Journaux et logs
+│   ├── metric_service.py     # Metrics et indicateurs
+│   └── notification_service.py  # Notifications et alertes
 │
-├── models/                        # Data classes et ODT/DTO
+├── services/
 │   ├── __init__.py
-│   ├── portfolio.py
-│   ├── order.py
-│   ├── market_data.py
-│   ├── trading_session.py
-│   └── pipeline_dot.py
+│   └── app.py                # Point d’entrée des services
 │
-├── utils/
+├── strategy/
 │   ├── __init__.py
-│   └── helpers.py
+│   ├── artifacts.py          # Gestion des artefacts
+│   ├── feature_manager.py    # Préparation des features
+│   ├── features.py           # Calculs de features
+│   └── forecast_manager.py   # Moteur de prévision
 │
-├── config/
-│   ├── __init__.py
-│   └── settings.py                 # Paramètres globaux, secrets, paths
-│
-└── main.py                         # Point d’entrée pour démarrage du système
+└── trading/
+    ├── __init__.py
+    ├── order_manager.py      # Gestion des ordres
+    ├── portfolio_manager.py  # Gestion du portefeuille
+    ├── risk_manager.py       # Suivi du risque
+    ├── router.py             # Routage des ordres
+    └── session_manager.py    # Gestion des sessions de trading
 
 ```
 
