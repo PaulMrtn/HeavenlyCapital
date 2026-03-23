@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
-from heavenly_capital.core.runtime_config import BaseModule, ModuleType
+from heavenly_capital.models.runtime import BaseModule, ModuleType
 from heavenly_capital.models.risk import RiskSnapshot, RiskState
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
-    from heavenly_capital.core.session_manager import TradingSessionKey
+    from heavenly_capital.trading.session_manager import TradingSessionKey
 
 
 class RiskManager(BaseModule):
@@ -24,7 +24,7 @@ class RiskManager(BaseModule):
         self._configured = False
         self._started = False
 
-    def configure(self, *, session_id: UUID, key: "TradingSessionKey", ports: "SystemPorts") -> None:
+    def configure(self, session_id: UUID, key: "TradingSessionKey", ports: "SystemPorts") -> None:
         self._key = key
         self._session_id = session_id
         self._ports = ports

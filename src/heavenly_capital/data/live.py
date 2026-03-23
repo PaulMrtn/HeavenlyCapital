@@ -4,13 +4,14 @@ from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
 
 from ib_async import Contract, Ticker
 
-from heavenly_capital.core.runtime_config import LiveHubConfig, RuntimeModule
+from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import OHLC, TickerManager
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.ibkr.gateway import Contract
+    from heavenly_capital.models.config import LiveHubConfig
 
 
 
@@ -99,7 +100,7 @@ class LiveDataHub(RuntimeModule):
         self._ports: Optional["SystemPorts"] = None
 
 
-    def configure(self, *, config: "LiveHubConfig", ports: "SystemPorts") -> None:
+    def configure(self, config: "LiveHubConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
         self._configured = True
@@ -124,7 +125,7 @@ class LiveDataHub(RuntimeModule):
         return self._started
 
     @property
-    def config(self) -> LiveHubConfig:
+    def config(self) -> "LiveHubConfig":
         if self._config is None:
             raise RuntimeError("LiveDataHub: config not set (configure() not called)")
         return self._config

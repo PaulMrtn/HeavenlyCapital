@@ -8,13 +8,14 @@ from ib_async import Contract
 
 from typing import List, Dict, Optional
 
-from heavenly_capital.core.runtime_config import ForecastConfig, RuntimeModule
+from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState, ModelSignal
 from heavenly_capital.data.bus import EventBus
 
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
+    from heavenly_capital.models.config import ForecastConfig
 
 
 class ModelRegistry:
@@ -148,7 +149,7 @@ class ForecastManager(RuntimeModule):
         self._config: Optional["ForecastConfig"] = None
         self._ports: Optional["SystemPorts"] = None
 
-    def configure(self, *, config: "ForecastConfig", ports: "SystemPorts") -> None:
+    def configure(self, config: "ForecastConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
 

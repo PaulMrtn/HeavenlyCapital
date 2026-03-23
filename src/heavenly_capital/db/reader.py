@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Sequence, Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from sqlalchemy import RowMapping, text
@@ -13,6 +13,20 @@ from heavenly_capital.db.connector import DBConnector
 class DataAccessLayer:
     def __init__(self, connector: DBConnector):
         self._connector = connector
+
+
+    def get_session_by_date(self, session_date: "date") -> Optional[RowMapping]:
+    # TODO:WARNING : Ensure that dates are synchronized between the application, the broker, and the NYSE time zone
+
+        query = text("""
+            SELECT session_id, session_date, status, phase, state, error
+            FROM trading.market_day_session
+            WHERE session_date = :session_date
+            LIMIT 1
+        """)
+
+        with self._connector.get_connection() as conn:
+            return conn.execute(query, {"session_date": session_date}).mappings().first()
 
 
     def fetch_all_sessions(self) -> Sequence[RowMapping]:
@@ -89,23 +103,34 @@ class DataAccessLayer:
             result = conn.execute(query, {"portfolio_id": portfolio_id})
             return result.mappings().first() is not None
 
+    def fetch_trading_sessions(self) -> list[dict]:
+        sessions_query = """
+                         SELECT session_name, account_id, mode, context
+                         FROM trading.session_registry \
+                         """
 
-    def fetch_portfolios(self, account_id: str, only_enabled: bool = True) -> list[dict]:
-        base_query = """
-            SELECT portfolio_id, portfolio_name, strategy_id, account_id
-            FROM trading.portfolio_registry
-            WHERE account_id = :account_id
-        """
+        portfolios_query = """
+                           SELECT portfolio_id, portfolio_name, strategy_id, account_id
+                           FROM trading.portfolio_registry
+                           WHERE account_id = :account_id \
+                             AND enabled = TRUE \
+                           """
 
-        if only_enabled:
-            base_query += " AND enabled = TRUE"
-
-        query = text(base_query)
-
+        sessions: list[dict] = []
         with self._connector.get_connection() as conn:
-            result = conn.execute(query, {"account_id": account_id})
-            return [dict(row) for row in result.mappings().all()]
+            all_sessions = conn.execute(text(sessions_query)).mappings().all()
+            for session_row in all_sessions:
+                account_id = session_row["account_id"]
+                portfolios_rows = conn.execute(
+                    text(portfolios_query),
+                    {"account_id": account_id}
+                ).mappings().all()
 
+                session_dict = dict(session_row)
+                session_dict["portfolios"] = [dict(p) for p in portfolios_rows]
+                sessions.append(session_dict)
+
+        return sessions
 
     def fetch_contracts(self) -> list[dict]:
         query = text("""

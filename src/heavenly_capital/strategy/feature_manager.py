@@ -10,15 +10,16 @@ from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List, Set
 from ib_async import Contract
 import numpy as np
 
-from heavenly_capital.core.runtime_config import FeatureConfig, RuntimeModule
+from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import CandleEvent, MarketDataBank
 from heavenly_capital.strategy.artifacts import FeatureSpec
 from heavenly_capital.strategy.features import FEATURE_REGISTRY, FeatureCache
 
+
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
-
+    from heavenly_capital.models.config import FeatureConfig
 
 
 MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
@@ -204,7 +205,7 @@ class FeatureManager(RuntimeModule):
         self._config: Optional["FeatureConfig"] = None
         self._ports: Optional["SystemPorts"] = None
 
-    def configure(self, *, config: "FeatureConfig", ports: "SystemPorts") -> None:
+    def configure(self, config: "FeatureConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
 
@@ -241,7 +242,7 @@ class FeatureManager(RuntimeModule):
         return self._started
 
     @property
-    def config(self) -> FeatureConfig:
+    def config(self) -> "FeatureConfig":
         if self._config is None:
             raise RuntimeError("FeatureManager: config not set (configure() not called)")
         return self._config

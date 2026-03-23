@@ -183,12 +183,10 @@ class IBKRClient:
         self.status.state = ClientState.RUNNING
 
     async def _run(self):
-        # TODO:HIGH - Check the necessity of this function
         try:
             while not self._stop_event.is_set():
                 await self._pause_event.wait()
                 await asyncio.sleep(1)
-                # main run task
 
         except asyncio.CancelledError:
             pass

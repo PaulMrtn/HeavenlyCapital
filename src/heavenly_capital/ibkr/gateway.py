@@ -5,15 +5,15 @@ from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder, Fill, CommissionReport
 
-from heavenly_capital.core.runtime_config import IBKRConfig, AsyncRuntimeModule
-from heavenly_capital.core.session_manager import TradingSessionKey
+from heavenly_capital.models.runtime import AsyncRuntimeModule
 from heavenly_capital.ibkr.client import ClientManager
 from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEventContext
 from heavenly_capital.models.tickers import UniverseSnapshot, TickerUniverseSnapshot
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
-
+    from heavenly_capital.trading.session_manager import TradingSessionKey
+    from heavenly_capital.models.config import IBKRConfig
 
 
 CLIENTS_CONFIG = [
@@ -27,13 +27,13 @@ CLIENTS_CONFIG = [
         "permission_level": "MASTER"    # MASTER ou STANDARD
     },
     {
-        "session_name": "SESSION_2",
-        "host": "127.0.0.1",
-        "port": 4003,
-        "enable": True,
-        "account_id" : "DUM832619",
-        "account_type": "PAPER",
-        "permission_level": "STANDARD"
+            "session_name": "SESSION_2",
+            "host": "127.0.0.1",
+            "port": 4003,
+            "enable": True,
+            "account_id" : "DUM832619",
+            "account_type": "PAPER",
+            "permission_level": "STANDARD"
     },
 
 ]
@@ -55,7 +55,7 @@ class IBKRGateway(AsyncRuntimeModule):
 
         self._order_registry: dict[str, "OrderTracker"] = {}
 
-    def configure(self, *, config: "IBKRConfig", ports: "SystemPorts") -> None:
+    def configure(self, config: "IBKRConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
 
@@ -97,7 +97,7 @@ class IBKRGateway(AsyncRuntimeModule):
         return self._started
 
     @property
-    def config(self) -> IBKRConfig:
+    def config(self) -> "IBKRConfig":
         if self._config is None:
             raise RuntimeError("IBKRGateway: config not set (configure() not called)")
         return self._config

@@ -1,38 +1,3 @@
--- DROP TABLE IF EXISTS trading.portfolio_registry CASCADE;
--- DROP TABLE IF EXISTS trading.portfolio_capital CASCADE;
--- DROP TABLE IF EXISTS trading.session_registry CASCADE;
--- DROP TABLE IF EXISTS trading.contracts CASCADE;
--- DROP TABLE IF EXISTS trading.orders CASCADE;
--- DROP TABLE IF EXISTS trading.executions CASCADE;
--- DROP TABLE IF EXISTS trading.positions CASCADE;
--- DROP TABLE IF EXISTS trading.trade_lots CASCADE;
--- DROP TABLE IF EXISTS trading.trade_lot_consumption CASCADE;
--- DROP TABLE IF EXISTS trading.portfolio_ledger CASCADE;
-
--- DROP TABLE IF EXISTS trading.instruments CASCADE;
--- DROP TABLE IF EXISTS trading.universes CASCADE;
--- DROP TABLE IF EXISTS trading.universe_membership CASCADE;
-
-
--- DROP TABLE IF EXISTS trading.portfolio_targets CASCADE;
--- DROP TABLE IF EXISTS trading.portfolio_target_weights CASCADE;
-
--- DROP TABLE IF EXISTS trading.account_balances CASCADE;
--- DROP TABLE IF EXISTS trading.portfolio_balances CASCADE;
--- DROP TABLE IF EXISTS trading.account_margins CASCADE;
-
--- DROP TABLE IF EXISTS trading.models_registry CASCADE;
--- DROP TABLE IF EXISTS trading.portfolio_models CASCADE;
--- DROP TABLE IF EXISTS trading.model_records CASCADE;
-
--- DROP TABLE IF EXISTS trading.feature_registry CASCADE;
-
--- DROP TYPE IF EXISTS session_mode;
-
-
--- TODO:HIGH Add session_id, the UUID of the current session, essential to reload after a crash
-
-
 CREATE TYPE session_mode AS ENUM ('LIVE', 'PAPER');
 
 CREATE TABLE trading.session_registry (
@@ -498,3 +463,54 @@ CREATE TABLE trading.feature_registry (
 );
 
  -- TODO:LOW add unique constraint on priority label
+
+CREATE TABLE trading.market_day_session (
+    session_id UUID PRIMARY KEY NOT NULL,
+
+    session_date DATE NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('OPEN', 'CLOSED')),
+    phase TEXT NOT NULL CHECK (phase IN ('STRATEGIC_SETUP','PRE_MARKET','IN_MARKET','POST_MARKET')),
+    state TEXT NOT NULL CHECK (state IN ('RUNNING','DONE')),
+    error BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (session_date)
+);
+
+
+
+
+
+
+-- DROP TABLE IF EXISTS trading.portfolio_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_capital CASCADE;
+-- DROP TABLE IF EXISTS trading.session_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.contracts CASCADE;
+-- DROP TABLE IF EXISTS trading.orders CASCADE;
+-- DROP TABLE IF EXISTS trading.executions CASCADE;
+-- DROP TABLE IF EXISTS trading.positions CASCADE;
+-- DROP TABLE IF EXISTS trading.trade_lots CASCADE;
+-- DROP TABLE IF EXISTS trading.trade_lot_consumption CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_ledger CASCADE;
+
+-- DROP TABLE IF EXISTS trading.instruments CASCADE;
+-- DROP TABLE IF EXISTS trading.universes CASCADE;
+-- DROP TABLE IF EXISTS trading.universe_membership CASCADE;
+
+
+-- DROP TABLE IF EXISTS trading.portfolio_targets CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_target_weights CASCADE;
+
+-- DROP TABLE IF EXISTS trading.account_balances CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_balances CASCADE;
+-- DROP TABLE IF EXISTS trading.account_margins CASCADE;
+
+-- DROP TABLE IF EXISTS trading.models_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_models CASCADE;
+-- DROP TABLE IF EXISTS trading.model_records CASCADE;
+-- DROP TABLE IF EXISTS trading.feature_registry CASCADE;
+
+-- DROP TABLE IF EXISTS trading.market_day_session CASCADE;
+
+-- DROP TYPE IF EXISTS session_mode;

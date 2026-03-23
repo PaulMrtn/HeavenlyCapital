@@ -1,22 +1,52 @@
 import json
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 
 from ib_async import Order, Execution, Trade, CommissionReport
 from sqlalchemy import text, Connection
+from sqlalchemy.exc import IntegrityError
 
 from heavenly_capital.db.connector import DBConnector
 
 # TODO:LOW – these objects should remain in the business layer and not be used directly in functions
-
-from heavenly_capital.models.account import AccountState
-from heavenly_capital.models.portfolio import Portfolio
+if TYPE_CHECKING:
+    from heavenly_capital.models.account import AccountState
+    from heavenly_capital.models.portfolio import Portfolio
+    from heavenly_capital.models.runtime import MarketDaySession
 
 
 class DataIngestionLayer:
 
     def __init__(self, connector: DBConnector):
         self._connector = connector
+
+    def persist_session(self, session: "MarketDaySession") -> None:
+        query = text("""
+                     INSERT INTO trading.market_day_session (session_id,
+                                                             session_date,
+                                                             status,
+                                                             phase,
+                                                             state,
+                                                             error)
+                     VALUES (:session_id,
+                             :session_date,
+                             :status,
+                             :phase,
+                             :state,
+                             :error)
+                     ON CONFLICT (session_date) DO NOTHING
+                     """)
+
+        with self._connector.uow() as conn:
+            conn.execute(query, {
+                "session_id": str(session.session_id),
+                "session_date": session.session_date,
+                "status": session.status.value,
+                "phase": session.phase.value,
+                "state": session.state.value,
+                "error": session.error
+            })
+
 
     def insert_session(
         self,
@@ -30,7 +60,7 @@ class DataIngestionLayer:
             VALUES (:session_name, :account_id, :mode, :context)
         """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "session_name": session_name,
                 "account_id": account_id,
@@ -54,7 +84,7 @@ class DataIngestionLayer:
                 (:account_id, :portfolio_id, :portfolio_name, :strategy_id, :currency, :enabled)
         """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(
                 query,
                 {
@@ -76,7 +106,7 @@ class DataIngestionLayer:
                      RETURNING id
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             result = conn.execute(
                 query,
                 {
@@ -102,7 +132,7 @@ class DataIngestionLayer:
             RETURNING instrument_id
         """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(
                 query,
                 {
@@ -126,7 +156,7 @@ class DataIngestionLayer:
                      ON CONFLICT (con_id) DO NOTHING;
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(
                 query,
                 {
@@ -161,7 +191,7 @@ class DataIngestionLayer:
                                    RETURNING target_id
                                    """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
 
             target_id = conn.execute(
                 insert_target_query,
@@ -220,7 +250,7 @@ class DataIngestionLayer:
                                        updated_at            = NOW()
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "account_id": state.account,
                 "currency": currency,
@@ -277,7 +307,7 @@ class DataIngestionLayer:
                                        updated_at                  = NOW()
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "account_id": state.account,
                 "currency": currency,
@@ -320,7 +350,7 @@ class DataIngestionLayer:
                      ON CONFLICT (portfolio_id, type, created_at) DO NOTHING
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "account_id": account_id,
                 "portfolio_id": portfolio_id,
@@ -368,7 +398,7 @@ class DataIngestionLayer:
                               FULL JOIN ledger l USING (portfolio_id)
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             r = conn.execute(query, {"portfolio_id": portfolio_id}).one()
 
             params = {
@@ -413,7 +443,7 @@ class DataIngestionLayer:
                                        updated_at = NOW()
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "portfolio_id": portfolio_id,
                 "model_type": model_type,
@@ -443,7 +473,7 @@ class DataIngestionLayer:
                                        updated_at  = NOW()
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "model_name": model_name,
                 "model_type": model_type,
@@ -475,7 +505,7 @@ class DataIngestionLayer:
                              :priority, :cache, :is_active)
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {
                 "uid": uid,
                 "category": category,
@@ -498,7 +528,7 @@ class DataIngestionLayer:
                      WHERE uid = :uid
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, {"uid": uid, "is_active": is_active})
 
 
@@ -517,7 +547,7 @@ class DataIngestionLayer:
                      ON CONFLICT (perm_id) DO NOTHING
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(
                 query,
                 {
@@ -550,7 +580,7 @@ class DataIngestionLayer:
                      LIMIT 1
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             result = conn.execute(query, {"perm_id": perm_id})
             row = result.mappings().first()
 
@@ -574,7 +604,7 @@ class DataIngestionLayer:
                      WHERE perm_id = :perm_id
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(
                 query,
                 {
@@ -929,7 +959,7 @@ class DataIngestionLayer:
 
             pnl = self._get_realized_pnl_from_fifo(conn, exec_id)
 
-            if pnl != Decimal("0"):
+            if pnl != Decimal('0'):
                 entries.append({
                     "type": "REALIZED_PNL",
                     "amount": pnl,
@@ -1054,7 +1084,7 @@ class DataIngestionLayer:
             portfolio_id: str,
             con_id: int
     ):
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             self.insert_execution(
                 conn=conn,
                 execution=execution,
@@ -1096,7 +1126,7 @@ class DataIngestionLayer:
         con_id: int
     ):
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             self.update_portfolio_ledger(
                 conn=conn,
                 execution=execution,
@@ -1107,7 +1137,7 @@ class DataIngestionLayer:
             )
 
     def update_portfolio_in_db(self, portfolio: "Portfolio") -> None:
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             self._update_positions(conn, portfolio)
             self._update_portfolio_market_values(conn, portfolio)
 
@@ -1178,7 +1208,7 @@ class DataIngestionLayer:
                      ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
                      """)
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
+        with self._connector.uow() as conn:
             conn.execute(query, records)
 
 
@@ -1240,8 +1270,11 @@ class DataIngestionLayer:
                      ON CONFLICT (instrument_id, ts_start) DO NOTHING \
                      """
 
-        with self._connector.UnitOfWork(self._connector.engine) as conn:
-            conn.execute(text(insert_sql), rows)
+        with self._connector.uow() as conn:
+            try:
+                conn.execute(text(insert_sql), rows)
+            except IntegrityError:
+                pass
 
 
 

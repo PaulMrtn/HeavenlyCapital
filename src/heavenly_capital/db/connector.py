@@ -97,21 +97,25 @@ class DBConnector:
             conn.close()
 
 
-    class UnitOfWork:
-        def __init__(self, engine: Engine):
-            self._engine = engine
+    def uow(self):
+        return UnitOfWork(self._engine)
 
-        def __enter__(self) -> Connection:
-            self.conn = self._engine.connect()
-            self.trans = self.conn.begin()
-            return self.conn
 
-        def __exit__(self, exc_type, exc_value, traceback):
-            if exc_type:
-                self.trans.rollback()
-            else:
-                self.trans.commit()
-            self.conn.close()
+class UnitOfWork:
+    def __init__(self, engine: Engine):
+        self._engine = engine
+
+    def __enter__(self) -> Connection:
+        self.conn = self._engine.connect()
+        self.trans = self.conn.begin()
+        return self.conn
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type:
+            self.trans.rollback()
+        else:
+            self.trans.commit()
+        self.conn.close()
 
 
 

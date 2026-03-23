@@ -8,20 +8,20 @@ from queue import Queue, Empty
 from typing import Optional, Any, TYPE_CHECKING, Tuple, Dict, List, Deque
 from ib_async import Contract
 
-from heavenly_capital.core.runtime_config import HistoricHubConfig, RuntimeModule
+from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.data.bus import EventBus
-from heavenly_capital.models.market_data import CandleEvent
-from heavenly_capital.models.market_data import OHLC
+from heavenly_capital.models.market_data import CandleEvent, OHLC
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
+    from heavenly_capital.models.config import HistoricHubConfig
 
 
 # TODO:LOW add this cst
 
 BASE_SEC = 5
 
-_freq_seconds = {
+_FREQ_SEC = {
     "30s": 30,
     "1m": 60,
     "5m": 300,
@@ -149,7 +149,7 @@ class CandleManager:
         maxlen_map: Optional[dict[str, int]] = None,
         kinds: tuple[str, ...] = ("last", "bid", "ask"),
     ):
-        self.freq_seconds = _freq_seconds
+        self.freq_seconds = _FREQ_SEC
         self.maxlen_map = maxlen_map or {}
         self.kinds = kinds
 
@@ -214,10 +214,10 @@ class HistoricDataHub(RuntimeModule):
         self._out_queue = Queue()
         self.out_bus = EventBus(name="HistoricCandleBus")
 
-        self._config: Optional[HistoricHubConfig] = None
+        self._config: Optional["HistoricHubConfig"] = None
         self._ports: Optional["SystemPorts"] = None
 
-    def configure(self, *, config: HistoricHubConfig, ports: "SystemPorts") -> None:
+    def configure(self, config: "HistoricHubConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
         self._configured = True
@@ -250,7 +250,7 @@ class HistoricDataHub(RuntimeModule):
         return self._started
 
     @property
-    def config(self) -> HistoricHubConfig:
+    def config(self) -> "HistoricHubConfig":
         if self._config is None:
             raise RuntimeError("HistoricHubConfig: config not set (configure() not called)")
         return self._config
@@ -328,6 +328,7 @@ class HistoricDataHub(RuntimeModule):
         while True:
             try:
                 event = self._out_queue.get_nowait()
+
             except Empty:
                 break
 

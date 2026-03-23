@@ -6,7 +6,7 @@ from threading import RLock, Condition, Thread
 from typing import Callable, Deque, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from heavenly_capital.core.session_manager import TradingSessionKey, TradingMode
+    from heavenly_capital.trading.session_manager import TradingSessionKey, TradingMode
     from heavenly_capital.models.order import OrderTracker
 
 

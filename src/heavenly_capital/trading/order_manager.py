@@ -5,13 +5,13 @@ from uuid import UUID
 
 from ib_async import Contract, Execution, CommissionReport, Fill, Trade
 
-from heavenly_capital.core.runtime_config import BaseModule, ModuleType
+from heavenly_capital.models.runtime import BaseModule, ModuleType
 from heavenly_capital.models.order import OrderTracker, OrderRequest, TrackerEventContext
 from heavenly_capital.strategy.artifacts import ModelSignal
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
-    from heavenly_capital.core.session_manager import TradingSessionKey, GlobalOrderRouter
+    from heavenly_capital.trading.session_manager import TradingSessionKey, GlobalOrderRouter
 
 
 class OrderManager(BaseModule):
@@ -30,7 +30,7 @@ class OrderManager(BaseModule):
         self._started = False
 
 
-    def configure(self, *, session_id: UUID, key: "TradingSessionKey", ports: "SystemPorts") -> None:
+    def configure(self, session_id: UUID, key: "TradingSessionKey", ports: "SystemPorts") -> None:
         self._key = key
         self._session_id = session_id
         self._ports = ports

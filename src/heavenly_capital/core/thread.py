@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import queue
 import threading
-from typing import Any, Callable, Dict, Optional
-from heavenly_capital.core.runtime_config import ThreadConfig, RuntimeModule
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
+from heavenly_capital.models.runtime import RuntimeModule
 
+if TYPE_CHECKING:
+    from heavenly_capital.models.config import ThreadConfig
 
 ThreadTarget = Callable[[threading.Event], None]
 
@@ -64,9 +66,9 @@ class ThreadManager(RuntimeModule):
         self._threads: Dict[str, ManagedThread] = {}
         self._started = False
         self._configured = False
-        self._config: Optional[ThreadConfig] = None
+        self._config: Optional["ThreadConfig"] = None
 
-    def configure(self, *, config: ThreadConfig, ports: Any) -> None:
+    def configure(self, config: "ThreadConfig", ports: Any) -> None:
         self._config = config
         self._configured = True
 
@@ -74,6 +76,12 @@ class ThreadManager(RuntimeModule):
         for t in self._threads.values():
             t.start()
         self._started = True
+
+    def start_thread(self, name: str) -> None:
+        t = self._threads.get(name)
+        if t is None:
+            raise ValueError(f"Thread {name!r} non trouvé")
+        t.start()
 
     def register_thread(self, name: str, target: Optional[ThreadTarget]=None, daemon=False):
         if name in self._threads:

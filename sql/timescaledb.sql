@@ -28,7 +28,16 @@ CREATE TABLE market.ohlcv_5s (
     ask_volume DOUBLE PRECISION NOT NULL CHECK (ask_volume >= 0),
     ask_tick_count BIGINT NOT NULL CHECK (ask_tick_count >= 0),
 
-    PRIMARY KEY (instrument_id, ts_start)
+    PRIMARY KEY (instrument_id, ts_start),
+
+    -- Contrainte combinée : jours ouvrés + heures US
+    CONSTRAINT chk_market_hours_weekdays CHECK (
+        EXTRACT(DOW FROM ts_start AT TIME ZONE 'America/New_York') BETWEEN 1 AND 5
+        AND
+        EXTRACT(HOUR FROM ts_start AT TIME ZONE 'America/New_York') +
+        EXTRACT(MINUTE FROM ts_start AT TIME ZONE 'America/New_York') / 60
+        BETWEEN 4.0 AND 20.0
+    )
 );
 
 SELECT create_hypertable(
@@ -48,5 +57,5 @@ CALL add_columnstore_policy('market.ohlcv_5s', after => INTERVAL '1 day');
 CREATE INDEX idx_ohlcv_5s_ts_end
 ON market.ohlcv_5s (ts_end);
 
---
+
 -- CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;

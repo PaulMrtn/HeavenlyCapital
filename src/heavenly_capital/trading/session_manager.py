@@ -8,12 +8,13 @@ from threading import Condition, RLock, Thread
 from typing import Any, Callable, Deque, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
 
-from heavenly_capital.core.runtime_config import SessionConfig, ModuleRouter, ModuleType
-from heavenly_capital.core.kernel import RuntimeModule
+from heavenly_capital.models.runtime import ModuleRouter, ModuleType, RuntimeModule
 from heavenly_capital.models.market_data import ReadOnlyTicker, TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.router import GlobalOrderRouter
+
+from heavenly_capital.models.session import TradingSessionConfig
 
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
@@ -93,7 +94,7 @@ class TradingEngine(ModuleRouter):
 
 @dataclass
 class MarketDaySessionSnapshot:
-    #TODO:MEDIUM useless ?
+    #TODO:MEDIUM useless ? FOR SURE
     session_date: date
     account_id: str
     mode: str
@@ -218,7 +219,7 @@ class SessionManager(RuntimeModule):
         self.sessions: Dict["TradingSessionKey", "TradingSession"] = {}
         self._order_router: Optional["GlobalOrderRouter"] = None
 
-    def configure(self, *, config: "SessionConfig", ports: "SystemPorts") -> None:
+    def configure(self, config: "SessionConfig", ports: "SystemPorts") -> None:
         self._config = config
         self._ports = ports
         self._configured = True
@@ -231,7 +232,7 @@ class SessionManager(RuntimeModule):
     def stop(self) -> None:
         self._started = False
 
-    def init_order_router(self, *, sink) -> None:
+    def wire_order_router(self, *, sink) -> None:
         if sink is None:
             raise ValueError("SessionManager: init_order_router() requires a non-null sink")
         if self._order_router is not None:
@@ -279,34 +280,18 @@ class SessionManager(RuntimeModule):
         # TODO:HIGH Persist current day dans un format ISO (ou équivalent)
         return self.ports.market_calendar.today()
 
-    def _build_session_key(
-        self,
-        session_cfg: "TradingSessionConfig",
-        portfolio_cfg: "PortfolioConfig"
-    ) -> "TradingSessionKey":
-        return TradingSessionKey(
-            session_date=self._current_session_date(),
-            account_id=session_cfg.account_id,
-            portfolio_id=portfolio_cfg.portfolio_id,
-            mode=session_cfg.mode,
-        )
-
-    def _create_trading_session(
-        self,
-        session_cfg: "TradingSessionConfig",
-        portfolio_cfg: "PortfolioConfig",
-        payload: dict | None = None
-    ) -> "TradingSession":
-        key = self._build_session_key(session_cfg=session_cfg, portfolio_cfg=portfolio_cfg)
-        return TradingSession(
-            key=key,
-            payload=payload,
-            ports=self.ports,
-            router=self.router
+    def load_trading_session(self) -> tuple["TradingSessionConfig", ...]:
+        rows = self._ports.db_service.reader.fetch_trading_sessions()
+        return tuple(
+            TradingSessionConfig.from_database(row)
+            for row in rows
         )
 
     def initialize_sessions_from_config(self) -> None:
-        for session_cfg in getattr(self._config, "sessions", []):
+        if not self._configured :
+            return
+
+        for session_cfg in self.load_trading_session():
             for portfolio_cfg in session_cfg.portfolios:
                 if getattr(portfolio_cfg, "enabled", True) is False:
                     continue
@@ -328,6 +313,32 @@ class SessionManager(RuntimeModule):
 
             # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session
 
+    def _create_trading_session(
+        self,
+        session_cfg: "TradingSessionConfig",
+        portfolio_cfg: "PortfolioConfig",
+        payload: dict | None = None
+    ) -> "TradingSession":
+        key = self._build_session_key(session_cfg=session_cfg, portfolio_cfg=portfolio_cfg)
+        return TradingSession(
+            key=key,
+            payload=payload,
+            ports=self.ports,
+            router=self.router
+        )
+
+    def _build_session_key(
+        self,
+        session_cfg: "TradingSessionConfig",
+        portfolio_cfg: "PortfolioConfig"
+    ) -> "TradingSessionKey":
+        return TradingSessionKey(
+            session_date=self._current_session_date(),
+            account_id=session_cfg.account_id,
+            portfolio_id=portfolio_cfg.portfolio_id,
+            mode=session_cfg.mode,
+        )
+
     def load_sessions_state_from_database(self) -> None:
         for session in self.sessions.values():
             session.stack.portfolio.load_portfolio_state()
@@ -339,7 +350,6 @@ class SessionManager(RuntimeModule):
 
 
     def health_check_loaded_sessions(self) -> None:
-
         results: list[dict[str, Any]] = []
 
         for key, session in self.sessions.items():
