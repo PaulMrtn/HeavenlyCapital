@@ -6,7 +6,7 @@ import numpy as np
 from heavenly_capital.strategy.artifacts import FeatureSpec
 
 if TYPE_CHECKING:
-    from heavenly_capital.strategy.feature_manager import FeatureStore
+    from heavenly_capital.strategy.feature_engine import FeatureStore
 
 
 FEATURE_REGISTRY: Dict[str, Callable] = {}

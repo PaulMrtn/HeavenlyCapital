@@ -11,8 +11,8 @@ from heavenly_capital.core.thread import get_thread_manager, ThreadManager
 from heavenly_capital.data.historic import get_historic_data_hub, HistoricDataHub
 from heavenly_capital.data.live import get_live_data_hub, LiveDataHub
 from heavenly_capital.ibkr.gateway import get_ibkr_gateway, IBKRGateway
-from heavenly_capital.strategy.feature_manager import get_feature_manager, FeatureManager
-from heavenly_capital.strategy.forecast_manager import get_forecast_manager, ForecastManager
+from heavenly_capital.strategy.feature_engine import get_feature_manager, FeatureManager
+from heavenly_capital.strategy.forecast_engine import get_forecast_manager, ForecastManager
 
 
 class SystemStatus(StrEnum):
