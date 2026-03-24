@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-from collections import deque
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import date
-from enum import Enum
-from threading import Condition, RLock, Thread
-from typing import Any, Callable, Deque, Dict, Optional, TYPE_CHECKING
+from threading import  RLock
+from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
 
-from heavenly_capital.models.runtime import ModuleRouter, ModuleType, RuntimeModule
-from heavenly_capital.models.market_data import ReadOnlyTicker, TickerManager
-from heavenly_capital.models.order import OrderRequest, OrderTracker
+from ib_async import Contract
+
+from heavenly_capital.data.bus import EventBus
+from heavenly_capital.models.config import SessionConfig
+from heavenly_capital.models.runtime import RuntimeModule
+from heavenly_capital.models.market_data import TickerManager
+from heavenly_capital.models.trading_engine import TradingSessionKey, TradingSessionState, TradingEngine
 from heavenly_capital.monitoring.error_service import HealthCheckError
 from heavenly_capital.trading.router import GlobalOrderRouter
 
-from heavenly_capital.models.session import TradingSessionConfig
+from heavenly_capital.models.session import TradingSessionConfig, PortfolioConfig
 
 from heavenly_capital.trading.order_manager import OrderManager
 from heavenly_capital.trading.portfolio_manager import PortfolioManager
@@ -23,72 +25,6 @@ from heavenly_capital.trading.risk_manager import RiskManager
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
-
-
-
-class TradingMode(str, Enum):
-    PAPER = "PAPER"
-    LIVE = "LIVE"
-
-
-class SessionState(str, Enum):
-    IDLE = "IDLE"
-    RUNNING = "RUNNING"
-    STOPPED = "STOPPED"
-    CLOSED = "CLOSED"
-
-
-@dataclass(frozen=True)
-class TradingSessionKey:
-    session_date: date
-    account_id: str
-    portfolio_id: str
-    mode: TradingMode
-
-
-
-class TradingEngine(ModuleRouter):
-
-    def __init__(
-            self,
-            orders: BaseModule,
-            portfolio: BaseModule,
-            risk: BaseModule,
-    ) -> None:
-        self._modules: Dict[ModuleType, BaseModule] = {
-            ModuleType.ORDERS: orders,
-            ModuleType.PORTFOLIO: portfolio,
-            ModuleType.RISK: risk,
-        }
-
-        for module_type, module in self._modules.items():
-            module.bind_router(self, module_type)
-
-    def transfer(
-            self,
-            *,
-            source: ModuleType,
-            target: ModuleType,
-            payload: Any,
-    ) -> None:
-        if source == target:
-            return
-
-        target_module = self._modules[target]
-        target_module.receive(payload, source)
-
-    @property
-    def orders(self):
-        return self._modules[ModuleType.ORDERS]
-
-    @property
-    def portfolio(self):
-        return self._modules[ModuleType.PORTFOLIO]
-
-    @property
-    def risk(self):
-        return self._modules[ModuleType.RISK]
-
 
 
 
@@ -109,8 +45,7 @@ class MarketDaySessionSnapshot:
 class TradingSession:
     def __init__(
         self,
-        *,
-        key: TradingSessionKey,
+        key: "TradingSessionKey",
         router: "GlobalOrderRouter",
         ports: Optional["SystemPorts"] = None,
         payload: Optional[Dict[str, Any]] = None,
@@ -118,13 +53,13 @@ class TradingSession:
 
         self.key = key
         self.session_id: UUID = uuid4()
-        self.state: SessionState = SessionState.IDLE
+        self.state: TradingSessionState = TradingSessionState.IDLE
 
         self._payload: Dict[str, Any] = payload or {}
         self._ports: Optional["SystemPorts"] = ports
         self._order_router: "GlobalOrderRouter" = router
 
-        self.stack: Optional[TradingEngine] = None
+        self.stack: Optional["TradingEngine"] = None
 
     @property
     def ports(self) -> "SystemPorts":
@@ -163,19 +98,19 @@ class TradingSession:
         )
 
     def start(self) -> None:
-        if self.state in (SessionState.RUNNING, SessionState.CLOSED):
+        if self.state in (TradingSessionState.RUNNING, TradingSessionState.CLOSED):
             return
-        self.state = SessionState.RUNNING
+        self.state = TradingSessionState.RUNNING
 
     def stop(self) -> None:
-        if self.state != SessionState.RUNNING:
+        if self.state != TradingSessionState.RUNNING:
             return
-        self.state = SessionState.STOPPED
+        self.state = TradingSessionState.STOPPED
 
     def close(self) -> None:
-        if self.state == SessionState.CLOSED:
+        if self.state == TradingSessionState.CLOSED:
             return
-        self.state = SessionState.CLOSED
+        self.state = TradingSessionState.CLOSED
 
     def health_check(self) -> dict[str, Any]:
         return {

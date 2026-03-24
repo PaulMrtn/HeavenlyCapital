@@ -4,36 +4,6 @@ from typing import Optional, Any, Protocol, runtime_checkable
 
 
 
-@runtime_checkable
-class RuntimeModule(Protocol):
-
-    def configure(self, config: Any, ports: Any) -> Any: ...
-
-    def start(self) -> Any: ...
-
-    def stop(self) -> Any: ...
-
-    @property
-    def is_configured(self) -> bool: ...
-
-    @property
-    def is_started(self) -> bool: ...
-
-    def health_check(self) -> dict[str, Any]: ...
-
-
-class AsyncRuntimeModule(RuntimeModule):
-
-    @abstractmethod
-    async def start(self) -> Any:
-        pass
-
-    @abstractmethod
-    async def stop(self) -> Any:
-        pass
-
-
-
 class ModuleType(str, Enum):
     ORDERS = "orders"
     PORTFOLIO = "portfolio"
@@ -68,7 +38,39 @@ class BaseModule(ABC):
             payload=payload,
         )
 
-    def _receive(self, source: ModuleType, payload: Any) -> None:
+    def receive(self, source: ModuleType, payload: Any) -> None:
         pass
+
+
+
+@runtime_checkable
+class RuntimeModule(Protocol):
+
+    def configure(self, config: Any, ports: Any) -> Any: ...
+
+    def start(self) -> Any: ...
+
+    def stop(self) -> Any: ...
+
+    @property
+    def is_configured(self) -> bool: ...
+
+    @property
+    def is_started(self) -> bool: ...
+
+    def health_check(self) -> dict[str, Any]: ...
+
+
+class AsyncRuntimeModule(RuntimeModule):
+
+    @abstractmethod
+    async def start(self) -> Any:
+        pass
+
+    @abstractmethod
+    async def stop(self) -> Any:
+        pass
+
+
 
 

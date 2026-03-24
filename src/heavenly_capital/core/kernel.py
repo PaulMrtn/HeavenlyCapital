@@ -15,17 +15,12 @@ from heavenly_capital.models.session import SessionStatus, SessionPhase, Session
 
 from heavenly_capital.models.system import (
     SystemState,
-    DatabasePorts,
+    RuntimeRegistry,
     MarketDaySession,
-    BootPlan,
-    BootDecision,
-    ShutdownScenario,
-    ExitCode,
-    ShutdownRequest,
-    SystemPorts,
-    RuntimeRegistry
+    BootPlan, BootDecision,
+    SystemPorts, DatabasePorts,
+    ShutdownScenario, ExitCode, ShutdownRequest,
 )
-
 
 from heavenly_capital.monitoring.error_service import NullErrorService, HealthCheckError
 from heavenly_capital.monitoring.log_service import NullLogService
@@ -490,6 +485,7 @@ class Kernel:
             f"{event.previous.name} → {event.current.name}"
         )
         return
+
 
     # def run_readiness_checks(self, checks: Iterable[ReadinessCheck]) -> list[ConnectionStatus]:
     #     results: list[ConnectionStatus] = []
