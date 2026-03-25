@@ -354,3 +354,8 @@ def get_session_manager() -> SessionManager:
     if _instance is None:
         _instance = SessionManager()
     return _instance
+
+
+
+
+# TODO:HIGH - self._market_clock.subscribe_trading() add callback to ensure not in read_only mode (risk_manager, portfolio order idntknw)

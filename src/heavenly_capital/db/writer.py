@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 from ib_async import Order, Execution, Trade, CommissionReport
 from sqlalchemy import text, Connection
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from heavenly_capital.db.connector import DBConnector
 
@@ -1196,6 +1196,21 @@ class DataIngestionLayer:
             }
         )
 
+    # def persist_model_records(self, records: list[dict]) -> None:
+    #     if not records:
+    #         return
+    #
+    #     query = text("""
+    #                  INSERT INTO trading.model_records
+    #                  (model_name, version, con_id, step, decision, score, output_at, prediction_ts, trading_day)
+    #                  VALUES (:model_name, :version, :con_id, :step, :decision, :score, :output_at, :prediction_ts,
+    #                          :trading_day)
+    #                  ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
+    #                  """)
+    #
+    #     with self._connector.uow() as conn:
+    #         conn.execute(query, records)
+
     def persist_model_records(self, records: list[dict]) -> None:
         if not records:
             return
@@ -1208,8 +1223,13 @@ class DataIngestionLayer:
                      ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
                      """)
 
-        with self._connector.uow() as conn:
-            conn.execute(query, records)
+        try:
+            with self._connector.uow() as conn:
+                conn.execute(query, records)
+
+        except SQLAlchemyError as e:
+            print("Database error:", e)
+            raise
 
 
     def persist_bars(self, bars_dict: dict[int, dict[str, Any]]) -> None:

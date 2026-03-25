@@ -50,7 +50,7 @@ class IBKRGateway(AsyncRuntimeModule):
         self._config: Optional["IBKRConfig"] = None
         self._ports: Optional["SystemPorts"] = None
 
-        self.manager: Optional["ClientManager"] = None
+        self.client_manager: Optional["ClientManager"] = None
         self._contracts: Optional[dict[str, "Contract"]] = None
 
         self._order_registry: dict[str, "OrderTracker"] = {}
@@ -59,7 +59,7 @@ class IBKRGateway(AsyncRuntimeModule):
         self._config = config
         self._ports = ports
 
-        self.manager = ClientManager(CLIENTS_CONFIG) # config.sessions
+        self.client_manager = ClientManager(CLIENTS_CONFIG) # config.sessions
         self._configured = True
 
     def _wrap_event(self, handler):
@@ -75,13 +75,13 @@ class IBKRGateway(AsyncRuntimeModule):
     async def start(self) -> None:
         if not self._configured:
             raise RuntimeError("IBKRGateway: start() called before configure()")
-        await self.manager.start()
 
-        for client in self.manager.all:
+        await self.client_manager.start()
+
+        for client in self.client_manager.all:
             client.events.order_status = self._wrap_event(self._on_order_status)
             client.events.exec_details = self._wrap_event(self._on_fill)
             client.events.commission_report = self._wrap_event(self._on_commission)
-
 
         self._started = True
 
@@ -136,7 +136,7 @@ class IBKRGateway(AsyncRuntimeModule):
         return self.order_sink
 
     def wire_live_ticker(self, ticker_sink: Callable[[Ticker], None]):
-        self.manager.set_tick_handler(ticker_sink)
+        self.client_manager.set_tick_handler(ticker_sink)
 
     @staticmethod
     def _build_order_ib(order: "OrderRequest") -> "Order":
@@ -196,7 +196,7 @@ class IBKRGateway(AsyncRuntimeModule):
         snapshot = self.get_universe_snapshot("SP500 Sample")
         id_to_contract_map = self._map_snapshot_to_ibkr_contracts(snapshot)
 
-        await self.manager.qualify_contracts(list(id_to_contract_map.values()))
+        await self.client_manager.qualify_contracts(list(id_to_contract_map.values()))
 
         self._contracts = {
             asset_id: contract
@@ -227,16 +227,16 @@ class IBKRGateway(AsyncRuntimeModule):
 
     async def start_streaming(self) -> None:
         contracts = list(self._contracts.values())
-        await self.manager.start_streaming(contracts)
+        await self.client_manager.start_streaming(contracts)
 
     async def pause_streaming(self) -> None:
-        await self.manager.pause()
+        await self.client_manager.pause()
 
     async def resume_streaming(self) -> None:
-        await self.manager.resume()
+        await self.client_manager.resume()
 
     async def stop_streaming(self) -> None:
-        await self.manager.stop_streaming()
+        await self.client_manager.stop_streaming()
 
     # ---------------------------------
 
@@ -245,13 +245,13 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # TODO: WARNING Get Cash and other information about account
     async def update_account_state(self) -> None:
-        accounts = await self.manager.get_account_state()
+        accounts = await self.client_manager.get_account_state()
 
         for account in accounts:
             self._ports.db_service.writer.update_account_state_in_db(account)
 
     def place_order(self, account_id: str, contract: "Contract", order: "Order") -> None:
-        client = self.manager.get_client_by_id(account_id)
+        client = self.client_manager.get_client_by_id(account_id)
         client.place_order(contract=contract, order=order)
 
 
@@ -307,7 +307,7 @@ def get_ibkr_gateway() -> IBKRGateway:
 
 
     # async def update_portfolio_state(self) -> None:
-    #     portfolios = await self.manager.get_portfolio_state()
+    #     portfolios = await self.client_manager.get_portfolio_state()
     #
     #     for portfolio in portfolios:
     #         print(portfolio)

@@ -15,6 +15,18 @@ class MarketState(Enum):
     OPEN = auto()
     POST_MARKET = auto()
 
+class TradingState(Enum):
+    READ_ONLY = auto()
+    STOP = auto()
+    EXECUTION = auto()
+    CLOSED = auto()
+
+@dataclass(frozen=True)
+class TradingStateChangeEvent:
+    previous: TradingState
+    current: TradingState
+    timestamp: float
+
 @dataclass(frozen=True)
 class MarketStateChangeEvent:
     previous: MarketState
@@ -63,7 +75,7 @@ class MarketClock:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, time_source):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
@@ -74,42 +86,100 @@ class MarketClock:
         if self._initialized:
             return
         self._market_state = MarketState.CLOSED
-        self._subscribers = []
+        self._trading_state = TradingState.CLOSED
+        self._step_state = 0
+
+        self._market_subscribers = []
+        self._trading_subscribers = []
+
         self._initialized = True
 
         self._time_source = time_source
         self._time_source.subscribe(self.on_heartbeat)
 
-    def subscribe(self, callback):
-        self._subscribers.append(callback)
+
+    def subscribe_market(self, callback):
+        self._market_subscribers.append(callback)
+
+    def subscribe_trading(self, callback):
+        self._trading_subscribers.append(callback)
+
 
     @staticmethod
     def _compute_market_state(timestamp: float) -> MarketState:
         local_time = time.localtime(timestamp)
-        hour = local_time.tm_hour
+        hour_decimal = local_time.tm_hour + local_time.tm_min / 60
 
-        if 8 <= hour < 9:
+        if 4 <= hour_decimal < 9.5:
             return MarketState.PRE_MARKET
-        if 9 <= hour < 16:
+        if 9.5 <= hour_decimal < 16:
             return MarketState.OPEN
-        if 16 <= hour < 18:
+        if 16 <= hour_decimal < 20:
             return MarketState.POST_MARKET
         return MarketState.CLOSED
 
-    def on_heartbeat(self, timestamp: float):
-        new_state = self._compute_market_state(timestamp)
+    @staticmethod
+    def _compute_trading_state(timestamp: float) -> TradingState:
+        local_time = time.localtime(timestamp)
+        hour_decimal = local_time.tm_hour + local_time.tm_min / 60
 
-        if new_state != self._market_state:
-            event = MarketStateChangeEvent(
+        if (4 <= hour_decimal < 8) or (18 <= hour_decimal < 20):
+            return TradingState.READ_ONLY
+        if (6.5 <= hour_decimal < 9.5) or (16 <= hour_decimal < 18):
+            return TradingState.STOP
+        if 9.5 <= hour_decimal < 16:
+            return TradingState.EXECUTION
+        return TradingState.CLOSED
+
+    @staticmethod
+    def _compute_step_state(timestamp: float) -> int:
+        local_time = time.localtime(timestamp)
+
+        minutes_since_midnight = local_time.tm_hour * 60 + local_time.tm_min
+
+        start = 9 * 60 + 30
+        end = 16 * 60
+
+        if minutes_since_midnight < start:
+            return 0
+
+        if minutes_since_midnight >= end:
+            return 390
+
+        return minutes_since_midnight - start
+
+
+    def on_heartbeat(self, timestamp: float):
+        self._step_state = self._compute_step_state(timestamp)
+
+        new_market_state = self._compute_market_state(timestamp)
+        new_trading_state = self._compute_trading_state(timestamp)
+
+        if new_market_state != self._market_state:
+            event_market = MarketStateChangeEvent(
                 previous=self._market_state,
-                current=new_state,
+                current=new_market_state,
                 timestamp=timestamp
             )
-            self._market_state = new_state
-            self._notify(event)
+            self._market_state = new_market_state
+            self._notify_market(event_market)
 
-    def _notify(self, event):
-        for cb in self._subscribers:
+        if new_trading_state != self._trading_state:
+            event_trading = TradingStateChangeEvent(
+                previous=self._trading_state,
+                current=new_trading_state,
+                timestamp=timestamp
+            )
+            self._trading_state = new_trading_state
+            self._notify_trading(event_trading)
+
+
+    def _notify_market(self, event: MarketStateChangeEvent):
+        for cb in self._market_subscribers:
+            cb(event)
+
+    def _notify_trading(self, event: TradingStateChangeEvent):
+        for cb in self._trading_subscribers:
             cb(event)
 
     def start(self):
@@ -117,6 +187,38 @@ class MarketClock:
 
     def stop(self):
         self._time_source.stop()
+
+
+    @property
+    def step_state(self) -> int:
+        return self._step_state
+
+    @property
+    def is_execution_time(self) -> bool:
+        return self._trading_state == TradingState.EXECUTION
+
+    @property
+    def is_trading_stopped(self) -> bool:
+        return self._trading_state == TradingState.STOP
+
+    @property
+    def is_read_only(self) -> bool:
+        return self._trading_state == TradingState.READ_ONLY
+
+    @property
+    def is_market_open(self) -> bool:
+        return self._market_state == MarketState.OPEN
+
+    @property
+    def is_pre_market(self) -> bool:
+        return self._market_state == MarketState.PRE_MARKET
+
+    @property
+    def is_post_market(self) -> bool:
+        return self._market_state == MarketState.POST_MARKET
+
+
+
 
 
 class AcceleratedTimeHeartbeat:

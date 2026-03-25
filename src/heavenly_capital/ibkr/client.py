@@ -212,6 +212,7 @@ class IBKRClient:
 
 class ClientManager:
     def __init__(self, configs: list[dict]):
+
         self._registry = self._load_configs(configs)
         self._heartbeat_task: Optional[asyncio.Task] = None
         self.on_tick: Optional[Callable[[Ticker], None]] = None

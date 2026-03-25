@@ -1,9 +1,11 @@
+import asyncio
+import datetime
 import threading
 import time
 from uuid import uuid4
 
 from heavenly_capital.core.calendar import USMarketsCalendar
-from heavenly_capital.core.clock import MarketClock, AcceleratedTimeHeartbeat, MarketStateChangeEvent
+from heavenly_capital.core.clock import MarketClock, AcceleratedTimeHeartbeat, MarketStateChangeEvent, MarketState
 
 from heavenly_capital.db.connector import DB_CONNECTOR
 from heavenly_capital.db.reader import DataAccessLayer
@@ -29,6 +31,10 @@ from heavenly_capital.monitoring.notification_service import NullNotificationSer
 
 
 
+heartbeat = AcceleratedTimeHeartbeat(
+        day_seconds=600,
+        start_timestamp=datetime.datetime(2026,1,1,0,0).timestamp())
+
 
 class Kernel:
     _instance = None
@@ -43,10 +49,18 @@ class Kernel:
         if self._initialized:
             return
 
+        self._loop = asyncio.get_event_loop()
+
         self.state = SystemState()
 
-        self._market_clock = MarketClock(time_source=AcceleratedTimeHeartbeat())
-        self._market_clock.subscribe(self.on_market_state_change)
+        self._market_clock = MarketClock(time_source=heartbeat)
+        self._market_handlers = {
+            MarketState.CLOSED: self._on_market_closed,
+            MarketState.PRE_MARKET: self._on_pre_market,
+            MarketState.OPEN: self._on_market_open,
+            MarketState.POST_MARKET: self._on_post_market,
+        }
+
         self._market_calendar = USMarketsCalendar()
 
         self._db = self._build_db_service()
@@ -175,7 +189,7 @@ class Kernel:
             self._proc_restart_after_stop(plan)
             return
 
-        raise ValueError(f"Procédure inconnue: {proc}")
+        raise ValueError(f"Unknown procedure: {proc}")
 
 # endregion
 
@@ -232,6 +246,13 @@ class Kernel:
 
 
     async def _proc_pre_market(self, plan: "BootPlan") -> None:
+        self._market_clock.subscribe_market(self.on_market_state_change)
+        self._market_clock.start()
+
+
+    async def _on_pre_market(self):
+        print("[Kernel] PRE_MARKET triggered. Pre-market phase started.")
+
         await self.launch_global_runtime()
         self.launch_local_runtime()
 
@@ -239,25 +260,30 @@ class Kernel:
         await self._modules.ibkr_gateway.load_universe_snapshot()
 
         self._sync_hubs_with_contracts()
-
         await self.initialize_market_data_feeds()
-
         self._register_threads()
 
-        await self._modules.ibkr_gateway.manager.start()
+        await self._modules.ibkr_gateway.client_manager.start()
 
         await self._modules.ibkr_gateway.start_streaming()
-
         self._start_runtime_loop()
+        await self._modules.ibkr_gateway.client_manager.wait()
 
-        await self._modules.ibkr_gateway.manager.wait()
+
+    async def _on_market_closed(self):
+        print("[Kernel] MARKET_CLOSED triggered. Market is now closed.")
+
+        await self._modules.ibkr_gateway.update_account_state()
+        await self._modules.ibkr_gateway.stop_streaming()
+
+        self._modules.thread_manager.stop_thread("runtime_loop")
 
 
-        #
-        # await self._modules.ibkr_gateway.update_account_state()
-        #
-        # await self._modules.ibkr_gateway.stop_streaming()
+    async def _on_market_open(self):
+        print("[Kernel] MARKET_OPEN triggered. Active trading started.")
 
+    async def _on_post_market(self):
+        print("[Kernel] POST_MARKET triggered. Post-market phase running.")
 
 
 
@@ -382,6 +408,8 @@ class Kernel:
         self._wire_historic_hub_to_feature_manager()
         self._wire_feature_store_to_forecast_manager()
 
+
+
     def _wire_order_router_to_session_manager(self) -> None:
         sink = self._modules.ibkr_gateway.order_sink
         self._modules.session_manager.wire_order_router(sink=sink)
@@ -403,10 +431,10 @@ class Kernel:
         self._modules.forecast_manager.wire_feature_store(store)
 
 
+
     def _wire_local_runtime(self) -> None:
         self._wire_live_hub_to_local_runtime()
         self._wire_forecast_manager_to_local_runtime()
-
 
     def _wire_live_hub_to_local_runtime(self) -> None:
         tickers = self._modules.live_hub.tickers
@@ -455,36 +483,44 @@ class Kernel:
             self._modules.feature_manager.process_candle_events()
             self._modules.forecast_manager.run_predictions()
 
+
     def _register_threads(self) -> None:
         tm = self._modules.thread_manager
-
         tm.register_thread(
             name="runtime_loop",
             target=self._runtime_tick,
             daemon=False
         )
+
     def _start_runtime_loop(self) -> None:
         self._modules.thread_manager.start_thread("runtime_loop")
 
 
-
-
-
-
-
-
-
-
-
-
-
-    # Temporary event handler
     def on_market_state_change(self, event: MarketStateChangeEvent):
-        print(
-            f"[Kernel] Market state change: "
-            f"{event.previous.name} → {event.current.name}"
+        handler = self._market_handlers.get(event.current)
+        if handler:
+            asyncio.run_coroutine_threadsafe(handler(), self._loop)
+
+        t = datetime.datetime.fromtimestamp(event.timestamp)
+        print(f"[Kernel] Market state change: "
+            f"{event.previous.name} -> {event.current.name} at {t}"
         )
+
         return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     # def run_readiness_checks(self, checks: Iterable[ReadinessCheck]) -> list[ConnectionStatus]:

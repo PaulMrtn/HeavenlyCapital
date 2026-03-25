@@ -17,7 +17,12 @@ class ManagedThread:
         self._stop_event = threading.Event()
         self._target = target
         self._jobs: "queue.Queue[tuple[Callable, tuple, dict]]" = queue.Queue()
-        self._thread = threading.Thread(target=self._run, name=name, daemon=daemon)
+
+        self._thread = threading.Thread(
+            target=self._run,
+            name=name,
+            daemon=daemon
+        )
 
     def _run(self):
         if self._target:

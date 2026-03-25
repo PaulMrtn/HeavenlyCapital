@@ -366,6 +366,7 @@ class ForecastManager(RuntimeModule):
 
         self._store.record(record=record, model_id=model_id, conid=conid)
 
+
     def persist_predictions(self) -> None:
         payload = self._store.to_payload()
         self._ports.db_service.writer.persist_model_records(payload)
@@ -390,6 +391,8 @@ class ForecastManager(RuntimeModule):
             )
 
         self.persist_predictions()
+
+        print(self._ports.market_clock.step_state)
 
 
 
