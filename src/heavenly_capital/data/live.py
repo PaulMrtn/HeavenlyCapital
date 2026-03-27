@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from heavenly_capital.models.config import LiveHubConfig
 
 
+AGG_INTERVAL = 5 #60
+
 
 class OHLCAggregator:
     def __init__(self):
@@ -163,26 +165,26 @@ class LiveDataHub(RuntimeModule):
         return self._tickers
 
     def aggregate_and_publish_candles(self, current_time: float):
+        ts_boundary = int(current_time // AGG_INTERVAL) * AGG_INTERVAL
+
         if self._last_agg_time is None:
-            self._last_agg_time = current_time
+            self._last_agg_time = ts_boundary
             return
 
-        if current_time - self._last_agg_time >= 5:
-            ts_end = current_time - (current_time % 5)
-            ts_start = ts_end - 5
+        while self._last_agg_time < ts_boundary:
+            ts_start = self._last_agg_time
+            ts_end = ts_start + AGG_INTERVAL
 
             batch_to_persist = {}
 
             for conId, pipeline in self._pipelines.items():
                 bars = pipeline.aggregate_all(ts_start, ts_end)
                 self.candle_bus.publish(conId, bars)
-
                 batch_to_persist[conId] = bars
 
             self._ports.db_service.writer.persist_bars(batch_to_persist)
 
-            self._last_agg_time = current_time
-
+            self._last_agg_time = ts_end
 
 
 

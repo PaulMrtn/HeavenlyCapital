@@ -1,8 +1,8 @@
 CREATE TYPE session_mode AS ENUM ('LIVE', 'PAPER');
 
-CREATE TABLE trading.session_registry (
+CREATE TABLE trading.account_registry (
     id SERIAL PRIMARY KEY,
-    session_name TEXT NOT NULL,
+    account_name TEXT NOT NULL,
     account_id CHAR(9) NOT NULL UNIQUE,
     mode session_mode NOT NULL,
     context JSONB
@@ -12,7 +12,7 @@ CREATE TABLE trading.session_registry (
 CREATE TABLE trading.portfolio_registry (
     id SERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL
-        REFERENCES trading.session_registry(account_id) ON DELETE CASCADE,
+        REFERENCES trading.account_registry(account_id) ON DELETE CASCADE,
     portfolio_id TEXT NOT NULL UNIQUE,
     strategy_id TEXT NOT NULL,
     portfolio_name TEXT NOT NULL ,
@@ -76,7 +76,7 @@ CREATE TABLE trading.orders (
 
     -- Foreign Keys
     FOREIGN KEY (account_id)
-        REFERENCES trading.session_registry(account_id)
+        REFERENCES trading.account_registry(account_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id, portfolio_id)
@@ -114,7 +114,7 @@ CREATE TABLE trading.executions (
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id)
-        REFERENCES trading.session_registry(account_id)
+        REFERENCES trading.account_registry(account_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id, portfolio_id)
@@ -205,7 +205,7 @@ CREATE TABLE trading.portfolio_ledger (
     UNIQUE (exec_id, type),
 
     FOREIGN KEY (account_id)
-        REFERENCES trading.session_registry(account_id)
+        REFERENCES trading.account_registry(account_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (account_id, portfolio_id)
@@ -342,7 +342,7 @@ CREATE TABLE trading.account_margins (
     UNIQUE(account_id, currency),
 
     FOREIGN KEY (account_id)
-        REFERENCES trading.session_registry(account_id)
+        REFERENCES trading.account_registry(account_id)
         ON DELETE CASCADE
 );
 
@@ -364,7 +364,7 @@ CREATE TABLE trading.account_balances (
     UNIQUE(account_id, currency),
 
     FOREIGN KEY (account_id)
-        REFERENCES trading.session_registry(account_id)
+        REFERENCES trading.account_registry(account_id)
         ON DELETE CASCADE
 );
 
@@ -468,9 +468,9 @@ CREATE TABLE trading.market_day_session (
     session_id UUID PRIMARY KEY NOT NULL,
 
     session_date DATE NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('OPEN', 'CLOSED')),
-    phase TEXT NOT NULL CHECK (phase IN ('STRATEGIC_SETUP','PRE_MARKET','IN_MARKET','POST_MARKET')),
-    state TEXT NOT NULL CHECK (state IN ('RUNNING','DONE')),
+    status TEXT NOT NULL CHECK (status IN ('IN_PROGRESS', 'COMPLETED')),
+    phase TEXT NOT NULL CHECK (phase IN ('STRATEGIC_SETUP','MARKET_SETUP')),
+    state TEXT NOT NULL, -- CHECK (state IN ('RUNNING','DONE'))
     error BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -485,7 +485,7 @@ CREATE TABLE trading.market_day_session (
 
 -- DROP TABLE IF EXISTS trading.portfolio_registry CASCADE;
 -- DROP TABLE IF EXISTS trading.portfolio_capital CASCADE;
--- DROP TABLE IF EXISTS trading.session_registry CASCADE;
+-- DROP TABLE IF EXISTS trading.account_registry CASCADE;
 -- DROP TABLE IF EXISTS trading.contracts CASCADE;
 -- DROP TABLE IF EXISTS trading.orders CASCADE;
 -- DROP TABLE IF EXISTS trading.executions CASCADE;

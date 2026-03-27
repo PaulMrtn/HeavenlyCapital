@@ -25,7 +25,7 @@ class SessionService:
                 f"A session already exists for account_id={account_id}"
             )
 
-        self._writer.insert_session(session_name, account_id, mode, context)
+        self._writer.insert_account(session_name, account_id, mode, context)
 
     def create_portfolio(
             #TODO:LOW - ADD constraint on account capital

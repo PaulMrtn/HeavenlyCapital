@@ -46,3 +46,20 @@ def build_readiness_checks(db_connector, ibkr_gateway, eodhd_client) -> List[obj
         IBKRReadinessCheck(ibkr_gateway=ibkr_gateway),
         EODHDReadinessCheck(eodhd_client=eodhd_client),
     ]
+
+
+
+
+
+    # def run_readiness_checks(self, checks: Iterable[ReadinessCheck]) -> list[ConnectionStatus]:
+    #     results: list[ConnectionStatus] = []
+    #     try:
+    #         for check in checks:
+    #             results.append(check.ping())
+    #     except Exception:
+    #         self._set_status(SystemStatus.ERROR)
+    #         return results
+    #
+    #     con_status = all(r.status for r in results)
+    #     self._set_status(SystemStatus.READY if con_status else SystemStatus.ERROR)
+    #     return results

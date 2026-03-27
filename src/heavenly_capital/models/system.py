@@ -17,7 +17,6 @@ from heavenly_capital.strategy.forecast_engine import get_forecast_manager, Fore
 
 class SystemStatus(StrEnum):
     BOOTING = "BOOTING"
-    READY = "READY"
     RUNNING = "RUNNING"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
@@ -26,7 +25,7 @@ class SystemStatus(StrEnum):
 
 @dataclass
 class SystemState:
-    status: SystemStatus = SystemStatus.STOPPED
+    status: SystemStatus = SystemStatus.BOOTING
     since: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     detail: str = ""
 
@@ -34,9 +33,13 @@ class SystemState:
         if self.status == status:
             return
 
+        previous = self.status
+
         self.status = status
         self.since = datetime.now(timezone.utc)
         self.detail = detail
+
+        print(f"[System] {previous} -> {status} ({detail})")
 
 
 class ExitCode(IntEnum):

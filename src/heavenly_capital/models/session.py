@@ -8,18 +8,20 @@ from uuid import UUID
 
 
 class SessionStatus(StrEnum):
-    OPEN = "OPEN"
-    CLOSED = "CLOSED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
 
 class SessionPhase(StrEnum):
     STRATEGIC_SETUP = "STRATEGIC_SETUP"
-    PRE_MARKET = "PRE_MARKET"
-    IN_MARKET = "IN_MARKET"
-    POST_MARKET = "POST_MARKET"
+    MARKET_SETUP = "MARKET_SETUP"
+
 
 class SessionState(StrEnum):
-    DONE = "DONE"
+    INITIALIZATION = "INITIALIZATION"
+    STAND_BY = "STAND_BY"
     RUNNING = "RUNNING"
+    SETTLING = "SETTLING"
+    SHUTDOWN = "SHUTDOWN"
 
 
 
@@ -67,7 +69,7 @@ class TradingSessionConfig:
             PortfolioConfig(**p) for p in row.get("portfolios", ())
         )
         return cls(
-            session_name=row["session_name"],
+            session_name=row["account_name"],
             account_id=row["account_id"],
             mode=row["mode"],
             portfolios=portfolios,

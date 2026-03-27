@@ -31,8 +31,8 @@ class DataAccessLayer:
 
     def fetch_all_sessions(self) -> Sequence[RowMapping]:
         query = text("""
-                     SELECT session_name, account_id, mode, context
-                     FROM trading.session_registry
+                     SELECT account_name, account_id, mode, context
+                     FROM trading.account_registry
                      """)
 
         with self._connector.get_connection() as conn:
@@ -41,8 +41,8 @@ class DataAccessLayer:
 
     def fetch_sessions_by_account(self, account_id: str) -> Sequence[RowMapping]:
         query = text("""
-            SELECT session_name, account_id, mode, context
-            FROM trading.session_registry
+            SELECT account_name, account_id, mode, context
+            FROM trading.account_registry
             WHERE account_id = :account_id
         """)
 
@@ -53,7 +53,7 @@ class DataAccessLayer:
     def session_exists_for_account(self, account_id: str) -> bool:
         query = text("""
             SELECT 1
-            FROM trading.session_registry
+            FROM trading.account_registry
             WHERE account_id = :account_id
             LIMIT 1
         """)
@@ -105,8 +105,8 @@ class DataAccessLayer:
 
     def fetch_trading_sessions(self) -> list[dict]:
         sessions_query = """
-                         SELECT session_name, account_id, mode, context
-                         FROM trading.session_registry \
+                         SELECT account_name, account_id, mode, context
+                         FROM trading.account_registry \
                          """
 
         portfolios_query = """
@@ -327,7 +327,7 @@ class DataAccessLayer:
                                                                END AS pos_w
                                                     FROM trading.positions p
                                                              JOIN trading.contracts c ON p.con_id = c.con_id
-                                                             JOIN trading.session_registry sr ON p.account_id = sr.account_id
+                                                             JOIN trading.account_registry sr ON p.account_id = sr.account_id
                                                              JOIN portfolio_totals pt
                                                                   ON p.account_id = pt.account_id
                                                                       AND p.portfolio_id = pt.portfolio_id),
@@ -340,7 +340,7 @@ class DataAccessLayer:
                                            FROM trading.portfolio_targets t
                                                     JOIN trading.portfolio_target_weights w ON t.target_id = w.target_id
                                                     JOIN trading.contracts c ON w.con_id = c.con_id
-                                                    JOIN trading.session_registry sr ON t.account_id = sr.account_id
+                                                    JOIN trading.account_registry sr ON t.account_id = sr.account_id
                                            WHERE t.rebalance_date = :today),
                           combined AS (
 

@@ -443,8 +443,6 @@ class FeatureManager(RuntimeModule):
 
 
 
-
-
 _instance: Optional["FeatureManager"] = None
 
 def get_feature_manager() -> "FeatureManager":

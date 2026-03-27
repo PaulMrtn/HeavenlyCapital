@@ -2,10 +2,13 @@ import asyncio
 import datetime
 import threading
 import time
+from typing import Callable, Coroutine
 from uuid import uuid4
 
 from heavenly_capital.core.calendar import USMarketsCalendar
-from heavenly_capital.core.clock import MarketClock, AcceleratedTimeHeartbeat, MarketStateChangeEvent, MarketState
+from heavenly_capital.core.clock import (
+    MarketClock, AcceleratedTimeHeartbeat,
+    MarketEventChangeEvent, MarketState)
 
 from heavenly_capital.db.connector import DB_CONNECTOR
 from heavenly_capital.db.reader import DataAccessLayer
@@ -21,7 +24,7 @@ from heavenly_capital.models.system import (
     MarketDaySession,
     BootPlan, BootDecision,
     SystemPorts, DatabasePorts,
-    ShutdownScenario, ExitCode, ShutdownRequest,
+    ShutdownScenario, ExitCode, ShutdownRequest, SystemStatus,
 )
 
 from heavenly_capital.monitoring.error_service import NullErrorService, HealthCheckError
@@ -32,7 +35,7 @@ from heavenly_capital.monitoring.notification_service import NullNotificationSer
 
 
 heartbeat = AcceleratedTimeHeartbeat(
-        day_seconds=600,
+        day_seconds=200,
         start_timestamp=datetime.datetime(2026,1,1,0,0).timestamp())
 
 
@@ -51,15 +54,14 @@ class Kernel:
 
         self._loop = asyncio.get_event_loop()
 
-        self.state = SystemState()
+        self.system_state = SystemState()
+        self._today_session: MarketDaySession | None = None
+        self._pre_market_event = asyncio.Event()
+        print(f"[Kernel] System state: {self.system_state}")
 
         self._market_clock = MarketClock(time_source=heartbeat)
-        self._market_handlers = {
-            MarketState.CLOSED: self._on_market_closed,
-            MarketState.PRE_MARKET: self._on_pre_market,
-            MarketState.OPEN: self._on_market_open,
-            MarketState.POST_MARKET: self._on_post_market,
-        }
+        self._market_clock.subscribe_market(self.on_market_state_change)
+        self._market_clock.start()
 
         self._market_calendar = USMarketsCalendar()
 
@@ -72,9 +74,17 @@ class Kernel:
         self._modules = RuntimeRegistry().build()
         self._runtime_config = RuntimeConfig()
 
+
         self._modules_started = False
         self._modules_configured = False
 
+
+        self._market_handlers: dict[MarketState, Callable[[], Coroutine]] = {
+            MarketState.PRE_MARKET: self._on_pre_market,
+            MarketState.OPEN: self._on_market_open,
+            MarketState.POST_MARKET: self._on_post_market,
+            MarketState.CLOSED: self._on_market_closed,
+        }
 
     @staticmethod
     def _build_db_service():
@@ -82,6 +92,29 @@ class Kernel:
             writer=DataIngestionLayer(connector=DB_CONNECTOR),
             reader=DataAccessLayer(connector=DB_CONNECTOR)
         )
+
+    def _update_session(
+            self,
+            phase: SessionPhase | None = None,
+            status: SessionStatus | None = None,
+            state: SessionState | None = None,
+            error: bool | None = None
+    ):
+        if phase:
+            self._today_session.phase = phase
+        if status:
+            self._today_session.status = status
+        if state:
+            self._today_session.state = state
+        if error is not None:
+            self._today_session.error = error
+
+        self._db.writer.update_session(self._today_session)
+
+        print(f"[Kernel] Session updated: {self._today_session}")
+
+
+
 
 
 # region Boostrap
@@ -94,8 +127,8 @@ class Kernel:
                 detail="The market is closed today."
             )
 
-        today_session = self._build_market_day_session()
-        boot_plan = self._build_boot_plan(today_session=today_session)
+        self._today_session = self._build_market_day_session()
+        boot_plan = self._build_boot_plan()
 
         await self._execute_boot_plan(boot_plan)
         return None
@@ -108,81 +141,68 @@ class Kernel:
         if row is not None:
             return MarketDaySession.from_database(row)
 
-        market_day_session = MarketDaySession(
+        today_session = MarketDaySession(
             session_id=uuid4(),
             session_date=today,
-            status=SessionStatus.OPEN,
-            phase=SessionPhase.STRATEGIC_SETUP,
-            state=SessionState.RUNNING,
+            status=SessionStatus.IN_PROGRESS,
+            phase=SessionPhase.STRATEGIC_SETUP, # TODO: WTF
+            state=SessionState.INITIALIZATION,
             error=False
         )
 
-        self._db.writer.persist_session(session=market_day_session)
+        self._db.writer.update_session(session=today_session)
 
-        return market_day_session
+        return today_session
 
 
-    @staticmethod
-    def _build_boot_plan(today_session: MarketDaySession) -> BootPlan:
-        match (today_session.status, today_session.error, today_session.phase):
+    def _build_boot_plan(self) -> BootPlan:
+        match (self._today_session.status, self._today_session.error, self._today_session.phase):
 
-            case (SessionStatus.OPEN, False, SessionPhase.STRATEGIC_SETUP):
+            case (SessionStatus.IN_PROGRESS, False, SessionPhase.STRATEGIC_SETUP):
                 return BootPlan(
                     decision=BootDecision.BOOT_NEW_SESSION,
-                    session=today_session,
-                    procedure="PRE_MARKET", #TODO:TEMPORARY TURN STRATEGIC_SETUP TO PRE_MARKET
+                    session=self._today_session,
+                    procedure="MARKET_SETUP", #TODO:TEMPORARY TURN STRATEGIC_SETUP TO MARKET_SETUP
                 )
 
-            case (SessionStatus.OPEN, False, SessionPhase.PRE_MARKET):
+            case (SessionStatus.IN_PROGRESS, False, SessionPhase.MARKET_SETUP):
                 return BootPlan(
                     decision=BootDecision.REBOOT,
-                    session=today_session,
-                    procedure="PRE_MARKET",
+                    session=self._today_session,
+                    procedure="MARKET_SETUP",
                 )
 
-            case (SessionStatus.OPEN, True, SessionPhase.STRATEGIC_SETUP):
+            case (SessionStatus.IN_PROGRESS, True, SessionPhase.STRATEGIC_SETUP):
                 return BootPlan(
                     decision=BootDecision.REBOOT,
-                    session=today_session,
-                    procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
+                    session=self._today_session,
+                    procedure=f"RESTART_AFTER_STOP:{self._today_session.phase.value}",
                 )
 
-            case (SessionStatus.OPEN, True, SessionPhase.PRE_MARKET):
+            case (SessionStatus.IN_PROGRESS, True, SessionPhase.MARKET_SETUP):
                 return BootPlan(
                     decision=BootDecision.REBOOT,
-                    session=today_session,
-                    procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
-                )
-
-            case (SessionStatus.OPEN, True, SessionPhase.IN_MARKET):
-                return BootPlan(
-                    decision=BootDecision.RECOVERY,
-                    session=today_session,
-                    procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
-                )
-
-            case (SessionStatus.OPEN, True, SessionPhase.POST_MARKET):
-                return BootPlan(
-                    decision=BootDecision.RECOVERY,
-                    session=today_session,
-                    procedure=f"RESTART_AFTER_STOP:{today_session.phase.value}",
+                    session=self._today_session,
+                    procedure=f"RESTART_AFTER_STOP:{self._today_session.phase.value}",
                 )
 
             case _:
                 raise ValueError(
-                    f"Boot plan not found for status={today_session.status}, "
-                    f"error={today_session.error}, phase={today_session.phase}"
+                    f"Boot plan not found for status={self._today_session.status}, "
+                    f"error={self._today_session.error}, phase={self._today_session.phase}"
                 )
 
 
     async def _execute_boot_plan(self, plan: "BootPlan") -> None:
+        self.system_state.set_status(SystemStatus.RUNNING)
+
         proc = plan.procedure
         if proc == "STRATEGIC_SETUP":
             self._proc_strategic_setup(plan)
             return
 
-        if proc == "PRE_MARKET":
-            await self._proc_pre_market(plan)
+        if proc == "MARKET_SETUP":
+            await self._proc_market_setup(plan)
             return
 
         if proc.startswith("RESTART_AFTER_STOP:"):
@@ -212,7 +232,7 @@ class Kernel:
         # Warning : si le shutdown leve une erreur, elle sera ignoree avec finally
         try:
             try:
-                self.state.set_status(self.state.status, detail=request.detail)
+                self.system_state.set_status(self.system_state.status, detail=request.detail)
             except Exception:
                 pass
 
@@ -245,51 +265,15 @@ class Kernel:
         return
 
 
-    async def _proc_pre_market(self, plan: "BootPlan") -> None:
-        self._market_clock.subscribe_market(self.on_market_state_change)
-        self._market_clock.start()
-
-
-    async def _on_pre_market(self):
-        print("[Kernel] PRE_MARKET triggered. Pre-market phase started.")
-
-        await self.launch_global_runtime()
-        self.launch_local_runtime()
-
-        await self._modules.ibkr_gateway.update_account_state()
-        await self._modules.ibkr_gateway.load_universe_snapshot()
-
-        self._sync_hubs_with_contracts()
-        await self.initialize_market_data_feeds()
-        self._register_threads()
-
-        await self._modules.ibkr_gateway.client_manager.start()
-
-        await self._modules.ibkr_gateway.start_streaming()
-        self._start_runtime_loop()
-        await self._modules.ibkr_gateway.client_manager.wait()
-
-
-    async def _on_market_closed(self):
-        print("[Kernel] MARKET_CLOSED triggered. Market is now closed.")
-
-        await self._modules.ibkr_gateway.update_account_state()
-        await self._modules.ibkr_gateway.stop_streaming()
-
-        self._modules.thread_manager.stop_thread("runtime_loop")
-
-
-    async def _on_market_open(self):
-        print("[Kernel] MARKET_OPEN triggered. Active trading started.")
-
-    async def _on_post_market(self):
-        print("[Kernel] POST_MARKET triggered. Post-market phase running.")
-
+    async def _proc_market_setup(self, plan: "BootPlan") -> None:
+        await self.initialize_market_setup()
+        await self._pre_market_event.wait()
+        await self.start_market_runtime()
 
 
     def _proc_restart_after_stop(self, plan: "BootPlan") -> None:
         """
-        Peut parser plan.procedure, ex: 'RESTART_AFTER_STOP:PRE_MARKET'
+        Peut parser plan.procedure, ex: 'RESTART_AFTER_STOP:MARKET_SETUP'
         """
         # TODO: parser la phase et appliquer la stratégie de recovery
         return
@@ -397,7 +381,45 @@ class Kernel:
         self._wire_local_runtime()
 
 
+    async def initialize_market_setup(self) -> None:
+        await self.launch_global_runtime()
+        self.launch_local_runtime()
+
+        await self._modules.ibkr_gateway.update_account_state()
+        await self._modules.ibkr_gateway.load_universe_snapshot()
+
+        self._sync_hubs_with_contracts()
+        await self.initialize_market_data_feeds()
+        self._register_threads()
+
+        await self._modules.ibkr_gateway.client_manager.start()
+
+        self._update_session(state=SessionState.STAND_BY)
+
+
+    async def start_market_runtime(self) -> None:
+        self._update_session(state=SessionState.RUNNING)
+
+        await self._modules.ibkr_gateway.start_streaming()
+        self._start_runtime_loop()
+
+        await self._modules.ibkr_gateway.client_manager.wait()
+
+
+    async def stop_market_runtime(self) -> None:
+        self._update_session(state=SessionState.SETTLING)
+
+        await self._modules.ibkr_gateway.update_account_state()
+        await self._modules.ibkr_gateway.stop_streaming()
+
+        self._stop_runtime_loop()
+
+
+
+
+
     # endregion
+
 
     # region Wiring
 
@@ -448,6 +470,9 @@ class Kernel:
 
     # endregion
 
+
+    # region MARKET_SETUP
+
     async def initialize_market_data_feeds(self):
         self._modules.feature_manager.build_market_data_banks()
         self._modules.feature_manager.subscribe_to_live_candle()
@@ -495,8 +520,17 @@ class Kernel:
     def _start_runtime_loop(self) -> None:
         self._modules.thread_manager.start_thread("runtime_loop")
 
+    def _stop_runtime_loop(self) -> None:
+        self._modules.thread_manager.stop_thread("runtime_loop")
 
-    def on_market_state_change(self, event: MarketStateChangeEvent):
+
+    # endregion
+
+
+
+
+
+    def on_market_state_change(self, event: MarketEventChangeEvent):
         handler = self._market_handlers.get(event.current)
         if handler:
             asyncio.run_coroutine_threadsafe(handler(), self._loop)
@@ -509,6 +543,17 @@ class Kernel:
         return
 
 
+    async def _on_pre_market(self):
+        self._pre_market_event.set()
+
+    async def _on_market_open(self):
+        print("Market open")
+
+    async def _on_post_market(self):
+        print("Post market")
+
+    async def _on_market_closed(self):
+        await self.stop_market_runtime()
 
 
 
@@ -523,20 +568,41 @@ class Kernel:
 
 
 
-    # def run_readiness_checks(self, checks: Iterable[ReadinessCheck]) -> list[ConnectionStatus]:
-    #     results: list[ConnectionStatus] = []
-    #     try:
-    #         for check in checks:
-    #             results.append(check.ping())
-    #     except Exception:
-    #         self._set_status(SystemStatus.ERROR)
-    #         return results
-    #
-    #     con_status = all(r.status for r in results)
-    #     self._set_status(SystemStatus.READY if con_status else SystemStatus.ERROR)
-    #     return results
 
 
 
 
 
+
+
+
+
+
+
+
+
+        # self._market_handlers = {
+        #     MarketEvent.CLOSED: self._on_market_closed,
+        #     MarketEvent.PRE_MARKET: self._on_pre_market,
+        #     MarketEvent.OPEN: self._on_market_open,
+        #     MarketEvent.POST_MARKET: self._on_post_market,
+        # }
+        #
+        #
+        # async def _on_pre_market(self):
+
+
+        #
+        # async def _on_market_closed(self):
+        #     print("[Kernel] MARKET_CLOSED triggered. Market is now closed.")
+        #
+        #     await self._modules.ibkr_gateway.update_account_state()
+        #     await self._modules.ibkr_gateway.stop_streaming()
+        #
+        #     self._stop_runtime_loop()
+        #
+        # async def _on_market_open(self):
+        #     print("[Kernel] MARKET_OPEN triggered. Active trading started.")
+        #
+        # async def _on_post_market(self):
+        #     print("[Kernel] POST_MARKET triggered. Post-market phase running.")

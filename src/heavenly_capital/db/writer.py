@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 from ib_async import Order, Execution, Trade, CommissionReport
 from sqlalchemy import text, Connection
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 
 from heavenly_capital.db.connector import DBConnector
 
@@ -12,7 +12,7 @@ from heavenly_capital.db.connector import DBConnector
 if TYPE_CHECKING:
     from heavenly_capital.models.account import AccountState
     from heavenly_capital.models.portfolio import Portfolio
-    from heavenly_capital.models.runtime import MarketDaySession
+    from heavenly_capital.models.session import MarketDaySession
 
 
 class DataIngestionLayer:
@@ -20,22 +20,26 @@ class DataIngestionLayer:
     def __init__(self, connector: DBConnector):
         self._connector = connector
 
-    def persist_session(self, session: "MarketDaySession") -> None:
+    def update_session(self, session: "MarketDaySession") -> None:
         query = text("""
-                     INSERT INTO trading.market_day_session (session_id,
-                                                             session_date,
-                                                             status,
-                                                             phase,
-                                                             state,
-                                                             error)
-                     VALUES (:session_id,
-                             :session_date,
-                             :status,
-                             :phase,
-                             :state,
-                             :error)
-                     ON CONFLICT (session_date) DO NOTHING
-                     """)
+                    INSERT INTO trading.market_day_session (session_id,
+                                                            session_date,
+                                                            status,
+                                                            phase,
+                                                            state,
+                                                            error)
+                    VALUES (:session_id,
+                            :session_date,
+                            :status,
+                            :phase,
+                            :state,
+                            :error)
+                    ON CONFLICT (session_date)
+                        DO UPDATE SET status = EXCLUDED.status,
+                                      phase  = EXCLUDED.phase,
+                                      state  = EXCLUDED.state,
+                                      error  = EXCLUDED.error
+                    """)
 
         with self._connector.uow() as conn:
             conn.execute(query, {
@@ -48,21 +52,21 @@ class DataIngestionLayer:
             })
 
 
-    def insert_session(
+    def insert_account(
         self,
-        session_name: str,
+        account_name: str,
         account_id: str,
         mode: str,
         context: Optional[Dict[str, Any]] = None
     ) -> None:
         query = text("""
-            INSERT INTO trading.session_registry (session_name, account_id, mode, context)
-            VALUES (:session_name, :account_id, :mode, :context)
+            INSERT INTO trading.account_registry (account_name, account_id, mode, context)
+            VALUES (:account_name, :account_id, :mode, :context)
         """)
 
         with self._connector.uow() as conn:
             conn.execute(query, {
-                "session_name": session_name,
+                "account_name": account_name,
                 "account_id": account_id,
                 "mode": mode,
                 "context": context
@@ -1196,21 +1200,6 @@ class DataIngestionLayer:
             }
         )
 
-    # def persist_model_records(self, records: list[dict]) -> None:
-    #     if not records:
-    #         return
-    #
-    #     query = text("""
-    #                  INSERT INTO trading.model_records
-    #                  (model_name, version, con_id, step, decision, score, output_at, prediction_ts, trading_day)
-    #                  VALUES (:model_name, :version, :con_id, :step, :decision, :score, :output_at, :prediction_ts,
-    #                          :trading_day)
-    #                  ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
-    #                  """)
-    #
-    #     with self._connector.uow() as conn:
-    #         conn.execute(query, records)
-
     def persist_model_records(self, records: list[dict]) -> None:
         if not records:
             return
@@ -1223,13 +1212,8 @@ class DataIngestionLayer:
                      ON CONFLICT (model_name, version, con_id, trading_day, step) DO NOTHING
                      """)
 
-        try:
-            with self._connector.uow() as conn:
-                conn.execute(query, records)
-
-        except SQLAlchemyError as e:
-            print("Database error:", e)
-            raise
+        with self._connector.uow() as conn:
+            conn.execute(query, records)
 
 
     def persist_bars(self, bars_dict: dict[int, dict[str, Any]]) -> None:

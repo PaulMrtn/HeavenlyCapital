@@ -240,7 +240,6 @@ class IBKRGateway(AsyncRuntimeModule):
 
     # ---------------------------------
 
-
     # ---- API ------------------------
 
     # TODO: WARNING Get Cash and other information about account
@@ -253,7 +252,6 @@ class IBKRGateway(AsyncRuntimeModule):
     def place_order(self, account_id: str, contract: "Contract", order: "Order") -> None:
         client = self.client_manager.get_client_by_id(account_id)
         client.place_order(contract=contract, order=order)
-
 
     # ---------------------------------
 
@@ -301,7 +299,6 @@ def get_ibkr_gateway() -> IBKRGateway:
     if _instance is None:
         _instance = IBKRGateway()
     return _instance
-
 
 
 

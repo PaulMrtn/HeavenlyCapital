@@ -6,7 +6,7 @@ import threading
 from enum import Enum, auto
 import time
 from dataclasses import dataclass
-
+from typing import Optional
 
 
 class MarketState(Enum):
@@ -17,20 +17,33 @@ class MarketState(Enum):
 
 class TradingState(Enum):
     READ_ONLY = auto()
-    STOP = auto()
-    EXECUTION = auto()
-    CLOSED = auto()
+    RISK_ONLY = auto()
+    EXECUTION_ENABLED = auto()
+    EXECUTION_DISABLED = auto()
+
+class MarketSessionPhase(Enum):
+    INITIALIZATION = auto()
+    STAND_BY = auto()
+    RUNNING = auto()
+    SETTLING = auto()
+    SHUTDOWN = auto()
 
 @dataclass(frozen=True)
-class TradingStateChangeEvent:
+class TradingChangeState:
     previous: TradingState
     current: TradingState
     timestamp: float
 
 @dataclass(frozen=True)
-class MarketStateChangeEvent:
+class MarketEventChangeEvent:
     previous: MarketState
     current: MarketState
+    timestamp: float
+
+@dataclass(frozen=True)
+class MarketSessionPhaseChangeEvent:
+    previous: MarketSessionPhase
+    current: Optional[MarketSessionPhase]
     timestamp: float
 
 
@@ -72,6 +85,9 @@ class SystemTimeHeartbeat:
 
 
 class MarketClock:
+    # TODO: WARNING — Refactor state transitions (market/trading/system):
+    #  remove duplicated logic, factorize transition handling, and simplify on_heartbeat().
+
     _instance = None
     _lock = threading.Lock()
 
@@ -86,9 +102,11 @@ class MarketClock:
         if self._initialized:
             return
         self._market_state = MarketState.CLOSED
-        self._trading_state = TradingState.CLOSED
+        self._trading_state = TradingState.EXECUTION_DISABLED
+        self._system_state = MarketSessionPhase.INITIALIZATION
         self._step_state = 0
 
+        self._system_subscribers = []
         self._market_subscribers = []
         self._trading_subscribers = []
 
@@ -104,49 +122,64 @@ class MarketClock:
     def subscribe_trading(self, callback):
         self._trading_subscribers.append(callback)
 
+    def subscribe_kernel(self, callback):
+        self._system_subscribers.append(callback)
+
 
     @staticmethod
     def _compute_market_state(timestamp: float) -> MarketState:
-        local_time = time.localtime(timestamp)
-        hour_decimal = local_time.tm_hour + local_time.tm_min / 60
+        lt = time.localtime(timestamp)
+        t = lt.tm_hour + lt.tm_min / 60
 
-        if 4 <= hour_decimal < 9.5:
+        if 4 <= t < 9.5:
             return MarketState.PRE_MARKET
-        if 9.5 <= hour_decimal < 16:
+        if 9.5 <= t < 16:
             return MarketState.OPEN
-        if 16 <= hour_decimal < 20:
+        if 16 <= t < 20:
             return MarketState.POST_MARKET
         return MarketState.CLOSED
 
     @staticmethod
     def _compute_trading_state(timestamp: float) -> TradingState:
-        local_time = time.localtime(timestamp)
-        hour_decimal = local_time.tm_hour + local_time.tm_min / 60
+        lt = time.localtime(timestamp)
+        t = lt.tm_hour + lt.tm_min / 60
 
-        if (4 <= hour_decimal < 8) or (18 <= hour_decimal < 20):
+        if 4 <= t < 6.5 or 18 <= t < 20:
             return TradingState.READ_ONLY
-        if (6.5 <= hour_decimal < 9.5) or (16 <= hour_decimal < 18):
-            return TradingState.STOP
-        if 9.5 <= hour_decimal < 16:
-            return TradingState.EXECUTION
-        return TradingState.CLOSED
+        elif 6.5 <= t < 9.5 or 16 <= t < 18:
+            return TradingState.RISK_ONLY
+        elif 9.5 <= t < 16:
+            return TradingState.EXECUTION_ENABLED
+        else:
+            return TradingState.EXECUTION_DISABLED
+
+
+    @staticmethod
+    def _compute_system_event(timestamp: float) -> Optional[MarketSessionPhase]:
+        lt = time.localtime(timestamp)
+        t = lt.tm_hour + lt.tm_min / 60
+
+        if 4 <= t < 20:
+            return MarketSessionPhase.RUNNING
+
+        return None
+
 
     @staticmethod
     def _compute_step_state(timestamp: float) -> int:
-        local_time = time.localtime(timestamp)
-
-        minutes_since_midnight = local_time.tm_hour * 60 + local_time.tm_min
+        lt = time.localtime(timestamp)
+        t = lt.tm_hour * 60 + lt.tm_min
 
         start = 9 * 60 + 30
         end = 16 * 60
 
-        if minutes_since_midnight < start:
+        if t < start:
             return 0
 
-        if minutes_since_midnight >= end:
+        if t >= end:
             return 390
 
-        return minutes_since_midnight - start
+        return t - start
 
 
     def on_heartbeat(self, timestamp: float):
@@ -154,9 +187,10 @@ class MarketClock:
 
         new_market_state = self._compute_market_state(timestamp)
         new_trading_state = self._compute_trading_state(timestamp)
+        _new_system_state = self._compute_system_event(timestamp)
 
         if new_market_state != self._market_state:
-            event_market = MarketStateChangeEvent(
+            event_market = MarketEventChangeEvent(
                 previous=self._market_state,
                 current=new_market_state,
                 timestamp=timestamp
@@ -164,8 +198,9 @@ class MarketClock:
             self._market_state = new_market_state
             self._notify_market(event_market)
 
+
         if new_trading_state != self._trading_state:
-            event_trading = TradingStateChangeEvent(
+            event_trading = TradingChangeState(
                 previous=self._trading_state,
                 current=new_trading_state,
                 timestamp=timestamp
@@ -174,13 +209,32 @@ class MarketClock:
             self._notify_trading(event_trading)
 
 
-    def _notify_market(self, event: MarketStateChangeEvent):
+        if _new_system_state != self._system_state:
+            event_kernel = MarketSessionPhaseChangeEvent(
+                previous=self._system_state,
+                current=_new_system_state,
+                timestamp=timestamp
+            )
+            self._system_state = _new_system_state
+            self._notify_kernel(event_kernel)
+
+
+
+    def _notify_market(self, event: MarketEventChangeEvent):
         for cb in self._market_subscribers:
             cb(event)
 
-    def _notify_trading(self, event: TradingStateChangeEvent):
+    def _notify_trading(self, event: TradingChangeState):
         for cb in self._trading_subscribers:
             cb(event)
+
+    def _notify_kernel(self, event: MarketSessionPhaseChangeEvent):
+        for cb in self._system_subscribers:
+            cb(event)
+
+
+
+
 
     def start(self):
         self._time_source.start()
@@ -195,11 +249,11 @@ class MarketClock:
 
     @property
     def is_execution_time(self) -> bool:
-        return self._trading_state == TradingState.EXECUTION
+        return self._trading_state == TradingState.EXECUTION_ENABLED
 
     @property
     def is_trading_stopped(self) -> bool:
-        return self._trading_state == TradingState.STOP
+        return self._trading_state == TradingState.RISK_ONLY
 
     @property
     def is_read_only(self) -> bool:
