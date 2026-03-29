@@ -180,7 +180,7 @@ class FreqState:
     seen_conids: Set[int] = field(default_factory=set)
 
 
-class FeatureManager(RuntimeModule):
+class FeatureEngine(RuntimeModule):
 
     def __init__(self) -> None:
         self._configured: bool = False
@@ -443,10 +443,10 @@ class FeatureManager(RuntimeModule):
 
 
 
-_instance: Optional["FeatureManager"] = None
+_instance: Optional["FeatureEngine"] = None
 
-def get_feature_manager() -> "FeatureManager":
+def get_feature_manager() -> "FeatureEngine":
     global _instance
     if _instance is None:
-        _instance = FeatureManager()
+        _instance = FeatureEngine()
     return _instance

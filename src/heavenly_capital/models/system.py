@@ -11,7 +11,7 @@ from heavenly_capital.core.thread import get_thread_manager, ThreadManager
 from heavenly_capital.data.historic import get_historic_data_hub, HistoricDataHub
 from heavenly_capital.data.live import get_live_data_hub, LiveDataHub
 from heavenly_capital.ibkr.gateway import get_ibkr_gateway, IBKRGateway
-from heavenly_capital.strategy.feature_engine import get_feature_manager, FeatureManager
+from heavenly_capital.strategy.feature_engine import get_feature_manager, FeatureEngine
 from heavenly_capital.strategy.forecast_engine import get_forecast_manager, ForecastManager
 
 
@@ -19,7 +19,6 @@ class SystemStatus(StrEnum):
     BOOTING = "BOOTING"
     RUNNING = "RUNNING"
     STOPPING = "STOPPING"
-    STOPPED = "STOPPED"
     ERROR = "ERROR"
 
 
@@ -33,23 +32,23 @@ class SystemState:
         if self.status == status:
             return
 
-        previous = self.status
-
         self.status = status
         self.since = datetime.now(timezone.utc)
         self.detail = detail
 
-        print(f"[System] {previous} -> {status} ({detail})")
-
 
 class ExitCode(IntEnum):
     OK = 0
-    MARKET_CLOSED_TODAY = 20
+    STRATEGIC_SETUP_COMPLETED = 10
+    MARKET_SETUP_COMPLETED = 20
+    MARKET_CLOSED_TODAY = 30
+    ERROR = 40
 
 
 class ShutdownScenario(StrEnum):
     BOOTSTRAP_MARKET_CLOSED = "BOOTSTRAP_MARKET_CLOSED"
-    SESSION_END_NORMAL = "SESSION_END_NORMAL"
+    MARKET_SETUP_DONE = "MARKET_SETUP_DONE"
+    STRATEGIC_SETUP_DONE = "STRATEGIC_SETUP_DONE"
     FATAL_ERROR = "FATAL_ERROR"
     UNKNOWN = "UNKNOWN"
 
@@ -72,7 +71,6 @@ class BootDecision(StrEnum):
 @dataclass(slots=True)
 class BootPlan:
     decision: BootDecision
-    session: MarketDaySession
     procedure: str  #  ex: "PRE_MARKET", "STRATEGIC_SETUP", "RECOVERY:<phase>"
 
 
@@ -117,7 +115,7 @@ class RuntimeRegistry:
     ibkr_gateway: Optional[Union["RuntimeModule", "IBKRGateway"]] = None
     historic_hub: Optional[Union["RuntimeModule", "HistoricDataHub"]] = None
     live_hub: Optional[Union["RuntimeModule", "LiveDataHub"]] = None
-    feature_manager: Optional[Union["RuntimeModule", "FeatureManager"]] = None
+    feature_manager: Optional[Union["RuntimeModule", "FeatureEngine"]] = None
     forecast_manager: Optional[Union["RuntimeModule", "ForecastManager"]] = None
     session_manager: Optional[Union["RuntimeModule", "SessionManager"]] = None
 

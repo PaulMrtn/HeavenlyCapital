@@ -6,6 +6,7 @@ from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
 
+from heavenly_capital.core.thread import get_thread_manager
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
@@ -32,7 +33,7 @@ class PortfolioManager(BaseModule):
         self._portfolio: Optional["Portfolio"] = None
         self._portfolio_lock = Lock()
         self._portfolio_target: Optional["PortfolioTarget"] = None
-        self._tickers = None
+        self._tickers: Optional["TickerManager"] = None
         self.live_orders: list[OrderTracker] = []
 
         self._in_bus: Optional["EventBus"] = None
@@ -93,6 +94,7 @@ class PortfolioManager(BaseModule):
         portfolio_id = self._key.portfolio_id
 
         if self._ports.db_service.reader.check_rebalance_date(portfolio_id, today):
+            print("Rebalancing portfolio")
             self._portfolio_target = self.get_portfolio_target(
                 portfolio_id=portfolio_id,
                 rebalance_date=today
@@ -258,12 +260,27 @@ class PortfolioManager(BaseModule):
 
             position.mark_to_market(market_data)
 
+
+
+    def update_portfolio_in_db_async(self, portfolio):
+        tm = get_thread_manager()
+
+        tm.submit(
+            "db_writer",
+            self._ports.db_service.writer.update_portfolio_in_db,
+            portfolio
+        )
+
+
     def update_database(self, current_time: float) -> None:
         current_interval = int(current_time) // UPDATE_INTERVAL
 
         if current_interval != self._last_db_update_interval:
             self._last_db_update_interval = current_interval
-            self._ports.db_service.writer.update_portfolio_in_db(self._portfolio)
+            self.update_portfolio_in_db_async(self._portfolio)
+
+            # TODO:LOW del the commentary below once the thread is ready
+            # self._ports.db_service.writer.update_portfolio_in_db(self._portfolio)
 
 
     def refresh_portfolio(self) -> None:
@@ -275,6 +292,7 @@ class PortfolioManager(BaseModule):
             self._portfolio.refresh_balance()
 
         self.update_database(time.time())
+
 
     def authorize_order(self, signal: ModelSignal) -> None:
         if not signal.output.decision:

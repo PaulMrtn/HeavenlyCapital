@@ -115,11 +115,6 @@ class ThreadManager(RuntimeModule):
         for t in self._threads.values():
             t.join()
 
-    def is_started(self) -> bool:
-        return self._started
-
-    def is_configured(self) -> bool:
-        return self._configured
 
 
     def health_check(self) -> dict[str, Any]:
@@ -134,7 +129,6 @@ class ThreadManager(RuntimeModule):
     #         "is_started": self._started,
     #         "is_configured": self._configured,
     #     }
-
 
 
 

@@ -64,7 +64,7 @@ class TradingSessionConfig:
     context: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_database(cls, row: dict) -> "TradingSessionConfig":
+    def from_database(cls, row: Dict[str, Any]) -> "TradingSessionConfig":
         portfolios = tuple(
             PortfolioConfig(**p) for p in row.get("portfolios", ())
         )

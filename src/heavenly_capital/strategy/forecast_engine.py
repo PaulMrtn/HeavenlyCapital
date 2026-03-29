@@ -8,6 +8,7 @@ from ib_async import Contract
 
 from typing import List, Dict, Optional
 
+from heavenly_capital.core.thread import get_thread_manager
 from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState, ModelSignal
 from heavenly_capital.data.bus import EventBus
@@ -366,10 +367,21 @@ class ForecastManager(RuntimeModule):
 
         self._store.record(record=record, model_id=model_id, conid=conid)
 
+    def persist_model_records_async(self, payload):
+        tm = get_thread_manager()
+
+        tm.submit(
+            "db_writer",
+            self._ports.db_service.writer.persist_model_records,
+            payload
+        )
+
 
     def persist_predictions(self) -> None:
         payload = self._store.to_payload()
-        self._ports.db_service.writer.persist_model_records(payload)
+        # TODO:LOW del the commentary below once the thread is ready
+        # self._ports.db_service.writer.persist_model_records(payload)
+        self.persist_model_records_async(payload)
         self._store.flush()
 
 

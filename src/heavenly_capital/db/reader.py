@@ -16,7 +16,7 @@ class DataAccessLayer:
 
 
     def get_session_by_date(self, session_date: "date") -> Optional[RowMapping]:
-    # TODO:WARNING : Ensure that dates are synchronized between the application, the broker, and the NYSE time zone
+    # TODO:WARNING : Ensure that all dates are synchronized between the application, the broker, and the NYSE time zone
 
         query = text("""
             SELECT session_id, session_date, status, phase, state, error

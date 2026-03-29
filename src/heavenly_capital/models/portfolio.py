@@ -59,6 +59,7 @@ class PortfolioBalance:
     unrealized_pnl: Decimal
     total_commission: Decimal = Decimal("0")
 
+
 @dataclass(frozen=True, slots=True)
 class PortfolioSnapshot:
     portfolio_id : str
@@ -72,6 +73,7 @@ class PortfolioSnapshot:
 class PortfolioTarget:
     weights: Dict[int, float]
     rebalance_date: str  # datetime.date
+
 
 @dataclass
 class Portfolio:

@@ -150,7 +150,7 @@ class OrderManager(BaseModule):
 
 
 
-
+# TODO:HIGH - self._market_clock.subscribe_trading() add callback to ensure not in read_only mode (risk_manager, portfolio order idntknw)
 
 
 

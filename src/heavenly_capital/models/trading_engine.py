@@ -1,21 +1,9 @@
 from dataclasses import dataclass
 from datetime import date
-from enum import Enum
 from typing import Any, Dict
 
 from heavenly_capital.models.runtime import ModuleRouter, ModuleType, BaseModule
 
-
-class TradingMode(str, Enum):
-    PAPER = "PAPER"
-    LIVE = "LIVE"
-
-
-class TradingSessionState(str, Enum):
-    IDLE = "IDLE"
-    RUNNING = "RUNNING"
-    STOPPED = "STOPPED"
-    CLOSED = "CLOSED"
 
 
 @dataclass(frozen=True)
@@ -23,7 +11,7 @@ class TradingSessionKey:
     session_date: date
     account_id: str
     portfolio_id: str
-    mode: TradingMode
+    mode: str
 
 
 

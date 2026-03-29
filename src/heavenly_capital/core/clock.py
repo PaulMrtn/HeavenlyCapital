@@ -21,7 +21,7 @@ class TradingState(Enum):
     EXECUTION_ENABLED = auto()
     EXECUTION_DISABLED = auto()
 
-class MarketSessionPhase(Enum):
+class MarketPhase(Enum): # TODO:LOW - Use another class name MarketPhase ?
     INITIALIZATION = auto()
     STAND_BY = auto()
     RUNNING = auto()
@@ -41,9 +41,9 @@ class MarketEventChangeEvent:
     timestamp: float
 
 @dataclass(frozen=True)
-class MarketSessionPhaseChangeEvent:
-    previous: MarketSessionPhase
-    current: Optional[MarketSessionPhase]
+class MarketPhaseChangeEvent:
+    previous: MarketPhase
+    current: Optional[MarketPhase]
     timestamp: float
 
 
@@ -101,9 +101,9 @@ class MarketClock:
     def __init__(self, time_source):
         if self._initialized:
             return
-        self._market_state = MarketState.CLOSED
         self._trading_state = TradingState.EXECUTION_DISABLED
-        self._system_state = MarketSessionPhase.INITIALIZATION
+        self._market_state = MarketState.CLOSED
+        self._system_state = MarketPhase.INITIALIZATION
         self._step_state = 0
 
         self._system_subscribers = []
@@ -155,12 +155,12 @@ class MarketClock:
 
 
     @staticmethod
-    def _compute_system_event(timestamp: float) -> Optional[MarketSessionPhase]:
+    def _compute_system_event(timestamp: float) -> Optional[MarketPhase]:
         lt = time.localtime(timestamp)
         t = lt.tm_hour + lt.tm_min / 60
 
         if 4 <= t < 20:
-            return MarketSessionPhase.RUNNING
+            return MarketPhase.RUNNING
 
         return None
 
@@ -210,7 +210,7 @@ class MarketClock:
 
 
         if _new_system_state != self._system_state:
-            event_kernel = MarketSessionPhaseChangeEvent(
+            event_kernel = MarketPhaseChangeEvent(
                 previous=self._system_state,
                 current=_new_system_state,
                 timestamp=timestamp
@@ -228,12 +228,9 @@ class MarketClock:
         for cb in self._trading_subscribers:
             cb(event)
 
-    def _notify_kernel(self, event: MarketSessionPhaseChangeEvent):
+    def _notify_kernel(self, event: MarketPhaseChangeEvent):
         for cb in self._system_subscribers:
             cb(event)
-
-
-
 
 
     def start(self):

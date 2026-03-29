@@ -4,6 +4,7 @@ from typing import Optional, Any, TYPE_CHECKING, Callable, Dict
 
 from ib_async import Contract, Ticker
 
+from heavenly_capital.core.thread import get_thread_manager
 from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import OHLC, TickerManager
@@ -84,6 +85,7 @@ class InstrumentPipeline:
         }
 
 
+
 class LiveDataHub(RuntimeModule):
 
     def __init__(self) -> None:
@@ -141,6 +143,15 @@ class LiveDataHub(RuntimeModule):
     def health_check(self) -> dict[str, Any]:
         return {"is_healthy": True}
 
+    def persist_bars_async(self, batch):
+        tm = get_thread_manager()
+
+        tm.submit(
+            "db_writer",
+            self._ports.db_service.writer.persist_bars,
+            batch
+        )
+
     def initialize_pipelines(self, contracts: dict[str, Contract]):
         self._pipelines = {
             c.conId: InstrumentPipeline(c) for c in contracts.values()
@@ -182,7 +193,9 @@ class LiveDataHub(RuntimeModule):
                 self.candle_bus.publish(conId, bars)
                 batch_to_persist[conId] = bars
 
-            self._ports.db_service.writer.persist_bars(batch_to_persist)
+            # TODO:LOW del the commentary below once the thread is ready
+            # self._ports.db_service.writer.persist_bars(batch_to_persist)
+            self.persist_bars_async(batch_to_persist)
 
             self._last_agg_time = ts_end
 
