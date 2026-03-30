@@ -35,7 +35,7 @@ from heavenly_capital.monitoring.notification_service import NullNotificationSer
 
 
 heartbeat = AcceleratedTimeHeartbeat(
-        day_seconds=30,
+        day_seconds=120,
         start_timestamp=datetime.datetime(2026,1,1,3,50).timestamp())
 
 
@@ -55,7 +55,7 @@ class Kernel:
 
         self._loop = asyncio.get_event_loop() # TODO: Handle this ( property ? )
 
-        self.system_state = SystemState()
+        self._system_state = SystemState()
         self._today_session: MarketDaySession | None = None
         self._pre_market_event = asyncio.Event() # TODO: Handle this ( property ? )
 
@@ -86,6 +86,24 @@ class Kernel:
             writer=DataIngestionLayer(connector=DB_CONNECTOR),
             reader=DataAccessLayer(connector=DB_CONNECTOR)
         )
+
+
+
+# region Console
+
+
+    def _start_console(self):
+        pass
+
+
+
+
+    def _stop_console(self):
+        pass
+
+
+
+# endregion
 
 
 # region Event Driven
@@ -153,7 +171,6 @@ class Kernel:
     async def _prepare_bootstrap(self):
         today = self._market_calendar.today()
         row = self._db.reader.get_session_by_date(today)
-        print(today)
 
         if row is None:
             if self._market_calendar.is_open_today():
@@ -198,27 +215,16 @@ class Kernel:
 
             case (SessionStatus.IN_PROGRESS, False, SessionPhase.STRATEGIC_SETUP):
                 return BootPlan(
-                    decision=BootDecision.BOOT_NEW_SESSION,
+                    decision=BootDecision.BOOT,
                     procedure="STRATEGIC_SETUP",
                 )
 
-            case (SessionStatus.IN_PROGRESS, False, SessionPhase.MARKET_SETUP):
+            case (SessionStatus.COMPLETED, False, SessionPhase.STRATEGIC_SETUP):
                 return BootPlan(
-                    decision=BootDecision.REBOOT,
+                    decision=BootDecision.BOOT,
                     procedure="MARKET_SETUP",
                 )
 
-            case (SessionStatus.IN_PROGRESS, True, SessionPhase.STRATEGIC_SETUP):
-                return BootPlan(
-                    decision=BootDecision.REBOOT,
-                    procedure=f"RESTART_AFTER_STOP:{self._today_session.phase.value}",
-                )
-
-            case (SessionStatus.IN_PROGRESS, True, SessionPhase.MARKET_SETUP):
-                return BootPlan(
-                    decision=BootDecision.REBOOT,
-                    procedure=f"RESTART_AFTER_STOP:{self._today_session.phase.value}",
-                )
 
             case _:
                 raise ValueError(
@@ -228,19 +234,19 @@ class Kernel:
 
 
     async def _execute_boot_plan(self, plan: "BootPlan") -> None:
-        self.system_state.set_status(SystemStatus.RUNNING)
+
+        self._system_state.set_status(SystemStatus.RUNNING)
 
         proc = plan.procedure
+
         if proc == "STRATEGIC_SETUP":
-            self._proc_strategic_setup()
+            self._strategic_setup()
+            # await self._run_procedure(self._strategic_setup)
             return
 
         if proc == "MARKET_SETUP":
-            await self._proc_market_setup()
-            return
-
-        if proc.startswith("RESTART_AFTER_STOP:"):
-            self._proc_restart_after_stop()
+            await self._market_setup()
+            # await self._run_procedure(self._market_setup)
             return
 
         raise ValueError(f"Unknown procedure: {proc}")
@@ -251,9 +257,9 @@ class Kernel:
 # region Shutdown
     def shutdown(
             self,
-            code: "ExitCode" = None,
+            code: "ExitCode",
+            scenario: "ShutdownScenario",
             detail: str = "",
-            scenario: ShutdownScenario = ShutdownScenario.UNKNOWN,
     ):
 
         if code is None:
@@ -265,9 +271,11 @@ class Kernel:
     def _run_shutdown(self, request: ShutdownRequest) -> None:
         # Warning : si le shutdown leve une erreur, elle sera ignoree avec finally
         try:
-            self.system_state.set_status(SystemStatus.STOPPING, detail=request.detail)
+            self._system_state.set_status(SystemStatus.STOPPING, detail=request.detail)
 
             scenario = request.scenario
+
+            # TODO:LOW - shutdown task sequences are necessary ?
 
             if scenario == ShutdownScenario.BOOTSTRAP_MARKET_CLOSED:
                 self._shutdown_task_bootstrap_market_closed(request)
@@ -299,12 +307,35 @@ class Kernel:
 
 
 # region Procedures
+    async def _run_procedure(self, proc: Callable, *args, **kwargs):
 
-    def _proc_strategic_setup(self) -> None:
+        try:
+            result = proc(*args, **kwargs)
+
+            if asyncio.iscoroutine(result):
+                await result
+
+            return result
+
+        except Exception as e:
+            print(e)
+
+            self._system_state.set_status(SystemStatus.ERROR, detail=str(e))
+
+            self._update_session(error=True)
+
+            self.shutdown(
+                scenario=ShutdownScenario.PROCEDURE_FAILED,
+                code=ExitCode.ERROR,
+                detail=str(e)
+            )
+
+
+    def _strategic_setup(self) -> None:
 
         self._update_session(state=SessionState.RUNNING)
 
-        time.sleep(1)
+        time.sleep(0.3)
 
         self._update_session(state=SessionState.SHUTDOWN,
                              status=SessionStatus.COMPLETED)
@@ -318,15 +349,30 @@ class Kernel:
         return
 
 
-    async def _proc_market_setup(self) -> None:
+    async def _market_setup(self) -> None:
+
+        self._update_session(
+            state=SessionState.INITIALIZATION,
+            status=SessionStatus.IN_PROGRESS,
+            phase=SessionPhase.MARKET_SETUP)
+
         await self.initialize_market_setup()
+
+        self._update_session(
+            state=SessionState.STAND_BY)
+
         await self._pre_market_event.wait()
+
+        self._update_session(
+            state=SessionState.RUNNING)
+
         await self.start_market_runtime()
 
 
-    def _proc_restart_after_stop(self) -> None:
-        # TODO:LOW - Recovery strategy
+    def _restart_after_stop(self) -> None:
+        # TODO:LOW - Recovery strategy ?
         return
+
 
 # endregion
 
@@ -483,12 +529,9 @@ class Kernel:
 
         await self._modules.ibkr_gateway.client_manager.start()
 
-        self._update_session(state=SessionState.STAND_BY)
 
 
     async def start_market_runtime(self) -> None:
-        self._update_session(state=SessionState.RUNNING)
-
         await self._modules.ibkr_gateway.start_streaming()
 
         self._start_threads()

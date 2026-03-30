@@ -404,6 +404,7 @@ class ForecastManager(RuntimeModule):
 
         self.persist_predictions()
 
+
         # print(self._ports.market_clock.step_state)
 
 

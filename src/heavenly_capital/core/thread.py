@@ -24,6 +24,7 @@ class ManagedThread:
             daemon=daemon
         )
 
+
     def _run(self):
         if self._target:
             try:
@@ -141,3 +142,24 @@ def get_thread_manager() -> ThreadManager:
     if _instance is None:
         _instance = ThreadManager()
     return _instance
+
+
+
+
+# TODO:WARNING - Improve ManagedThread shutdown
+# Current implementation waits on queue.get(timeout=0.5), which can delay shutdown.
+# Implement a "poison pill" pattern for immediate stop:
+#
+# _STOP = object()
+#
+# def stop(self):
+#     self._stop_event.set()
+#     self._jobs.put((_STOP, (), {}))   # wake the thread immediately
+#
+# In _run():
+#
+# fn, args, kwargs = self._jobs.get()
+# if fn is _STOP:
+#     break
+#
+# This avoids shutdown latency and prevents potential blocking on queue.get().
