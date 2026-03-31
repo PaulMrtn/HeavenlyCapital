@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import queue
 import threading
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
-from heavenly_capital.models.runtime import RuntimeModule
+from typing import Callable, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from heavenly_capital.models.config import ThreadConfig
@@ -30,7 +29,7 @@ class ManagedThread:
             try:
                 self._target(self._stop_event)
             except Exception as e:
-                print(f"[{self.name}] target error: {e}")
+                print(f"[{self._target}][{self.name}] target error: {e}")
             return
 
         while not self._stop_event.is_set():
@@ -66,7 +65,7 @@ class ManagedThread:
 
 
 
-class ThreadManager(RuntimeModule):
+class ThreadManager:
 
     def __init__(self):
         self._threads: Dict[str, ManagedThread] = {}
@@ -74,7 +73,7 @@ class ThreadManager(RuntimeModule):
         self._configured = False
         self._config: Optional["ThreadConfig"] = None
 
-    def configure(self, config: "ThreadConfig", ports: Any) -> None:
+    def configure(self, config: "ThreadConfig") -> None:
         self._config = config
         self._configured = True
 
@@ -115,21 +114,6 @@ class ThreadManager(RuntimeModule):
             t.stop()
         for t in self._threads.values():
             t.join()
-
-
-
-    def health_check(self) -> dict[str, Any]:
-        return {
-            "is_healthy": True,
-        }
-
-
-    # def health_check(self) -> dict[str, Any]:
-    #     return {
-    #         "threads": {name: t.is_alive for name, t in self._threads.items()},
-    #         "is_started": self._started,
-    #         "is_configured": self._configured,
-    #     }
 
 
 

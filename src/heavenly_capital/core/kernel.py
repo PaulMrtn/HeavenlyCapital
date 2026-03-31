@@ -10,6 +10,9 @@ from heavenly_capital.core.clock import (
     MarketClock, AcceleratedTimeHeartbeat,
     MarketEventChangeEvent, MarketState,)
 
+from heavenly_capital.core.thread import get_thread_manager
+from heavenly_capital.services.console import console_loop
+
 from heavenly_capital.db.connector import DB_CONNECTOR
 from heavenly_capital.db.reader import DataAccessLayer
 from heavenly_capital.db.writer import DataIngestionLayer
@@ -36,7 +39,7 @@ from heavenly_capital.monitoring.notification_service import NullNotificationSer
 
 heartbeat = AcceleratedTimeHeartbeat(
         day_seconds=120,
-        start_timestamp=datetime.datetime(2026,1,1,3,50).timestamp())
+        start_timestamp=datetime.datetime(2026,1,1,0,0).timestamp())
 
 
 
@@ -53,7 +56,8 @@ class Kernel:
         if self._initialized:
             return
 
-        self._loop = asyncio.get_event_loop() # TODO: Handle this ( property ? )
+        self._main_loop = asyncio.get_event_loop() # TODO: Handle this ( property ? )
+        self._thread_manager = get_thread_manager()
 
         self._system_state = SystemState()
         self._today_session: MarketDaySession | None = None
@@ -89,18 +93,43 @@ class Kernel:
 
 
 
+# region Kernel Lifecycle
+    async def start(self) -> None:
+        self._start_console()
+        await self._run_bootstrap()
+
+    def stop(self) -> None:
+        self._stop_console()
+
+
+# endregion
+
+
+
 # region Console
 
 
     def _start_console(self):
-        pass
-
-
+        self._register_console_thread()
+        self._start_console_thread()
 
 
     def _stop_console(self):
-        pass
+        tm = self._thread_manager
+        tm.stop_thread("console")
 
+
+    def _register_console_thread(self) -> None:
+        tm = self._thread_manager
+        tm.register_thread(
+            name="console",
+            target=console_loop,
+            daemon=True
+        )
+
+    def _start_console_thread(self, ) -> None:
+        tm = self._thread_manager
+        tm.start_thread("console")
 
 
 # endregion
@@ -130,7 +159,7 @@ class Kernel:
     def on_market_state_change(self, event: MarketEventChangeEvent) -> None:
         handler = self._market_handlers.get(event.current)
         if handler:
-            asyncio.run_coroutine_threadsafe(handler(), self._loop)
+            asyncio.run_coroutine_threadsafe(handler(), self._main_loop)
         return
 
 
@@ -168,12 +197,12 @@ class Kernel:
 
 # region Boostrap
 
-    async def _prepare_bootstrap(self):
+    async def _run_bootstrap(self):
         today = self._market_calendar.today()
         row = self._db.reader.get_session_by_date(today)
 
         if row is None:
-            if self._market_calendar.is_open_today():
+            if not self._market_calendar.is_open_today():
                 return self.shutdown(
                     scenario=ShutdownScenario.BOOTSTRAP_MARKET_CLOSED,
                     code=ExitCode.MARKET_CLOSED_TODAY,
@@ -403,9 +432,6 @@ class Kernel:
 
         ports = self._build_ports()
 
-        if self._modules.thread_manager:
-            self._modules.thread_manager.configure(self._runtime_config.thread, ports)
-
         if self._modules.ibkr_gateway:
             self._modules.ibkr_gateway.configure(self._runtime_config.ibkr, ports)
 
@@ -432,7 +458,6 @@ class Kernel:
             return
 
         modules_to_start = (
-            self._modules.thread_manager,
             self._modules.ibkr_gateway,
             self._modules.historic_hub,
             self._modules.live_hub,
@@ -458,7 +483,6 @@ class Kernel:
             self._modules.live_hub,
             self._modules.feature_manager,
             self._modules.forecast_manager,
-            self._modules.thread_manager,
             self._modules.session_manager
         )
 
@@ -525,7 +549,7 @@ class Kernel:
 
         self._sync_hubs_with_contracts()
         await self.initialize_market_data_feeds()
-        self._register_threads()
+        self._register_market_threads()
 
         await self._modules.ibkr_gateway.client_manager.start()
 
@@ -534,7 +558,7 @@ class Kernel:
     async def start_market_runtime(self) -> None:
         await self._modules.ibkr_gateway.start_streaming()
 
-        self._start_threads()
+        self._start_market_threads()
 
         await self._modules.ibkr_gateway.client_manager.wait()
 
@@ -545,7 +569,7 @@ class Kernel:
         await self._modules.ibkr_gateway.update_account_state()
         await self._modules.ibkr_gateway.stop_streaming()
 
-        self._stop_threads()
+        self._stop_market_threads()
 
 
 
@@ -604,8 +628,8 @@ class Kernel:
 
 # region Threads
 
-    def _register_threads(self) -> None:
-        tm = self._modules.thread_manager
+    def _register_market_threads(self) -> None:
+        tm = self._thread_manager
         tm.register_thread(
             name="runtime_loop",
             target=self._runtime_tick,
@@ -617,19 +641,20 @@ class Kernel:
             daemon=True
         )
 
-    def _start_threads(self) -> None:
-        tm = self._modules.thread_manager
+    def _start_market_threads(self) -> None:
+        tm = self._thread_manager
 
         tm.start_thread("db_writer")
         tm.start_thread("order_router")
         tm.start_thread("runtime_loop")
 
-    def _stop_threads(self) -> None:
-        tm = self._modules.thread_manager
+    def _stop_market_threads(self) -> None:
+        tm = self._thread_manager
 
         tm.stop_thread("runtime_loop")
         tm.stop_thread("order_router")
         tm.stop_thread("db_writer")
+
 
 
     # endregion

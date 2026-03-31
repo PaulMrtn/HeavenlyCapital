@@ -109,7 +109,6 @@ class SystemPorts:
 
 @dataclass
 class RuntimeRegistry:
-    thread_manager: Optional[Union["RuntimeModule", "ThreadManager"]] = None
     ibkr_gateway: Optional[Union["RuntimeModule", "IBKRGateway"]] = None
     historic_hub: Optional[Union["RuntimeModule", "HistoricDataHub"]] = None
     live_hub: Optional[Union["RuntimeModule", "LiveDataHub"]] = None
@@ -125,6 +124,5 @@ class RuntimeRegistry:
             live_hub=get_live_data_hub(),
             feature_manager=get_feature_manager(),
             forecast_manager=get_forecast_manager(),
-            thread_manager=get_thread_manager(),
             session_manager=get_session_manager(),
         )
