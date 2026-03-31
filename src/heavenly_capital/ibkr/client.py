@@ -132,6 +132,7 @@ class IBKRClient:
                 port=self.port,
                 clientId=self.client_id # to update with session_name
             )
+        # add log
 
         except ConnectionError:
             # TODO: HIGHEST ADD SHUTDOWN HERE
@@ -295,6 +296,7 @@ class ClientManager:
         if self.on_tick:
             self.on_tick(ticker)
 
+
     async def start_streaming(self, contracts: list[Contract]):
         #TODO:HIGH Encapsuler la subscription au contrats dans une fonctions et ajouter la subscription au portefeuille
         for contract in contracts:
@@ -308,12 +310,13 @@ class ClientManager:
             ticker.updateEvent += self._on_ticker_update
             self.tickers_registry[contract.conId] = ticker
 
+
     async def stop_streaming(self):
         for ticker in self.tickers_registry.values():
             try:
                 ticker.updateEvent -= self._on_ticker_update
                 self.master.ib_client.cancelMktData(ticker.contract)
-            except Exception :
+            except Exception as e:
                 pass
 
         self.tickers_registry.clear()

@@ -21,7 +21,7 @@ class TradingState(Enum):
     EXECUTION_ENABLED = auto()
     EXECUTION_DISABLED = auto()
 
-class MarketPhase(Enum): # TODO:LOW - Use another class name MarketPhase ?
+class MarketPhase(Enum):
     INITIALIZATION = auto()
     STAND_BY = auto()
     RUNNING = auto()

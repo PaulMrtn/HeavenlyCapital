@@ -9,8 +9,15 @@ class LogService(Protocol):
 
 
 class NullLogService:
+
     def info(self, message: str, **fields: Any) -> None:
-        return
+        if fields:
+            print(f"[INFO] {message} | {fields}")
+        else:
+            print(f"[INFO] {message}")
 
     def error(self, message: str, **fields: Any) -> None:
-        return
+        if fields:
+            print(f"[ERROR] {message} | {fields}")
+        else:
+            print(f"[ERROR] {message}")

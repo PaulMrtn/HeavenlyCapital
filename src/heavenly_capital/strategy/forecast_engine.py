@@ -379,8 +379,6 @@ class ForecastManager(RuntimeModule):
 
     def persist_predictions(self) -> None:
         payload = self._store.to_payload()
-        # TODO:LOW del the commentary below once the thread is ready
-        # self._ports.db_service.writer.persist_model_records(payload)
         self.persist_model_records_async(payload)
         self._store.flush()
 

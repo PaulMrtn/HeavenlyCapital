@@ -204,6 +204,15 @@ class IBKRGateway(AsyncRuntimeModule):
             if contract.conId > 0
         }
 
+        self._ports.log_service.info(
+            "Universe contracts loaded",
+            extra={
+                "domain": "MARKET",
+                "event": "contracts_loaded",
+                "contracts_count": len(self._contracts)
+            }
+        )
+
     @property
     def contracts(self) -> dict[str, Contract] | None:
         return self._contracts
@@ -303,9 +312,9 @@ def get_ibkr_gateway() -> IBKRGateway:
 
 
 
-    # async def update_portfolio_state(self) -> None:
-    #     portfolios = await self.client_manager.get_portfolio_state()
-    #
-    #     for portfolio in portfolios:
-    #         print(portfolio)
+# async def update_portfolio_state(self) -> None:
+#     portfolios = await self.client_manager.get_portfolio_state()
+#
+#     for portfolio in portfolios:
+#         print(portfolio)
 

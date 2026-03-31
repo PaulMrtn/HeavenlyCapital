@@ -193,8 +193,6 @@ class LiveDataHub(RuntimeModule):
                 self.candle_bus.publish(conId, bars)
                 batch_to_persist[conId] = bars
 
-            # TODO:LOW del the commentary below once the thread is ready
-            # self._ports.db_service.writer.persist_bars(batch_to_persist)
             self.persist_bars_async(batch_to_persist)
 
             self._last_agg_time = ts_end

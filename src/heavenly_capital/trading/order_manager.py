@@ -35,7 +35,7 @@ class OrderManager(BaseModule):
         self._session_id = session_id
         self._ports = ports
         self._configured = True
-        
+
     def load_contracts(self, contracts: dict[int, Contract]) -> None:
         self._contracts = contracts
 
@@ -64,8 +64,8 @@ class OrderManager(BaseModule):
         dispatch: dict[tuple[ModuleType, str], Callable] = {
             (ModuleType.PORTFOLIO, "order_request"): self._handle_orders_request,
             (ModuleType.PORTFOLIO, "authorize_order"): self._process_authorization,
-            (ModuleType.RISK, "order_request"): self._handle_orders_request,
-            (ModuleType.RISK, "authorize_order"): self._process_authorization,
+            (ModuleType.RISK, "order_request"): self._handle_orders_request, #TODO:WARNING dev risk manager own function to handle order request
+            (ModuleType.RISK, "authorize_order"): self._process_authorization, #TODO:WARNING dev risk manager own function to handle order request
         }
 
         handler = dispatch.get((source, action))
@@ -114,7 +114,6 @@ class OrderManager(BaseModule):
         return tracker
 
 
-
     def stage_orders(self, requests: list["OrderRequest"]):
         for request in requests:
             tracker = self._create_tracker(request)
@@ -146,6 +145,21 @@ class OrderManager(BaseModule):
         self._order_router.route_order(
             session_key=self._key,
             order=order
+        )
+
+        self._ports.log_service.info(
+            "Order submitted",
+            extra={
+                "domain": "ORDERS",
+                "event": "order_submitted",
+                "order_id": order.request.order_id,
+                "portfolio_id": order.request.portfolio_id,
+                "account_id": order.request.account_id,
+                "con_id": order.request.con_id,
+                "side": order.request.side,
+                "quantity": order.request.quantity,
+                "order_type": order.request.order_type,
+            }
         )
 
 

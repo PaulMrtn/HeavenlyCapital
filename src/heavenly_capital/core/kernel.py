@@ -1,5 +1,5 @@
 import asyncio
-import datetime
+from datetime import datetime, timezone
 import threading
 import time
 from typing import Callable, Coroutine
@@ -8,7 +8,7 @@ from uuid import uuid4
 from heavenly_capital.core.calendar import USMarketsCalendar
 from heavenly_capital.core.clock import (
     MarketClock, AcceleratedTimeHeartbeat,
-    MarketEventChangeEvent, MarketState,)
+    MarketEventChangeEvent, MarketState, TradingChangeState, )
 
 from heavenly_capital.core.thread import get_thread_manager
 from heavenly_capital.services.console import console_loop
@@ -39,7 +39,7 @@ from heavenly_capital.monitoring.notification_service import NullNotificationSer
 
 heartbeat = AcceleratedTimeHeartbeat(
         day_seconds=120,
-        start_timestamp=datetime.datetime(2026,1,1,0,0).timestamp())
+        start_timestamp=datetime(2026,1,1,0,0).timestamp())
 
 
 
@@ -64,7 +64,10 @@ class Kernel:
         self._pre_market_event = asyncio.Event() # TODO: Handle this ( property ? )
 
         self._market_clock = MarketClock(time_source=heartbeat)
-        self._market_clock.subscribe_market(self.on_market_state_change)
+        self._market_clock.subscribe_market(self.on_market_state_change) #TODO:MEDIUM Handle this callback subscription properly
+        self._market_clock.subscribe_market(self._log_market_event)
+        self._market_clock.subscribe_trading(self._log_trading_event)
+
         self._market_clock.start()
 
         self._market_calendar = USMarketsCalendar()
@@ -95,41 +98,31 @@ class Kernel:
 
 # region Kernel Lifecycle
     async def start(self) -> None:
+        self._log.info(
+            "Kernel started",
+            extra={
+                "domain": "SYSTEM",
+                "event": "kernel_started"
+            }
+        )
+
         self._start_console()
         await self._run_bootstrap()
 
     def stop(self) -> None:
-        self._stop_console()
+        self._log.info(
+            "Kernel shutdown",
+            extra={
+                "domain": "SYSTEM",
+                "event": "kernel_shutdown"
+            }
+        )
 
-
-# endregion
-
-
-
-# region Console
-
+        self._stop_console_thread()
 
     def _start_console(self):
         self._register_console_thread()
-        self._start_console_thread()
-
-
-    def _stop_console(self):
-        tm = self._thread_manager
-        tm.stop_thread("console")
-
-
-    def _register_console_thread(self) -> None:
-        tm = self._thread_manager
-        tm.register_thread(
-            name="console",
-            target=console_loop,
-            daemon=True
-        )
-
-    def _start_console_thread(self, ) -> None:
-        tm = self._thread_manager
-        tm.start_thread("console")
+        self._start_console_thread()  # Check the utility
 
 
 # endregion
@@ -155,6 +148,17 @@ class Kernel:
 
         self._db.writer.update_session(self._today_session)
 
+        self._log.info(
+            "Session updated",
+            extra={
+                "domain": "SESSION",
+                "event": "session_updated",
+                "phase": phase.name if phase else self._today_session.phase.name,
+                "status": status.name if status else self._today_session.status.name,
+                "state": state.name if state else self._today_session.state.name,
+                "error": error if error is not None else self._today_session.error
+            }
+        )
 
     def on_market_state_change(self, event: MarketEventChangeEvent) -> None:
         handler = self._market_handlers.get(event.current)
@@ -177,8 +181,10 @@ class Kernel:
     async def _on_market_open(self):
         pass
 
+
     async def _on_post_market(self):
         pass
+
 
     async def _on_market_closed(self):
         await self.stop_market_runtime()
@@ -268,6 +274,15 @@ class Kernel:
 
         proc = plan.procedure
 
+        self._log.info(
+            "Executing boot plan procedure",
+            extra={
+                "domain": "SYSTEM",
+                "event": "boot_plan_executed",
+                "procedure": proc
+            }
+        )
+
         if proc == "STRATEGIC_SETUP":
             self._strategic_setup()
             # await self._run_procedure(self._strategic_setup)
@@ -303,6 +318,17 @@ class Kernel:
             self._system_state.set_status(SystemStatus.STOPPING, detail=request.detail)
 
             scenario = request.scenario
+
+            self._log.info(
+                "Kernel shutdown initiated",
+                extra={
+                    "domain": "SYSTEM",
+                    "event": "kernel_shutdown",
+                    "scenario": scenario.name,
+                    "exit_code": request.code.value,
+                    "detail": request.detail
+                }
+            )
 
             # TODO:LOW - shutdown task sequences are necessary ?
 
@@ -641,6 +667,15 @@ class Kernel:
             daemon=True
         )
 
+    def _register_console_thread(self) -> None:
+        tm = self._thread_manager
+        tm.register_thread(
+            name="console",
+            target=console_loop,
+            daemon=True
+        )
+
+
     def _start_market_threads(self) -> None:
         tm = self._thread_manager
 
@@ -656,8 +691,45 @@ class Kernel:
         tm.stop_thread("db_writer")
 
 
+    def _start_console_thread(self, ) -> None:
+        tm = self._thread_manager
+        tm.start_thread("console")
+
+    def _stop_console_thread(self):
+        tm = self._thread_manager
+        tm.stop_thread("console")
 
     # endregion
 
 
 
+    # Log Event
+
+    def _log_market_event(self, event: MarketEventChangeEvent):
+        prev_state = event.previous.name
+        curr_state = event.current.name
+
+        self._log.info(
+            f"Market event: {prev_state} → {curr_state}",
+            extra={
+                "domain": "MARKET",
+                "event": "market_state_change",
+                "prev_state": prev_state,
+                "current_state": curr_state,
+            }
+        )
+
+
+    def _log_trading_event(self, event: TradingChangeState) -> None:
+        prev_state = event.previous.name
+        curr_state = event.current.name
+
+        self._log.info(
+            f"Trading state changed: {prev_state} → {curr_state}",
+            extra={
+                "domain": "MARKET",
+                "event": "trading_state_changed",
+                "previous_state": prev_state,
+                "current_state": curr_state,
+            }
+        )

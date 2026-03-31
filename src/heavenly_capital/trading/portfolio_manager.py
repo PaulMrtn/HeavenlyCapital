@@ -94,13 +94,32 @@ class PortfolioManager(BaseModule):
         portfolio_id = self._key.portfolio_id
 
         if self._ports.db_service.reader.check_rebalance_date(portfolio_id, today):
-            print("Rebalancing portfolio")
             self._portfolio_target = self.get_portfolio_target(
                 portfolio_id=portfolio_id,
                 rebalance_date=today
             )
 
+            self._ports.log_service.info(
+                "Portfolio rebalance triggered",
+                extra={
+                    "domain": "STRATEGY",
+                    "event": "portfolio_rebalance_triggered",
+                    "portfolio_id": portfolio_id,
+                    "rebalance_date": today,
+                }
+            )
+
             orders = self.build_rebalance_orders()
+
+            self._ports.log_service.info(
+                "Rebalance orders generated",
+                extra={
+                    "domain": "STRATEGY",
+                    "event": "rebalance_orders_generated",
+                    "portfolio_id": portfolio_id,
+                    "orders_count": len(orders),
+                }
+            )
 
             self.dispatch(ModuleType.ORDERS, "order_request", orders)
 
@@ -279,9 +298,6 @@ class PortfolioManager(BaseModule):
             self._last_db_update_interval = current_interval
             self.update_portfolio_in_db_async(self._portfolio)
 
-            # TODO:LOW del the commentary below once the thread is ready
-            # self._ports.db_service.writer.update_portfolio_in_db(self._portfolio)
-
 
     def refresh_portfolio(self) -> None:
         if not self._portfolio:
@@ -360,7 +376,9 @@ class PortfolioManager(BaseModule):
 
         if position.quantity == 0:
             del self._portfolio.positions[con_id]
+
         elif position.quantity < 0:
+            # TODO:LOW - handle this error with the error service
             raise ValueError(
                 f"Position quantity negative for {symbol} (con_id={con_id}). "
                 f"Tried to sell {fill_qty}, but only {position.quantity + fill_qty} available."

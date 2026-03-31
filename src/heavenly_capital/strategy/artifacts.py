@@ -47,6 +47,9 @@ class ModelKind(str, Enum):
     STOP_LOSS = "STOP_LOSS"
 
 
+
+ARTIFACTS_DIR = Path(__file__).parents[3]  / "sandbox" # TODO:LOW TEMPORARY FIX
+
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     model_id: str
@@ -56,10 +59,13 @@ class ModelSpec:
 
     @classmethod
     def from_snapshot(cls, row: dict) -> "ModelSpec":
+        path = Path(row["path"])  # TODO:LOW TEMPORARY FIX
+
+        path = path if path.is_absolute() else ARTIFACTS_DIR / path  # TODO:LOW TEMPORARY FIX
         return cls(
             model_id=row["model_name"],
             model_type=ModelKind(row["model_type"]),
-            path=Path(row["path"]),
+            path=path.resolve(),  # TODO:LOW TEMPORARY FIX
             version=str(row["version"]),
         )
 

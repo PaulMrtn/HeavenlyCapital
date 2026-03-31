@@ -13,6 +13,8 @@ FEATURE_REGISTRY: Dict[str, Callable] = {}
 
 def feature_plugin(plugin_id: str):
     def decorator(fn: Callable):
+        if plugin_id in FEATURE_REGISTRY:
+            raise RuntimeError(f"Plugin already registered: {plugin_id}")
         FEATURE_REGISTRY[plugin_id] = fn
         return fn
     return decorator

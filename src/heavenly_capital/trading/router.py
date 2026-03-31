@@ -25,7 +25,7 @@ class GlobalOrderRouter:
             self,
             *,
             sink: Callable[["TradingSessionKey", "OrderTracker"], None] | None,
-            name: str = "order_router"
+            name: str = "order_router" #TODO:LOW erase this name attribut
     ) -> None:
         self._sink = sink
         self._name = name

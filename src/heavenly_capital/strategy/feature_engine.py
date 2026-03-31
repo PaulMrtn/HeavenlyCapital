@@ -450,3 +450,23 @@ def get_feature_manager() -> "FeatureEngine":
     if _instance is None:
         _instance = FeatureEngine()
     return _instance
+
+
+# TODO:LOW - add error en feature
+# [ERROR] Feature calculation failed
+# {
+#   domain: FEATURE
+#   event: feature_calculation_error
+#   feature: rsi_close_14_1m
+#   plugin: rsi
+#   conid: 12345
+#   freq: 1m
+# }
+
+
+# try:
+#     feature_value = plugin_fn(spec=spec, cache=cache)
+#
+# except Exception as e:
+#     log error
+#     feature_value = np.nan

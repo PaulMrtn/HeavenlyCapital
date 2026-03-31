@@ -214,6 +214,19 @@ class SessionManager(RuntimeModule):
                 session.initialize_modules()
                 self.sessions[session.key] = session
 
+                self._ports.log_service.info(
+                    "Trading session created",
+                    extra={
+                        "domain": "SESSION",
+                        "event": "trading_session_created",
+                        "session_id": str(session.session_id),
+                        "account_id": session.key.account_id,
+                        "portfolio_id": session.key.portfolio_id,
+                        "mode": session.key.mode,
+                        "session_date": session.key.session_date,
+                    }
+                )
+
                 result = session.health_check()
                 if result.get("is_healthy") is False:
                     raise HealthCheckError(result)
