@@ -31,7 +31,7 @@ from heavenly_capital.models.system import (
 )
 
 from heavenly_capital.monitoring.error_service import NullErrorService, HealthCheckError
-from heavenly_capital.monitoring.log_service import NullLogService
+from heavenly_capital.monitoring.log_service import LogService
 from heavenly_capital.monitoring.metric_service import NullMetricService
 from heavenly_capital.monitoring.notification_service import NullNotificationService
 
@@ -73,7 +73,7 @@ class Kernel:
         self._market_calendar = USMarketsCalendar()
 
         self._db = self._build_db_service()
-        self._log = NullLogService()
+        self._log = LogService(db_service=self._db)
         self._metrics = NullMetricService()
         self._error = NullErrorService()
         self._notif = NullNotificationService()

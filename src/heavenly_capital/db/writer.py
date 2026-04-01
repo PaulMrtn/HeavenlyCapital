@@ -1,6 +1,6 @@
 import json
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any, TYPE_CHECKING, List
 
 from ib_async import Order, Execution, Trade, CommissionReport
 from sqlalchemy import text, Connection
@@ -1281,6 +1281,19 @@ class DataIngestionLayer:
                 pass
 
 
+    def persist_logs(self, records: List[Dict]) -> None:
+        if not records:
+            return
+
+        query = text("""
+            INSERT INTO trading.logs
+            (timestamp, level, domain, event, message, account_id, portfolio_id, environment, metadata)
+            VALUES (:timestamp, :level, :domain, :event, :message,
+                    :account_id, :portfolio_id, :environment, :metadata)
+        """)
+
+        with self._connector.uow() as conn:
+            conn.execute(query, records)
 
 
 

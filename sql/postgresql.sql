@@ -476,9 +476,27 @@ CREATE TABLE trading.market_day_session (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE (session_date)
+
 );
 
 
+CREATE TYPE log_environment AS ENUM ('LIVE', 'PAPER');
+
+CREATE TABLE trading.logs (
+    id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    level TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    event TEXT NOT NULL,
+    message TEXT NOT NULL,
+    account_id CHAR(9),
+    portfolio_id TEXT,
+    environment log_environment,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_logs_recent ON trading.logs (timestamp DESC);
 
 
 
@@ -514,3 +532,6 @@ CREATE TABLE trading.market_day_session (
 -- DROP TABLE IF EXISTS trading.market_day_session CASCADE;
 
 -- DROP TYPE IF EXISTS session_mode;
+-- DROP TYPE IF EXISTS log_environment;
+
+-- DROP TABLE IF EXISTS trading.logs CASCADE;
