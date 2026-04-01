@@ -31,7 +31,7 @@ from heavenly_capital.models.system import (
 )
 
 from heavenly_capital.monitoring.error_service import NullErrorService, HealthCheckError
-from heavenly_capital.monitoring.log_service import LogService
+from heavenly_capital.monitoring.log_service import LogService, NullLogService
 from heavenly_capital.monitoring.metric_service import NullMetricService
 from heavenly_capital.monitoring.notification_service import NullNotificationService
 
@@ -73,7 +73,7 @@ class Kernel:
         self._market_calendar = USMarketsCalendar()
 
         self._db = self._build_db_service()
-        self._log = LogService(db_service=self._db)
+        self._log = NullLogService() # LogService(db_service=self._db)
         self._metrics = NullMetricService()
         self._error = NullErrorService()
         self._notif = NullNotificationService()
@@ -526,7 +526,6 @@ class Kernel:
 
         self._wire_local_runtime()
 
-        self._modules.session_manager.load_sessions_portfolio_orders()
         self._modules.session_manager.health_check_loaded_sessions()
 
 
@@ -580,11 +579,17 @@ class Kernel:
         await self._modules.ibkr_gateway.client_manager.start()
 
 
-
     async def start_market_runtime(self) -> None:
         await self._modules.ibkr_gateway.start_streaming()
 
         self._start_market_threads()
+
+        # TODO:WARNING Check the order of the following operations ( with TradeState)
+        await asyncio.sleep(5)
+        self._modules.session_manager.load_sessions_portfolio_orders()
+
+        for session in self._modules.session_manager.sessions.values():
+            session.stack.portfolio.authorize_all_current_orders()
 
         await self._modules.ibkr_gateway.client_manager.wait()
 

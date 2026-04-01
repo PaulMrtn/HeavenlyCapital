@@ -12,11 +12,11 @@ from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.order import OrderRequest, OrderTracker
 from heavenly_capital.models.runtime import BaseModule, ModuleType
 from heavenly_capital.models.portfolio import PortfolioSnapshot, Portfolio, Position, PortfolioTarget, PortfolioBalance
+from heavenly_capital.strategy.artifacts import ModelSignal, ModelOutput
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.trading.session_manager import TradingSessionKey
-    from heavenly_capital.strategy.artifacts import ModelOutput, ModelSignal
 
 
 UPDATE_INTERVAL = 5
@@ -406,7 +406,12 @@ class PortfolioManager(BaseModule):
                 conid=conid,
                 model_id="mock",
                 model_type="mock",
-                output=ModelOutput(decision=True)
+                output=ModelOutput(
+                    decision=True,
+                    score=0.9190,
+                    forced=False,
+                    step=200,
+                    timestamp=1774822565)
             )
 
             self.authorize_order(signal)

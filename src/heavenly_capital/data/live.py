@@ -193,6 +193,7 @@ class LiveDataHub(RuntimeModule):
                 self.candle_bus.publish(conId, bars)
                 batch_to_persist[conId] = bars
 
+            print(f"Persisting {batch_to_persist} candles")
             self.persist_bars_async(batch_to_persist)
 
             self._last_agg_time = ts_end
