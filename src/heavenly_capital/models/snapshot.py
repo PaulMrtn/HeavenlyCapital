@@ -14,34 +14,30 @@ class SessionSnapshot:
 @dataclass
 class KernelSnapshot:
     timestamp: float
+
+    # --- Kernel metrics ---
+    system_status: str
     market_state: str
+    trading_state: str
+    system_state: str
     today_session: Optional[SessionSnapshot]
     db_status: str
+    runtime_threads: int
+    active_sessions: int
+    market_streaming: bool
+
+    # --- IBKR metrics ---
+    ibkr_clients_connected: int = 0
+    ibkr_orders_tracked: int = 0
+    ibkr_last_tick_gap: Optional[float] = None
+    ibkr_tick_rate: float = 0.0
+    ibkr_subscribed_contracts: int = 0
+
+    # --- Order metrics ---
+    pending_orders_count: int = 0
+
+
 
     def as_dict(self):
         return asdict(self)
 
-
-
-
-
-# Méthode à ajouter dans Kernel
-def snapshot(self) -> KernelSnapshot:
-    today_snap = None
-
-    if self._today_session:
-        today_snap = SessionSnapshot(
-            session_id=str(self._today_session.session_id),
-            date=str(self._today_session.session_date),
-            phase=str(self._today_session.phase),
-            status=str(self._today_session.status),
-            state=str(self._today_session.state),
-            error=self._today_session.error
-        )
-
-    return KernelSnapshot(
-        timestamp=time.time(),
-        market_state=str(self._market_clock.state),
-        today_session=today_snap,
-        db_status="connected" if self._db else "disconnected"
-    )

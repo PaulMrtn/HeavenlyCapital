@@ -286,6 +286,11 @@ class SessionManager(RuntimeModule):
 
         # TODO:MEDIUM if session failed and session.mode == "PAPER", then erase session with a new fonction
 
+    def get_live_session(self) -> Optional["TradingSession"]:
+        return next(
+            (s for s in self.sessions.values() if s.key.mode == "LIVE"),
+            None
+        )
 
 
 

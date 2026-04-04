@@ -173,6 +173,7 @@ class FeatureStore:
     def get_history(self, conId: int, name: str) -> list[tuple[float, float]]:
         return list(self._history.get(conId, {}).get(name, []))
 
+
 @dataclass
 class FreqState:
     pending: bool = False

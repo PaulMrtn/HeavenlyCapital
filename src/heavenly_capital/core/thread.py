@@ -73,6 +73,11 @@ class ThreadManager:
         self._configured = False
         self._config: Optional["ThreadConfig"] = None
 
+
+    @property
+    def threads(self) -> Dict[str, ManagedThread]:
+        return self._threads
+
     def configure(self, config: "ThreadConfig") -> None:
         self._config = config
         self._configured = True

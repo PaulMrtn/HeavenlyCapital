@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 class OrderManager(BaseModule):
+
     def __init__(self) -> None:
 
         super().__init__()
@@ -23,8 +24,8 @@ class OrderManager(BaseModule):
         self._key: Optional["TradingSessionKey"] = None
 
         self._order_router: Optional["GlobalOrderRouter"] = None
-        self._contracts: Dict[int, Contract] = {}
-        self._pending_orders: Dict[int, OrderTracker] = {}
+        self._contracts: Dict[int, "Contract"] = {}
+        self._pending_orders: Dict[int, "OrderTracker"] = {}
 
         self._configured = False
         self._started = False
@@ -36,7 +37,7 @@ class OrderManager(BaseModule):
         self._ports = ports
         self._configured = True
 
-    def load_contracts(self, contracts: dict[int, Contract]) -> None:
+    def load_contracts(self, contracts: dict[int, "Contract"]) -> None:
         self._contracts = contracts
 
     def start(self) -> None:

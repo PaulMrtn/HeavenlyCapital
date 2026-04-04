@@ -1,8 +1,8 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 import threading
 import time
-from typing import Callable, Coroutine
+from typing import Callable, Coroutine, Optional
 from uuid import uuid4
 
 from heavenly_capital.core.calendar import USMarketsCalendar
@@ -11,7 +11,8 @@ from heavenly_capital.core.clock import (
     MarketEventChangeEvent, MarketState, TradingChangeState, )
 
 from heavenly_capital.core.thread import get_thread_manager
-from heavenly_capital.services.console import console_loop
+from heavenly_capital.models.snapshot import KernelSnapshot, SessionSnapshot
+from heavenly_capital.services.console import ConsoleService
 
 from heavenly_capital.db.connector import DB_CONNECTOR
 from heavenly_capital.db.reader import DataAccessLayer
@@ -19,26 +20,25 @@ from heavenly_capital.db.writer import DataIngestionLayer
 
 from heavenly_capital.models.config import RuntimeConfig
 from heavenly_capital.models.runtime import AsyncRuntimeModule
-from heavenly_capital.models.session import SessionStatus, SessionPhase, SessionState
+from heavenly_capital.models.session import SessionStatus, SessionPhase, SessionState, MarketDaySession
 
 from heavenly_capital.models.system import (
     SystemState,
     RuntimeRegistry,
-    MarketDaySession,
     BootPlan, BootDecision,
     SystemPorts, DatabasePorts,
     ShutdownScenario, ExitCode, ShutdownRequest, SystemStatus,
 )
 
 from heavenly_capital.monitoring.error_service import NullErrorService, HealthCheckError
-from heavenly_capital.monitoring.log_service import LogService, NullLogService
+from heavenly_capital.monitoring.log_service import LogService
 from heavenly_capital.monitoring.metric_service import NullMetricService
 from heavenly_capital.monitoring.notification_service import NullNotificationService
 
 
 
 heartbeat = AcceleratedTimeHeartbeat(
-        day_seconds=120,
+        day_seconds=180,
         start_timestamp=datetime(2026,1,1,0,0).timestamp())
 
 
@@ -60,7 +60,7 @@ class Kernel:
         self._thread_manager = get_thread_manager()
 
         self._system_state = SystemState()
-        self._today_session: MarketDaySession | None = None
+        self._today_session: Optional[MarketDaySession] = None
         self._pre_market_event = asyncio.Event() # TODO: Handle this ( property ? )
 
         self._market_clock = MarketClock(time_source=heartbeat)
@@ -73,10 +73,16 @@ class Kernel:
         self._market_calendar = USMarketsCalendar()
 
         self._db = self._build_db_service()
-        self._log = NullLogService() # LogService(db_service=self._db)
+        self._log = LogService(db_service=self._db)
         self._metrics = NullMetricService()
         self._error = NullErrorService()
         self._notif = NullNotificationService()
+
+
+        self._console = ConsoleService(
+            log_service=self._log,
+            snapshot=self.snapshot,
+        )
 
         self._modules = RuntimeRegistry().build()
         self._runtime_config = RuntimeConfig()
@@ -95,7 +101,6 @@ class Kernel:
         )
 
 
-
 # region Kernel Lifecycle
     async def start(self) -> None:
         self._log.info(
@@ -106,7 +111,7 @@ class Kernel:
             }
         )
 
-        self._start_console()
+        self._console.start()
         await self._run_bootstrap()
 
     def stop(self) -> None:
@@ -118,11 +123,7 @@ class Kernel:
             }
         )
 
-        self._stop_console_thread()
-
-    def _start_console(self):
-        self._register_console_thread()
-        self._start_console_thread()  # Check the utility
+        self._console.stop()
 
 
 # endregion
@@ -603,7 +604,6 @@ class Kernel:
         self._stop_market_threads()
 
 
-
     # endregion
 
 
@@ -672,14 +672,6 @@ class Kernel:
             daemon=True
         )
 
-    def _register_console_thread(self) -> None:
-        tm = self._thread_manager
-        tm.register_thread(
-            name="console",
-            target=console_loop,
-            daemon=True
-        )
-
 
     def _start_market_threads(self) -> None:
         tm = self._thread_manager
@@ -694,15 +686,6 @@ class Kernel:
         tm.stop_thread("runtime_loop")
         tm.stop_thread("order_router")
         tm.stop_thread("db_writer")
-
-
-    def _start_console_thread(self, ) -> None:
-        tm = self._thread_manager
-        tm.start_thread("console")
-
-    def _stop_console_thread(self):
-        tm = self._thread_manager
-        tm.stop_thread("console")
 
     # endregion
 
@@ -738,3 +721,87 @@ class Kernel:
                 "current_state": curr_state,
             }
         )
+
+
+
+# region Snapshot
+
+    def _snapshot(self) -> KernelSnapshot:
+
+        today_snap = None
+
+        if self._today_session:
+            today_snap = SessionSnapshot(
+                session_id=str(self._today_session.session_id),
+                date=str(self._today_session.session_date),
+                phase=str(self._today_session.phase),
+                status=str(self._today_session.status),
+                state=str(self._today_session.state),
+                error=self._today_session.error
+            )
+
+        runtime_threads = len(self._thread_manager.threads)
+
+        active_sessions = 0
+        if self._modules.session_manager:
+            active_sessions = len(self._modules.session_manager.sessions)
+
+        market_streaming = False
+        ibkr_last_tick_gap = None
+        ibkr_tick_rate = 0.0
+        ibkr_subscribed_contracts = 0
+        ibkr_clients_connected = 0
+        ibkr_orders_tracked = 0
+
+        gateway = self._modules.ibkr_gateway
+
+        if gateway:
+            market_streaming = gateway.streaming_is_active
+            ibkr_last_tick_gap = gateway.last_tick_gap
+            ibkr_tick_rate = gateway.tick_rate
+            ibkr_subscribed_contracts = gateway.subscribed_contracts
+
+            if gateway.client_manager:
+                ibkr_clients_connected = len(gateway.client_manager.all)
+
+            ibkr_orders_tracked = len(gateway._order_registry)
+
+        live_session = self._modules.session_manager.get_live_session()
+
+        order_manager = live_session.stack.orders
+        portfolio_manager = live_session.stack.portfolio
+
+        # order_manager = live_session.stack.risk
+
+        pending_orders_count = len(order_manager._pending_orders) if order_manager else 0
+
+        return KernelSnapshot(
+            timestamp=time.time(),
+            system_status=str(self._system_state.status),
+            trading_state=str(self._market_clock._trading_state),
+            market_state=str(self._market_clock._market_state),
+            system_state=str(self._market_clock._system_state),
+            today_session=today_snap,
+            db_status="connected" if self._db else "disconnected",
+            runtime_threads=runtime_threads,
+            active_sessions=active_sessions,
+            market_streaming=market_streaming,
+
+            ibkr_clients_connected=ibkr_clients_connected,
+            ibkr_orders_tracked=ibkr_orders_tracked,
+            ibkr_last_tick_gap=ibkr_last_tick_gap,
+            ibkr_tick_rate=ibkr_tick_rate,
+            ibkr_subscribed_contracts=ibkr_subscribed_contracts,
+        )
+
+    @property
+    def snapshot(self) -> Callable[[], KernelSnapshot]:
+        return self._snapshot
+
+    # TODO: If `snapshot()` becomes more complex (e.g., reading live threads, queues, or other shared data),
+    # consider adding a small lock (threading.Lock) or an internal cache to ensure that reading the snapshot
+    # is atomic and thread-safe. This will prevent race conditions and inconsistent data when the console
+    # reads the snapshot concurrently with runtime updates.
+
+
+# endregion

@@ -247,7 +247,23 @@ class IBKRGateway(AsyncRuntimeModule):
     async def stop_streaming(self) -> None:
         await self.client_manager.stop_streaming()
 
-    # ---------------------------------
+    # ---- Monitoring ----------------------
+
+    @property
+    def streaming_is_active(self):
+        return self.client_manager.streaming_active
+
+    @property
+    def last_tick_gap(self):
+        return self.client_manager.last_tick_gap
+
+    @property
+    def tick_rate(self):
+        return self.client_manager.tick_rate
+
+    @property
+    def subscribed_contracts(self):
+        return len(self.client_manager.tickers_registry)
 
     # ---- API ------------------------
 

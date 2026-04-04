@@ -1285,6 +1285,10 @@ class DataIngestionLayer:
         if not records:
             return
 
+        for r in records:
+            if r.get("metadata") is not None:
+                r["metadata"] = json.dumps(r["metadata"], default=str)
+
         query = text("""
             INSERT INTO trading.logs
             (timestamp, level, domain, event, message, account_id, portfolio_id, environment, metadata)

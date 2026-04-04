@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+import time
 from enum import Enum
 from typing import Optional, Dict, Iterable, Callable
 
@@ -220,6 +221,13 @@ class ClientManager:
 
         self.tickers_registry: dict[int, "Ticker"] = {}
 
+        self._last_tick_ts: float | None = None
+        self._last_rate_ts = time.monotonic()
+        self._tick_count = 0
+        self._tick_rate = 0.0
+
+        self.streaming_active: bool = False
+
 
     @staticmethod
     def _load_configs(configs: list[dict]) -> IBKRSessionRegistry:
@@ -293,13 +301,24 @@ class ClientManager:
         self.on_tick = on_tick
 
     def _on_ticker_update(self, ticker: Ticker):
+        self._last_tick_ts = time.monotonic()
+        self._tick_count += 1
+
         if self.on_tick:
             self.on_tick(ticker)
 
 
     async def start_streaming(self, contracts: list[Contract]):
+        if self.streaming_active:
+            return
+
         #TODO:HIGH Encapsuler la subscription au contrats dans une fonctions et ajouter la subscription au portefeuille
         for contract in contracts:
+
+            con_id = contract.conId
+            if con_id in self.tickers_registry:
+                continue
+
             ticker = self.master.ib_client.reqMktData(
                 contract=contract,
                 genericTickList='',
@@ -308,18 +327,48 @@ class ClientManager:
             )
 
             ticker.updateEvent += self._on_ticker_update
-            self.tickers_registry[contract.conId] = ticker
+            self.tickers_registry[con_id] = ticker
 
+        self.streaming_active = True
 
     async def stop_streaming(self):
-        for ticker in self.tickers_registry.values():
+        if not self.streaming_active:
+            return
+
+        for con_id, ticker in list(self.tickers_registry.items()):
+
             try:
                 ticker.updateEvent -= self._on_ticker_update
                 self.master.ib_client.cancelMktData(ticker.contract)
-            except Exception as e:
+            except Exception:
                 pass
 
         self.tickers_registry.clear()
+        self.streaming_active = False
+
+
+# ---- Monitoring ----
+
+    @property
+    def last_tick_gap(self) -> float | None:
+        if self._last_tick_ts is None:
+            return None
+
+        return time.monotonic() - self._last_tick_ts
+
+    @property
+    def tick_rate(self) -> float:
+        now = time.monotonic()
+        elapsed = now - self._last_rate_ts
+
+        if elapsed < 1.0:
+            return self._tick_rate
+
+        self._tick_rate = self._tick_count / elapsed
+        self._tick_count = 0
+        self._last_rate_ts = now
+
+        return self._tick_rate
 
 
     async def _heartbeat(self):
@@ -336,6 +385,7 @@ class ClientManager:
         except asyncio.CancelledError:
             raise
 
+# ---------------------------
 
     async def get_account_state(self):
         accounts = []

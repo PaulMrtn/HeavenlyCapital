@@ -4,10 +4,8 @@ from enum import StrEnum, IntEnum
 from typing import Protocol, Any, Optional, Union
 
 from heavenly_capital.models.runtime import RuntimeModule
-from heavenly_capital.models.session import MarketDaySession
 
 from heavenly_capital.trading.session_manager import get_session_manager, SessionManager
-from heavenly_capital.core.thread import get_thread_manager, ThreadManager
 from heavenly_capital.data.historic import get_historic_data_hub, HistoricDataHub
 from heavenly_capital.data.live import get_live_data_hub, LiveDataHub
 from heavenly_capital.ibkr.gateway import get_ibkr_gateway, IBKRGateway
@@ -126,3 +124,5 @@ class RuntimeRegistry:
             forecast_manager=get_forecast_manager(),
             session_manager=get_session_manager(),
         )
+
+
