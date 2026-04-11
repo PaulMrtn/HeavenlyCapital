@@ -124,28 +124,84 @@ class DataIngestionLayer:
 
 
     def insert_instrument(
-        self,
-        symbol: str,
-        currency: str,
-        long_name: str | None = None,
-        sector: str | None = None,
+            self,
+            symbol: str,
+            currency: str,
+            long_name: str | None = None,
+            sector: str | None = None,
+            norgate_id: int | None = None,
+            asset_class: str = "EQUITY",
+            exchange: str | None = None,
+            domicile: str | None = None,
+            industry: str | None = None,
+            sub_industry: str | None = None,
+            first_trade_date: str | None = None,
+            last_trade_date: str | None = None,
+            is_delisted: bool = False,
     ) -> None:
+
         query = text("""
-            INSERT INTO trading.instruments (symbol, currency, long_name, sector)
-            VALUES (:symbol, :currency, :long_name, :sector)
-            RETURNING instrument_id
-        """)
+                     INSERT INTO trading.instruments (norgate_id,
+                                                      symbol,
+                                                      long_name,
+                                                      asset_class,
+                                                      exchange,
+                                                      domicile,
+                                                      currency,
+                                                      sector,
+                                                      industry,
+                                                      sub_industry,
+                                                      first_trade_date,
+                                                      last_trade_date,
+                                                      is_delisted)
+                     VALUES (:norgate_id,
+                             :symbol,
+                             :long_name,
+                             :asset_class,
+                             :exchange,
+                             :domicile,
+                             :currency,
+                             :sector,
+                             :industry,
+                             :sub_industry,
+                             :first_trade_date,
+                             :last_trade_date,
+                             :is_delisted)
+                     ON CONFLICT (norgate_id)
+                         DO UPDATE SET symbol           = EXCLUDED.symbol,
+                                       long_name        = EXCLUDED.long_name,
+                                       asset_class      = EXCLUDED.asset_class,
+                                       exchange         = EXCLUDED.exchange,
+                                       domicile         = EXCLUDED.domicile,
+                                       currency         = EXCLUDED.currency,
+                                       sector           = EXCLUDED.sector,
+                                       industry         = EXCLUDED.industry,
+                                       sub_industry     = EXCLUDED.sub_industry,
+                                       first_trade_date = EXCLUDED.first_trade_date,
+                                       last_trade_date  = EXCLUDED.last_trade_date,
+                                       is_delisted      = EXCLUDED.is_delisted
+                     """)
 
         with self._connector.uow() as conn:
             conn.execute(
                 query,
                 {
+                    "norgate_id": norgate_id,
                     "symbol": symbol,
-                    "currency": currency,
                     "long_name": long_name,
-                    "sector": sector
+                    "asset_class": asset_class,
+                    "exchange": exchange,
+                    "domicile": domicile,
+                    "currency": currency,
+                    "sector": sector,
+                    "industry": industry,
+                    "sub_industry": sub_industry,
+                    "first_trade_date": first_trade_date,
+                    "last_trade_date": last_trade_date,
+                    "is_delisted": is_delisted
                 }
             )
+
 
     def insert_contract(self, contract) -> None:
         query = text("""
@@ -174,6 +230,38 @@ class DataIngestionLayer:
                     "trading_class": contract.tradingClass
                 }
                 )
+
+
+    def insert_first_rate_mapping(
+            self,
+            first_rate_symbol,
+            norgate_id,
+            first_trade_date,
+            last_trade_date
+    ) -> None:
+        query = text("""
+                     INSERT INTO trading.first_rate_reference (first_rate_symbol,
+                                                             norgate_id,
+                                                             first_trade_date,
+                                                             last_trade_date)
+                     VALUES (:first_rate_symbol,
+                             :norgate_id,
+                             :first_trade_date,
+                             :last_trade_date)
+                     ON CONFLICT (first_rate_symbol) DO NOTHING;
+                     """)
+
+        with self._connector.uow() as conn:
+            conn.execute(
+                query,
+                {
+                    "first_rate_symbol": first_rate_symbol,
+                    "norgate_id": norgate_id,
+                    "first_trade_date": first_trade_date,
+                    "last_trade_date": last_trade_date
+                }
+            )
+
 
     def insert_portfolio_target(
             self,
@@ -1299,6 +1387,39 @@ class DataIngestionLayer:
         with self._connector.uow() as conn:
             conn.execute(query, records)
 
+
+    def insert_universe_membership(
+            self,
+            norgate_id: int,
+            universe_code: str,
+            valid_from,
+            valid_to=None
+    ) -> None:
+
+        query = text("""
+                     INSERT INTO trading.universe_membership (norgate_id,
+                                                              universe_id,
+                                                              valid_from,
+                                                              valid_to)
+                     VALUES (:norgate_id,
+                             (SELECT universe_id
+                              FROM trading.universes
+                              WHERE code = :universe_code),
+                             :valid_from,
+                             :valid_to)
+                     ON CONFLICT DO NOTHING; -- TODO:WARNING check this constraint on conflit ...
+                     """)
+
+        with self._connector.uow() as conn:
+            conn.execute(
+                query,
+                {
+                    "norgate_id": norgate_id,
+                    "universe_code": universe_code,
+                    "valid_from": valid_from,
+                    "valid_to": valid_to
+                }
+            )
 
 
 

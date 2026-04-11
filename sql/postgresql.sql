@@ -236,14 +236,25 @@ CREATE TABLE trading.contracts (
 );
 
 
+
 CREATE TABLE trading.instruments (
     instrument_id BIGSERIAL PRIMARY KEY,
-    symbol TEXT NOT NULL UNIQUE,
-    currency CHAR(3) NOT NULL,
+    norgate_id BIGINT UNIQUE,
+    symbol TEXT NOT NULL,
     long_name TEXT,
+    asset_class TEXT DEFAULT 'EQUITY',
+    exchange TEXT,
+    domicile TEXT,
+    currency CHAR(3) NOT NULL,
     sector TEXT,
+    industry TEXT,
+    sub_industry TEXT,
+    first_trade_date DATE,
+    last_trade_date DATE,
+    is_delisted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
 
 
 CREATE TABLE trading.universes (
@@ -254,20 +265,21 @@ CREATE TABLE trading.universes (
 
 INSERT INTO trading.universes (code, name) VALUES
 ('SP500', 'S&P 500'),
-('NASDAQ100', 'Nasdaq 100');
+('NASDAQ100', 'Nasdaq 100'),
+('DJIA', 'Dow Jones Industrial Average');
 
 
 
 CREATE TABLE trading.universe_membership (
     membership_id BIGSERIAL PRIMARY KEY,
-    instrument_id BIGINT NOT NULL,
+    norgate_id BIGINT NOT NULL,
     universe_id SMALLINT NOT NULL,
     valid_from DATE NOT NULL,
     valid_to DATE, -- NULL = actif
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
-    FOREIGN KEY (instrument_id)
-        REFERENCES trading.instruments (instrument_id)
+    FOREIGN KEY (norgate_id)
+        REFERENCES trading.instruments (norgate_id)
         ON DELETE CASCADE,
 
     FOREIGN KEY (universe_id)
@@ -280,7 +292,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 ALTER TABLE trading.universe_membership
 ADD CONSTRAINT no_overlap
 EXCLUDE USING gist (
-    instrument_id WITH =,
+    norgate_id WITH =,
     universe_id WITH =,
     daterange(valid_from, COALESCE(valid_to, 'infinity')) WITH &&
 );
@@ -500,6 +512,17 @@ CREATE INDEX idx_logs_recent ON trading.logs (timestamp DESC);
 
 
 
+CREATE TABLE trading.first_rate_reference (
+    first_rate_symbol TEXT PRIMARY KEY,
+    norgate_id BIGINT UNIQUE NOT NULL,
+    first_trade_date DATE,
+    last_trade_date DATE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+
+
+
 
 -- DROP TABLE IF EXISTS trading.portfolio_registry CASCADE;
 -- DROP TABLE IF EXISTS trading.portfolio_capital CASCADE;
@@ -535,3 +558,6 @@ CREATE INDEX idx_logs_recent ON trading.logs (timestamp DESC);
 -- DROP TYPE IF EXISTS log_environment;
 
 -- DROP TABLE IF EXISTS trading.logs CASCADE;
+
+-- DROP TABLE IF EXISTS trading.first_rate_mapping CASCADE;
+
