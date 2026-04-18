@@ -142,10 +142,9 @@ class DuckDBConnector:
 
 
 def create_duckdb_connector(db_name: str = "market_data_lab_dev.duckdb"):
-    base_path = Path(__file__).resolve().parent.parent / "storage"
+    base_path = Path(__file__).resolve().parents[3] / "storage"
     db_path = base_path / db_name
     return DuckDBConnector(db_path)
-
 
 
 ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"

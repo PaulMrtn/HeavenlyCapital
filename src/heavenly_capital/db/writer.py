@@ -1422,6 +1422,79 @@ class DataIngestionLayer:
             )
 
 
+    def persist_prices_daily(self, records: list[dict]) -> None:
+        #TODO:HIGH implémenter un mode REPLACE_SERIES pour reconstruire intégralement une série lors des ajustements (ex: split) afin d’éviter toute incohérence historique.
+
+        if not records:
+            return
+
+        norgate_ids = list({r["norgate_id"] for r in records})
+
+        mapping_query = text("""
+                             SELECT instrument_id, norgate_id
+                             FROM trading.instruments
+                             WHERE norgate_id = ANY (:norgate_ids)
+                             """)
+
+        insert_query = text("""
+                            INSERT INTO market.prices_daily (instrument_id,
+                                                             date,
+                                                             adjustment_type,
+                                                             open,
+                                                             high,
+                                                             low,
+                                                             close,
+                                                             volume,
+                                                             turnover,
+                                                             unadjusted_close,
+                                                             dividend)
+                            VALUES (:instrument_id,
+                                    :date,
+                                    :adjustment_type,
+                                    :open,
+                                    :high,
+                                    :low,
+                                    :close,
+                                    :volume,
+                                    :turnover,
+                                    :unadjusted_close,
+                                    :dividend)
+                            ON CONFLICT (instrument_id, date, adjustment_type)
+                                DO UPDATE SET open             = EXCLUDED.open,
+                                              high             = EXCLUDED.high,
+                                              low              = EXCLUDED.low,
+                                              close            = EXCLUDED.close,
+                                              volume           = EXCLUDED.volume,
+                                              turnover         = EXCLUDED.turnover,
+                                              unadjusted_close = EXCLUDED.unadjusted_close,
+                                              dividend         = EXCLUDED.dividend
+                            """)
+
+        with self._connector.uow() as conn:
+            result = conn.execute(mapping_query, {"norgate_ids": norgate_ids}).mappings().all()
+            symbol_to_id = {r["norgate_id"]: r["instrument_id"] for r in result}
+
+            row_data = [
+                {
+                    "instrument_id": symbol_to_id[r["norgate_id"]],
+                    "date": r["date"],
+                    "adjustment_type": r["adjustment_type"],
+                    "open": r["open"],
+                    "high": r["high"],
+                    "low": r["low"],
+                    "close": r["close"],
+                    "volume": r.get("volume"),
+                    "turnover": r.get("turnover"),
+                    "unadjusted_close": r.get("unadjusted_close"),
+                    "dividend": r.get("dividend"),
+                }
+                for r in records
+            ]
+
+            conn.execute(insert_query, row_data)
+
+
+
 
     # --- HELPER METHODS ---
 

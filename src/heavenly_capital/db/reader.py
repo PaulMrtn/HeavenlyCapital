@@ -452,3 +452,63 @@ class DataAccessLayer:
             specs.append(row_dict)
 
         return specs
+
+
+    #TODO: LOW temporary/ debug fn
+    def fetch_first_rate_symbols(self) -> set[str]:
+        query = text("""
+                     SELECT first_rate_symbol
+                     FROM trading.first_rate_reference
+                     """)
+
+        with self._connector.get_connection() as conn:
+            result = conn.execute(query)
+            return {row["first_rate_symbol"] for row in result.mappings().all()}
+
+    def fetch_first_rate_symbol_to_norgate(self) -> dict[str, int]:
+        query = text("""
+                     SELECT first_rate_symbol, norgate_id
+                     FROM trading.first_rate_reference
+                     """)
+
+        with self._connector.get_connection() as conn:
+            result = conn.execute(query)
+            return {row["first_rate_symbol"]: row["norgate_id"] for row in result.mappings().all()}
+
+    def fetch_universe_prices(
+            self,
+            universe_code: str,
+            start_date: str
+    ) -> List[Dict[str, Any]]:
+
+        query = text("""
+                     SELECT i.symbol,
+                            p.date,
+                            p.close
+                     FROM market.prices_daily p
+                              JOIN trading.instruments i
+                                   ON p.instrument_id = i.instrument_id
+                              JOIN trading.universe_membership um
+                                   ON i.norgate_id = um.norgate_id
+                              JOIN trading.universes u
+                                   ON um.universe_id = u.universe_id
+                     WHERE u.code = :universe_code
+                       AND p.adjustment_type = 'TOTAL_RETURN'
+                       AND p.date >= :start_date
+                       AND p.date >= um.valid_from
+                       AND (um.valid_to IS NULL OR p.date <= um.valid_to)
+                     ORDER BY i.symbol, p.date
+                     """)
+
+        with self._connector.get_connection() as conn:
+            result = conn.execute(
+                query,
+                {
+                    "universe_code": universe_code,
+                    "start_date": start_date
+                }
+            )
+
+            return result.mappings().all()
+
+

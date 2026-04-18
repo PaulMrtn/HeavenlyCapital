@@ -215,3 +215,7 @@ __marimo__/
 
 # DuckDB Database
 /storage/
+
+
+# Research Module
+/src/heavenly_capital/research

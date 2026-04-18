@@ -287,6 +287,10 @@ CREATE TABLE trading.universe_membership (
         ON DELETE CASCADE
 );
 
+
+CREATE INDEX idx_um_lookup
+ON trading.universe_membership (norgate_id, universe_id, valid_from, valid_to);
+
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 ALTER TABLE trading.universe_membership
@@ -296,6 +300,8 @@ EXCLUDE USING gist (
     universe_id WITH =,
     daterange(valid_from, COALESCE(valid_to, 'infinity')) WITH &&
 );
+
+
 
 
 
