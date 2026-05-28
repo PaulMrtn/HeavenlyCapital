@@ -142,8 +142,9 @@ Before using HeavenlyCapital, you need:
   - Subscribe and manage via [Client Portal → Market Data Subscriptions](https://www.interactivebrokers.com/en/pricing/market-data-pricing.php).
     
 - **A running PostgreSQL database instance** with the required schema and tables
-  pre-created. The database must be
-  running and accessible before starting the system.
+  pre-created. The SQL schema is available in the [`sql/`](./sql/) folder of this
+  repository.
+  
   > A Docker image with a pre-configured PostgreSQL instance (schema + tables
   > included) is currently in development and will be available in a future release
   > to simplify the setup process.
