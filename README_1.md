@@ -12,7 +12,10 @@
 
 ---
 
-> **⚠️ Work in Progress** — This project is under active development. The core infrastructure is in place but trading strategies are not yet integrated. It is not ready for production use.
+> ⚠️ **Work in Progress** — This project is under active development. The core
+> infrastructure is in place but trading strategies are not yet integrated. It is
+> not ready for production use. For installation help or questions, feel free to
+> [open an issue](https://github.com/PaulMrtn/HeavenlyCapital/issues).
 
 ---
 
