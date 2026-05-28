@@ -168,6 +168,16 @@ cd HeavenlyCapital
 pip install -r requirements.txt
 ```
 
+## Database Setup
+
+HeavenlyCapital requires a running PostgreSQL instance with the schema initialized
+before starting the system. The SQL scripts are located in the [`sql/`](./sql/) folder.
+
+1. Create a PostgreSQL database
+2. Run the SQL scripts from the `sql/` folder to create the required tables
+3. Configure the connection in your `.env` file
+
+> A Docker-based setup is coming soon to automate this step entirely.
 ---
 
 ## Quick Start
