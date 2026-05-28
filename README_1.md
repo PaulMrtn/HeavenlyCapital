@@ -119,12 +119,39 @@ heavenly_capital/
 Before using HeavenlyCapital, you need:
 
 - **Python 3.10+**
+  
 - **Interactive Brokers account** (paper or live) with TWS or IB Gateway running
+  
 - **IBKR API** enabled in TWS/Gateway settings (Edit → Global Configuration → API)
-- **Market data subscription** — the API requires a Level 1 top-of-book subscription to receive real-time equity data. The relevant bundle is the **US Securities Snapshot and Futures Value Bundle** ($10/month for non-professional users, waived if you generate $30+/month in commissions). IBKR also requires a minimum of **$500 in your account** on top of any subscription fees. Subscribe via the [Client Portal → Market Data Subscriptions](https://www.interactivebrokers.com/en/pricing/market-data-pricing.php).
-- **A running database instance** (configured in `models/config.py`)
-- **Trained forecast models** (`.pkl` files) if using the strategy layer
-
+  
+- **Market data subscription** — the API requires a Level 1 top-of-book subscription
+  to receive real-time equity data. The relevant bundle is the **US Securities Snapshot
+  and Futures Value Bundle** ($10/month for non-professional users, waived if you
+  generate $30+/month in commissions). IBKR also requires a minimum of **$500 in your
+  account** on top of any subscription fees.
+  
+  - By default, every account is limited to **100 simultaneous market data lines**
+    (i.e. 100 assets streamed at once). To exceed this limit, you can purchase
+    **Quote Booster Packs** at **$30/month each** (100 additional lines per pack,
+    max 10 packs per account). The limit also increases automatically based on
+    account equity and monthly commissions.
+    
+  - Subscribe and manage via [Client Portal → Market Data Subscriptions](https://www.interactivebrokers.com/en/pricing/market-data-pricing.php).
+    
+- **A running PostgreSQL database instance** with the required schema and tables
+  pre-created. The database must be
+  running and accessible before starting the system.
+  > A Docker image with a pre-configured PostgreSQL instance (schema + tables
+  > included) is currently in development and will be available in a future release
+  > to simplify the setup process.
+  
+- **Trained forecast models** (`.pkl` files) if using the strategy layer. The system
+  requires **3 models per portfolio** — one for each signal type: `BUY`, `SELL`, and
+  `STOP_LOSS` — each registered and assigned before the system can generate signals.
+  
+  > A tutorial on how to build your own intraday execution optimization strategy
+  > and train compatible forecast models is currently in development.
+  
 > The system is designed for users familiar with algorithmic trading, the IBKR ecosystem, and quantitative finance. It is not a plug-and-play solution.
 
 ---
