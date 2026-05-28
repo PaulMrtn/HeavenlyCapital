@@ -30,42 +30,6 @@ The quantitative research layer (asset selection, signal generation, intraday ex
 
 ---
 
-## Architecture
-
-HeavenlyCapital is organized into 8 independent modules that communicate through a central data bus:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        services/app.py                      │  ← Entry point
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼
-   ┌─────────┐       ┌──────────┐       ┌──────────┐
-   │  core/  │       │  data/   │       │  ibkr/   │
-   │ kernel  │       │  bus     │       │  client  │
-   │ clock   │       │  live    │       │  gateway │
-   │ threads │       │ historic │       └──────────┘
-   └─────────┘       └──────────┘
-        │                  │
-        ▼                  ▼
-   ┌──────────┐      ┌──────────┐      ┌─────────────┐
-   │ strategy │      │   db/    │      │  monitoring/ │
-   │ features │      │ reader   │      │  health      │
-   │ forecast │      │ writer   │      │  metrics     │
-   └──────────┘      └──────────┘      └─────────────┘
-        │
-        ▼
-   ┌──────────┐
-   │ trading/ │
-   │ orders   │
-   │ risk     │
-   │ portfolio│
-   └──────────┘
-```
-
----
-
 ## Features
 
 ### ✅ Implemented
@@ -157,8 +121,9 @@ Before using HeavenlyCapital, you need:
 - **Python 3.10+**
 - **Interactive Brokers account** (paper or live) with TWS or IB Gateway running
 - **IBKR API** enabled in TWS/Gateway settings (Edit → Global Configuration → API)
-- A running **database** instance (configured in `models/config.py`)
-- Trained **forecast models** (`.pkl` files) if using the strategy layer
+- **Market data subscription** — the API requires a Level 1 top-of-book subscription to receive real-time equity data. The relevant bundle is the **US Securities Snapshot and Futures Value Bundle** ($10/month for non-professional users, waived if you generate $30+/month in commissions). IBKR also requires a minimum of **$500 in your account** on top of any subscription fees. Subscribe via the [Client Portal → Market Data Subscriptions](https://www.interactivebrokers.com/en/pricing/market-data-pricing.php).
+- **A running database instance** (configured in `models/config.py`)
+- **Trained forecast models** (`.pkl` files) if using the strategy layer
 
 > The system is designed for users familiar with algorithmic trading, the IBKR ecosystem, and quantitative finance. It is not a plug-and-play solution.
 
