@@ -268,6 +268,33 @@ service.assign_model_to_portfolio(
 
 ---
 
+## Adding Assets to the Universe
+
+HeavenlyCapital fetches market data for instruments stored in the database.
+To add an asset to the universe, insert it into the `instruments` table:
+
+```sql
+INSERT INTO instruments (symbol, name, sector, asset_type, exchange, currency, primary_exchange, con_id)
+VALUES
+    ('AAPL',  'Apple Inc.',            'Technology', 'STK', 'SMART', 'USD', 'NASDAQ', 265598),
+    ('MSFT',  'Microsoft Corporation', 'Technology', 'STK', 'SMART', 'USD', 'NASDAQ', 272093),
+    ('JPM',   'JPMorgan Chase & Co.',  'Financial',  'STK', 'SMART', 'USD', 'NYSE',   1520593),
+    ('XOM',   'Exxon Mobil Corp.',     'Energy',     'STK', 'SMART', 'USD', 'NYSE',   13977900);
+```
+
+The `con_id` is the IBKR contract identifier — the most reliable way to identify
+an instrument without ambiguity. You can find it in TWS (right-click on an instrument
+→ Financial Instrument Info → Description) or via the IBKR Contract Search:
+https://www.interactivebrokers.com/en/index.php?f=463
+
+> **Note** — Contract resolution is currently manual. A mechanism to automatically
+> resolve and persist `con_id` values from IBKR at startup is planned for a future release.
+
+On startup, the gateway loads all instruments from the database, qualifies the
+contracts with IBKR, and starts streaming real-time market data automatically.
+
+---
+
 ## Roadmap
 
 | Status | Milestone |
