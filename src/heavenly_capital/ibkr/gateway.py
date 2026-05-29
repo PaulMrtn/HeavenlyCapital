@@ -22,7 +22,7 @@ CLIENTS_CONFIG = [
         "host": "127.0.0.1",
         "port": 4002,
         "enable": True,
-        "account_id" : "DUO800430",
+        "account_id" : "", # ibkr_account
         "account_type": "PAPER",         # LIVE ou PAPER
         "permission_level": "MASTER"    # MASTER ou STANDARD
     },
@@ -31,7 +31,7 @@ CLIENTS_CONFIG = [
             "host": "127.0.0.1",
             "port": 4003,
             "enable": True,
-            "account_id" : "DUM832619",
+            "account_id" : "", # ibkr_account
             "account_type": "PAPER",
             "permission_level": "STANDARD"
     },
