@@ -358,6 +358,33 @@ and routes the orders to the appropriate portfolio session.
 
 ---
 
+## Running the System
+
+> **⚠️ Debug mode only** — The current entry point is a minimal debug launcher.
+> A proper startup script with readiness checks, exit code handling, and process
+> management is currently in development (see [Roadmap](#roadmap)).
+
+```python
+import asyncio
+from heavenly_capital.core.kernel import Kernel
+
+async def main():
+    kernel = Kernel()
+    await kernel.start()
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Run it with:
+
+```bash
+python main.py
+```
+
+---
+
 ## Roadmap
 
 | Status | Milestone |
