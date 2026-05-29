@@ -332,6 +332,31 @@ contracts with IBKR, and starts streaming real-time market data automatically.
 
 ---
 
+## Scheduling a Rebalance
+
+To schedule a rebalance, assign target weights per instrument (`con_id`) 
+to a portfolio for a given date:
+
+```python
+service.writer.insert_portfolio_target(
+    account_id="ACC123",
+    portfolio_id="PORT001",
+    strategy_id="STRAT001",
+    rebalance_date="2026-04-01",  # format 'YYYY-MM-DD'
+    weights={
+        265598:   0.30,  # AAPL
+        272093:   0.20,  # MSFT
+        1520593:  0.50,  # JPM
+    }
+)
+```
+
+Weights are expressed as fractions of the total portfolio value and must sum to `1.0`.
+The rebalancing engine computes the order deltas automatically on the scheduled date
+and routes the orders to the appropriate portfolio session.
+
+---
+
 ## Roadmap
 
 | Status | Milestone |
