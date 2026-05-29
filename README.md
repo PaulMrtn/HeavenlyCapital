@@ -192,6 +192,8 @@ cd HeavenlyCapital
 pip install -r requirements.txt
 ```
 
+> **Note** — The `requirements.txt` and the compatible fork of `ib_async` required to run this project are not included in this repository. Please [open an issue](https://github.com/PaulMrtn/HeavenlyCapital/issues) or reach out via [GitHub](https://github.com/PaulMrtn) to get access.
+
 ---
 
 ## Database Setup
