@@ -274,6 +274,7 @@ HeavenlyCapital fetches market data for instruments stored in the database.
 To add an asset to the universe, use the `SessionService`:
 
 ```python
+
 from heavenly_capital.services.app import SessionService
 
 service = SessionService()
@@ -282,6 +283,8 @@ service.writer.insert_instrument(symbol="AAPL", long_name="Apple Inc.", sector="
 service.writer.insert_instrument(symbol="MSFT", long_name="Microsoft Corporation", sector="Technology", exchange="NASDAQ", currency="USD", asset_class="EQUITY")
 service.writer.insert_instrument(symbol="JPM",  long_name="JPMorgan Chase & Co.", sector="Financial", exchange="NYSE", currency="USD", asset_class="EQUITY")
 service.writer.insert_instrument(symbol="XOM",  long_name="Exxon Mobil Corp.", sector="Energy", exchange="NYSE", currency="USD", asset_class="EQUITY")
+
+
 ```
 
 The `con_id` — the IBKR contract identifier — is resolved automatically by the
