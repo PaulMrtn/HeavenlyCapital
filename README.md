@@ -12,8 +12,12 @@
 
 ---
 
-> **⚠️ Work in Progress** — This project is under active development. The core infrastructure is in place but is not yet ready for production use. For installation help or questions, feel free to [open an issue](https://github.com/PaulMrtn/HeavenlyCapital/issues).
-
+> **⚠️ Work in Progress** — This project is under active development 
+> and cannot be used without direct support from the author. 
+> If you are interested in the project or want to get in touch, 
+> feel free to reach out via [GitHub](https://github.com/PaulMrtn) 
+> or open an [issue](https://github.com/PaulMrtn/HeavenlyCapital/issues).
+> 
 ---
 
 ## Overview
