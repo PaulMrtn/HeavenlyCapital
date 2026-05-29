@@ -351,7 +351,8 @@ service.writer.insert_portfolio_target(
 )
 ```
 
-Weights are expressed as fractions of the total portfolio value and must sum to `1.0`.
+Weights are expressed as fractions of the total portfolio value.
+They do not need to sum to `1.0` — the remaining allocation is kept as cash.
 The rebalancing engine computes the order deltas automatically on the scheduled date
 and routes the orders to the appropriate portfolio session.
 
