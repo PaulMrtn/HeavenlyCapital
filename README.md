@@ -271,24 +271,27 @@ service.assign_model_to_portfolio(
 ## Adding Assets to the Universe
 
 HeavenlyCapital fetches market data for instruments stored in the database.
-To add an asset to the universe, insert it into the `instruments` table:
+To add an asset to the universe, use the `SessionService`:
 
-```sql
-INSERT INTO instruments (symbol, name, sector, asset_type, exchange, currency, primary_exchange, con_id)
-VALUES
-    ('AAPL',  'Apple Inc.',            'Technology', 'STK', 'SMART', 'USD', 'NASDAQ', 265598),
-    ('MSFT',  'Microsoft Corporation', 'Technology', 'STK', 'SMART', 'USD', 'NASDAQ', 272093),
-    ('JPM',   'JPMorgan Chase & Co.',  'Financial',  'STK', 'SMART', 'USD', 'NYSE',   1520593),
-    ('XOM',   'Exxon Mobil Corp.',     'Energy',     'STK', 'SMART', 'USD', 'NYSE',   13977900);
+```python
+from heavenly_capital.services.app import SessionService
+
+service = SessionService()
+
+service.writer.insert_instrument(symbol="AAPL", long_name="Apple Inc.", sector="Technology", exchange="NASDAQ", currency="USD", asset_class="EQUITY")
+service.writer.insert_instrument(symbol="MSFT", long_name="Microsoft Corporation", sector="Technology", exchange="NASDAQ", currency="USD", asset_class="EQUITY")
+service.writer.insert_instrument(symbol="JPM",  long_name="JPMorgan Chase & Co.", sector="Financial", exchange="NYSE", currency="USD", asset_class="EQUITY")
+service.writer.insert_instrument(symbol="XOM",  long_name="Exxon Mobil Corp.", sector="Energy", exchange="NYSE", currency="USD", asset_class="EQUITY")
 ```
 
-The `con_id` is the IBKR contract identifier — the most reliable way to identify
-an instrument without ambiguity. You can find it in TWS (right-click on an instrument
-→ Financial Instrument Info → Description) or via the IBKR Contract Search:
-https://www.interactivebrokers.com/en/index.php?f=463
+The `con_id` — the IBKR contract identifier — is resolved automatically by the
+gateway at startup via `qualify_contracts()`. You can also find it manually in TWS
+(right-click on an instrument → Financial Instrument Info → Description) or via
+the [IBKR Contract Search](https://www.interactivebrokers.com/en/index.php?f=463).
 
-> **Note** — Contract resolution is currently manual. A mechanism to automatically
-> resolve and persist `con_id` values from IBKR at startup is planned for a future release.
+> **Note** — Automatic contract persistence after qualification is not yet fully
+> implemented. A mechanism to automatically resolve and persist `con_id` values
+> from IBKR at startup is planned for a future release.
 
 On startup, the gateway loads all instruments from the database, qualifies the
 contracts with IBKR, and starts streaming real-time market data automatically.
