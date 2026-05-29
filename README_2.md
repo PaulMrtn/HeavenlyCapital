@@ -35,8 +35,6 @@ The infrastructure covers:
 
 ## Features
 
-### ✅ Implemented
-
 **Core engine**
 - Event-driven kernel with market state machine (PRE_MARKET → OPEN → POST_MARKET → CLOSED)
 - Internal clock with accelerated time simulation for development
@@ -87,19 +85,6 @@ The infrastructure covers:
 - Async structured log service with batch DB persistence
 - Health check framework on all runtime modules
 - Extensible metrics and notification services
-
-### 🔄 In progress
-
-- `RiskManager` — stop loss implementation
-- Docker-based PostgreSQL setup (schema + tables pre-configured)
-
-### 🔜 Planned
-
-- Backtesting module
-- Portfolio construction (optimization layer)
-- Automated daily reconciliation (positions DB vs IBKR)
-- Reporting & P&L dashboard
-- CI/CD pipeline
 
 ---
 
@@ -181,9 +166,9 @@ Before using HeavenlyCapital, you need:
   - By default, every account is limited to **100 simultaneous market data lines** (100 assets streamed at once). To exceed this limit, purchase **Quote Booster Packs** at **$30/month each** (100 additional lines per pack, max 10 packs per account). The limit also scales automatically with account equity and monthly commissions.
   - Subscribe and manage via [Client Portal → Market Data Subscriptions](https://www.interactivebrokers.com/en/pricing/market-data-pricing.php).
 - **A running PostgreSQL database instance** with the required schema pre-created. SQL scripts are located in the [`sql/`](./sql/) folder. The connection is configured via a `.env` file.
-  > 🐳 A Docker image with a pre-configured PostgreSQL instance is currently in development and will be available in a future release.
+  > A Docker image with a pre-configured PostgreSQL instance is currently in development and will be available in a future release.
 - **Trained forecast models** (`.pkl` files) — the system requires **3 models per portfolio**: `BUY`, `SELL`, and `STOP_LOSS`. Models are registered in the database and loaded at runtime. How models are built and trained is entirely up to the user and is outside the scope of this infrastructure.
-  > 📖 A guide on how to integrate custom models into HeavenlyCapital is currently in development.
+  > A guide on how to integrate custom models into HeavenlyCapital is currently in development.
 
 > This system is designed for users familiar with algorithmic trading, the IBKR ecosystem, and quantitative finance. It is not a plug-and-play solution.
 
@@ -207,7 +192,7 @@ HeavenlyCapital requires a running PostgreSQL instance with the schema initializ
 2. Run the SQL scripts from the [`sql/`](./sql/) folder to create the required tables
 3. Configure the connection in your `.env` file
 
-> 🐳 A Docker-based setup is coming soon to automate this step entirely.
+> A Docker-based setup is coming soon to automate this step entirely.
 
 ---
 
@@ -282,11 +267,9 @@ service.assign_model_to_portfolio(
 | ✅ Done | Forecasting pipeline — feature engine, model registry, signal routing |
 | ✅ Done | Full PostgreSQL persistence — orders, fills, positions, P&L, logs |
 | ✅ Done | Session & portfolio management — paper/live, capital events, multi-portfolio |
-| ✅ Done | Real-time monitoring console |
+| 🔄 In progress | Real-time monitoring console |
 | 🔄 In progress | Risk manager — stop loss |
-| 🔄 In progress | Docker setup for PostgreSQL |
-| 🔜 Planned | Backtesting module |
-| 🔜 Planned | Portfolio construction (optimization layer) |
+| 🔄 In progress | Docker setup |
 | 🔜 Planned | Automated daily reconciliation |
 | 🔜 Planned | Reporting & P&L dashboard |
 | 🔜 Planned | CI/CD pipeline |
