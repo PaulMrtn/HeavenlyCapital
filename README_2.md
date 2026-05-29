@@ -163,11 +163,17 @@ Before using HeavenlyCapital, you need:
 - **Interactive Brokers account** (paper or live) with TWS or IB Gateway running
 - **IBKR API** enabled in TWS/Gateway settings (Edit → Global Configuration → API)
 - **Market data subscription** — the API requires a Level 1 top-of-book subscription to receive real-time equity data. The relevant bundle is the **US Securities Snapshot and Futures Value Bundle** ($10/month for non-professional users, waived if you generate $30+/month in commissions). IBKR also requires a minimum of **$500 in your account** on top of subscription fees.
+  
   - By default, every account is limited to **100 simultaneous market data lines** (100 assets streamed at once). To exceed this limit, purchase **Quote Booster Packs** at **$30/month each** (100 additional lines per pack, max 10 packs per account). The limit also scales automatically with account equity and monthly commissions.
+    
   - Subscribe and manage via [Client Portal → Market Data Subscriptions](https://www.interactivebrokers.com/en/pricing/market-data-pricing.php).
+    
 - **A running PostgreSQL database instance** with the required schema pre-created. SQL scripts are located in the [`sql/`](./sql/) folder. The connection is configured via a `.env` file.
+  
   > A Docker image with a pre-configured PostgreSQL instance is currently in development and will be available in a future release.
+  
 - **Trained forecast models** (`.pkl` files) — the system requires **3 models per portfolio**: `BUY`, `SELL`, and `STOP_LOSS`. Models are registered in the database and loaded at runtime. How models are built and trained is entirely up to the user and is outside the scope of this infrastructure.
+  
   > A guide on how to integrate custom models into HeavenlyCapital is currently in development.
 
 > This system is designed for users familiar with algorithmic trading, the IBKR ecosystem, and quantitative finance. It is not a plug-and-play solution.
