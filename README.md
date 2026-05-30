@@ -384,7 +384,6 @@ python main.py
 ```
 
 ---
-
 ## Roadmap
 
 | Status | Milestone |
@@ -396,12 +395,27 @@ python main.py
 | ✅ Done | Forecasting pipeline — feature engine, model registry, signal routing |
 | ✅ Done | Full PostgreSQL persistence — orders, fills, positions, P&L, logs |
 | ✅ Done | Session & portfolio management — paper/live, capital events, multi-portfolio |
-| 🔄 In progress | Real-time monitoring console |
-| 🔄 In progress | Risk manager — stop loss |
-| 🔄 In progress | Docker setup |
-| 🔜 Planned | Automated daily reconciliation |
-| 🔜 Planned | Reporting & P&L dashboard |
-| 🔜 Planned | CI/CD pipeline |
+| 🔄 In progress | Risk manager — stop loss & liquidity management |
+| 🔄 In progress | System hardening — configuration, boot sequences, error handling |
+| 🔄 In progress | Monitoring — metrics service, health checks, notifications |
+| 🔜 Planned | Quantitative research integration — model pipeline end-to-end |
+| 🔜 Planned | Data pipeline — Norgate automated ingestion, contract management |
+| 🔜 Planned | Testing & CI/CD |
+| 🔜 Planned | Docker & VPS deployment |
+| 🔜 Planned | Reconciliation & reporting dashboard |
+
+---
+
+**Current progress — ~60% toward v1.0 alpha**
+
+The core infrastructure is functional end-to-end. The remaining work focuses on
+hardening the system for production — robust boot sequences, complete risk management,
+automated data pipelines, and deployment infrastructure.
+
+**Estimated v1.0 alpha — Q3 2026**
+
+> v1.0 alpha is defined as: system running stably in paper trading on a VPS,
+> with quantitative models integrated and a basic monitoring dashboard in place.
 
 ---
 
