@@ -422,7 +422,7 @@ Unlike the decoupled monitoring dashboard engineered for the **v1.0 alpha** rele
 | 🔜 Planned | Docker & VPS deployment |
 | 🔜 Planned | Reconciliation & reporting dashboard |
 
----
+
 
 **Current progress — ~60% toward v1.0 alpha**
 
