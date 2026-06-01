@@ -389,7 +389,7 @@ python main.py
 HeavenlyCapital includes a real-time terminal dashboard built on top of the **Rich** CLI library, serving as the primary stdout multiplexer and runtime interface for local operations.
 
 <p align="center">
-  <img src="img/console.png" alt="Terminal Exemple" width="105%">
+  <img src="img/terminal.png" alt="Terminal Exemple" width="105%">
 </p>
 
 The CLI interface captures standard keyboard events natively, allowing developers to cycle through portfolio snapshots using the Left/Right directional arrow keys.
