@@ -368,10 +368,9 @@ and routes the orders to the appropriate portfolio session.
 import asyncio
 from heavenly_capital.core.kernel import Kernel
 
-async def main():
-    kernel = Kernel()
-    await kernel.start()
-    await asyncio.Event().wait()
+async def main() -> None:
+    async with Kernel() as kernel:
+        await kernel.run()
 
 if __name__ == "__main__":
     asyncio.run(main())
