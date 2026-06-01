@@ -166,7 +166,7 @@ Before using HeavenlyCapital, you need:
 - **Python 3.12**
 - **Interactive Brokers account** (paper or live) with TWS or IB Gateway running
 - **IBKR API** enabled in TWS/Gateway settings (Edit → Global Configuration → API)
-- **Market data subscription** — the API requires a Level 1 top-of-book subscription to receive real-time equity data. The relevant bundle is the **US Securities Snapshot and Futures Value Bundle** ($10/month for non-professional users, waived if you generate $30+/month in commissions). IBKR also requires a minimum of **$500 in your account** on top of subscription fees.
+- **Market data subscription** — The API requires a Level 1 US top-of-book subscription to receive real-time equity data. This is typically achieved by subscribing to the three US equity exchanges (NYSE, NASDAQ, and AMEX/ARCA), or via the equivalent **IBKR US Equity Level I bundle** (~$4.50/month for non-professional users). A minimum account equity of **$500** is also required in addition to subscription fees.
   
   - By default, every account is limited to **100 simultaneous market data lines** (100 assets streamed at once). To exceed this limit, purchase **Quote Booster Packs** at **$30/month each** (100 additional lines per pack, max 10 packs per account). The limit also scales automatically with account equity and monthly commissions.
     
