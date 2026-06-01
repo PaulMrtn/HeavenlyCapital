@@ -383,6 +383,25 @@ python main.py
 ```
 
 ---
+
+## Console
+
+HeavenlyCapital includes a real-time terminal dashboard built on top of the **Rich** CLI library, serving as the primary stdout multiplexer and runtime interface for local operations.
+
+<p align="center">
+  <img src="img/console.png" alt="Console Exemple" width="90%">
+</p>
+
+The system operates under an active **Debug Mode** lifecycle throughout the development phase, bypasses standard asynchronous log rotation, and hooks directly into the kernel's execution state machine.
+
+Unlike the decoupled monitoring dashboard engineered for the **v1.0 alpha** release—which executes read-only operations against historical tables via the PostgreSQL persistence layer—**this terminal console reads live operational values directly from RAM**. This localized memory inspection architecture guarantees zero-latency telemetry for tracking the internal clock states, numpy ring buffer allocations, thread pool queue depths, and real-time TCP socket tick gaps from the IBKR API.
+
+> **⚠️ Debug mode only**  — The terminal UI layer is exclusively designed for local debugging and sandboxed execution.
+> The underlying architecture relies on fully decoupled, thread-safe asynchronous services.
+> When deployed to a headless cloud instance, an isolated VPS, or a Docker container (see [Roadmap](#roadmap)), the CLI rendering engine needs to be toggled off.
+
+---
+
 ## Roadmap
 
 | Status | Milestone |
