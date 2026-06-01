@@ -389,7 +389,7 @@ python main.py
 HeavenlyCapital includes a real-time terminal dashboard built on top of the **Rich** CLI library, serving as the primary stdout multiplexer and runtime interface for local operations.
 
 <p align="center">
-  <img src="img/console.png" alt="Console Exemple" width="90%">
+  <img src="img/console.png" alt="Console Exemple" width="100%">
 </p>
 
 The system operates under an active **Debug Mode** lifecycle throughout the development phase, bypasses standard asynchronous log rotation, and hooks directly into the kernel's execution state machine.
