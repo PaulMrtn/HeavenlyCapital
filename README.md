@@ -370,7 +370,7 @@ from heavenly_capital.core.kernel import Kernel
 
 async def main() -> None:
     async with Kernel() as kernel:
-        await kernel.run()
+        await kernel.run(debug_mode=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
