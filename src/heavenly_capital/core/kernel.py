@@ -8,10 +8,11 @@ from uuid import uuid4
 from heavenly_capital.core.calendar import USMarketsCalendar
 from heavenly_capital.core.clock import (
     MarketClock, AcceleratedTimeHeartbeat,
-    MarketEventChangeEvent, MarketState, TradingChangeState, )
+    MarketEventChangeEvent, MarketState, TradingChangeState, SystemTimeHeartbeat, _NYC_TZ, )
 
 from heavenly_capital.core.thread import get_thread_manager
-from heavenly_capital.models.snapshot import KernelSnapshot, SessionSnapshot
+from heavenly_capital.models.snapshot import KernelSnapshot, SessionSnapshot, PortfolioSnapshot, PositionSnapshot, \
+    OrderSnapshot, SystemSnapshot, MarketSnapshot
 from heavenly_capital.services.console import ConsoleService
 
 from heavenly_capital.db.connector import DB_CONNECTOR
@@ -37,12 +38,6 @@ from heavenly_capital.monitoring.notification_service import NullNotificationSer
 
 
 
-heartbeat = AcceleratedTimeHeartbeat(
-        day_seconds=180,
-        start_timestamp=datetime(2026,1,1,0,0).timestamp())
-
-
-
 class Kernel:
     _instance = None
 
@@ -56,19 +51,17 @@ class Kernel:
         if self._initialized:
             return
 
-        self._main_loop = asyncio.get_event_loop() # TODO: Handle this ( property ? )
-        self._thread_manager = get_thread_manager()
+        self._debug_mode: bool = False
+        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._console: Optional[ConsoleService] = None
+        self._market_clock: Optional[MarketClock] = None
+        self._market_handlers: Optional[dict] = None
 
+        self._thread_manager = get_thread_manager()
         self._system_state = SystemState()
         self._today_session: Optional[MarketDaySession] = None
         self._pre_market_event = asyncio.Event() # TODO: Handle this ( property ? )
 
-        self._market_clock = MarketClock(time_source=heartbeat)
-        self._market_clock.subscribe_market(self.on_market_state_change) #TODO:MEDIUM Handle this callback subscription properly
-        self._market_clock.subscribe_market(self._log_market_event)
-        self._market_clock.subscribe_trading(self._log_trading_event)
-
-        self._market_clock.start()
 
         self._market_calendar = USMarketsCalendar()
 
@@ -79,16 +72,10 @@ class Kernel:
         self._notif = NullNotificationService()
 
 
-        self._console = ConsoleService(
-            log_service=self._log,
-            snapshot=self.snapshot,
-        )
-
         self._modules = RuntimeRegistry().build()
         self._runtime_config = RuntimeConfig()
 
-        self._market_handlers = self._build_market_handlers()
-
+        self._initialized = True
         self._modules_started = False
         self._modules_configured = False
 
@@ -100,9 +87,33 @@ class Kernel:
             reader=DataAccessLayer(connector=DB_CONNECTOR)
         )
 
+    @staticmethod
+    def _build_time_source(debug_mode: bool) -> AcceleratedTimeHeartbeat | SystemTimeHeartbeat:
+        if debug_mode:
+            return AcceleratedTimeHeartbeat(
+                day_seconds=180,
+                start_timestamp=datetime(2026, 1, 1, 0, 0, tzinfo=_NYC_TZ).timestamp()
+            )
+        return SystemTimeHeartbeat()
+
+    def _initialize_market_clock(self, debug_mode: bool) -> None:
+        time_source = self._build_time_source(debug_mode)
+        self._market_clock = MarketClock(time_source=time_source)
+
+        self._market_handlers = self._build_market_handlers()
+        self._market_clock.subscribe_market(self.on_market_state_change)
+        self._market_clock.subscribe_market(self._log_market_event)
+        self._market_clock.subscribe_trading(self._log_trading_event)
+
+        self._market_clock.start()
+
 
 # region Kernel Lifecycle
-    async def start(self) -> None:
+    async def start(self, debug_mode: bool = False) -> None:
+
+        self._debug_mode = debug_mode
+        self._initialize_market_clock(debug_mode)
+
         self._log.info(
             "Kernel started",
             extra={
@@ -111,7 +122,6 @@ class Kernel:
             }
         )
 
-        self._console.start()
         await self._run_bootstrap()
 
     def stop(self) -> None:
@@ -123,7 +133,28 @@ class Kernel:
             }
         )
 
-        self._console.stop()
+        if self._console:
+            self._console.stop()
+
+    async def __aenter__(self):
+        self._main_loop = asyncio.get_running_loop()
+        return self
+
+    async def __aexit__(self, *args):
+        self.stop()
+
+    async def run(self, debug_mode: bool = False) -> None:
+        await self.start(debug_mode=debug_mode)
+        await asyncio.Event().wait()
+
+
+    def _start_console_if_debug(self) -> None:
+        if self._debug_mode:
+            self._console = ConsoleService(
+                log_service=self._log,
+                snapshot=self.snapshot,
+            )
+            self._console.start()
 
 
 # endregion
@@ -285,13 +316,17 @@ class Kernel:
         )
 
         if proc == "STRATEGIC_SETUP":
-            self._strategic_setup()
-            # await self._run_procedure(self._strategic_setup)
+            await self._run_procedure(self._strategic_setup)
             return
 
         if proc == "MARKET_SETUP":
-            await self._market_setup()
-            # await self._run_procedure(self._market_setup)
+            self._start_console_if_debug()
+            await self._run_procedure(self._market_setup)
+            return
+
+        if proc == "MARKET_SETUP_RECOVERY":
+            self._start_console_if_debug()
+            # await self._run_procedure(self._market_setup_recovery)
             return
 
         raise ValueError(f"Unknown procedure: {proc}")
@@ -367,19 +402,31 @@ class Kernel:
 
         try:
             result = proc(*args, **kwargs)
-
             if asyncio.iscoroutine(result):
                 await result
 
             return result
 
-        except Exception as e:
-            print(e)
-
+        except ConnectionError as e:
+            self._log.error(
+                str(e),
+                extra={"domain": "SYSTEM", "event": "connection_failed", "procedure": proc.__name__}
+            )
             self._system_state.set_status(SystemStatus.ERROR, detail=str(e))
-
             self._update_session(error=True)
+            self.shutdown(
+                scenario=ShutdownScenario.PROCEDURE_FAILED,
+                code=ExitCode.BROKER_UNAVAILABLE,
+                detail=str(e)
+            )
 
+        except Exception as e:
+            self._log.error(
+                str(e),
+                extra={"domain": "SYSTEM", "event": "procedure_failed", "procedure": proc.__name__}
+            )
+            self._system_state.set_status(SystemStatus.ERROR, detail=str(e))
+            self._update_session(error=True)
             self.shutdown(
                 scenario=ShutdownScenario.PROCEDURE_FAILED,
                 code=ExitCode.ERROR,
@@ -478,6 +525,7 @@ class Kernel:
             self._modules.session_manager.configure(self._runtime_config.session_manager, ports)
 
         self._modules_configured = True
+
 
 
     async def _start_runtime_modules(self) -> None:
@@ -728,77 +776,102 @@ class Kernel:
 
     def _snapshot(self) -> KernelSnapshot:
 
+        # --- Today Session ---
         today_snap = None
-
         if self._today_session:
             today_snap = SessionSnapshot(
-                session_id=str(self._today_session.session_id),
                 date=str(self._today_session.session_date),
                 phase=str(self._today_session.phase),
                 status=str(self._today_session.status),
                 state=str(self._today_session.state),
-                error=self._today_session.error
+                error=self._today_session.error,
             )
 
-        runtime_threads = len(self._thread_manager.threads)
+        # --- System ---
+        system_snap = SystemSnapshot(
+            status=str(self._system_state.status),
+            db_status="connected" if self._db else "disconnected",
+            runtime_threads=len(self._thread_manager.threads),
+            active_sessions=len(self._modules.session_manager.sessions) if self._modules.session_manager else 0,
+        )
 
-        active_sessions = 0
-        if self._modules.session_manager:
-            active_sessions = len(self._modules.session_manager.sessions)
-
-        market_streaming = False
-        ibkr_last_tick_gap = None
-        ibkr_tick_rate = 0.0
-        ibkr_subscribed_contracts = 0
-        ibkr_clients_connected = 0
-        ibkr_orders_tracked = 0
-
+        # --- Market & IBKR ---
         gateway = self._modules.ibkr_gateway
+        market_snap = MarketSnapshot(
+            market_state=self._market_clock._market_state.name if self._market_clock._market_state else "N/A",
+            trading_state=self._market_clock._trading_state.name if self._market_clock._trading_state else "N/A",
+            streaming=gateway.streaming_is_active if gateway else False,
+            tick_rate=gateway.tick_rate if gateway else 0.0,
+            last_tick_gap=gateway.last_tick_gap if gateway else None,
+            subscribed_contracts=gateway.subscribed_contracts if gateway else 0,
+            clients_connected=len(gateway.client_manager.all) if gateway and gateway.client_manager else 0,
+            orders_tracked=len(gateway._order_registry) if gateway else 0,
+        )
 
-        if gateway:
-            market_streaming = gateway.streaming_is_active
-            ibkr_last_tick_gap = gateway.last_tick_gap
-            ibkr_tick_rate = gateway.tick_rate
-            ibkr_subscribed_contracts = gateway.subscribed_contracts
+        # --- Portfolios ---
+        portfolios = []
+        if self._modules.session_manager:
+            for session in self._modules.session_manager.sessions.values():
 
-            if gateway.client_manager:
-                ibkr_clients_connected = len(gateway.client_manager.all)
+                ptf = None
+                if session.stack and session.stack.portfolio:
+                    ptf = session.stack.portfolio._portfolio
 
-            ibkr_orders_tracked = len(gateway._order_registry)
+                positions = []
+                if ptf:
+                    for con_id, pos in ptf.positions.items():
+                        positions.append(PositionSnapshot(
+                            con_id=con_id,
+                            symbol=pos.symbol,
+                            quantity=pos.quantity,
+                            avg_price=pos.avg_price,
+                            market_price=pos.market_price,
+                            market_value=pos.market_value,
+                            unrealized_pnl=pos.unrealized_pnl,
+                            performance=pos.performance,
+                        ))
 
-        live_session = self._modules.session_manager.get_live_session()
+                orders = []
+                if gateway:
+                    for order_id, tracker in gateway._order_registry.items():
+                        if tracker.request.portfolio_id != session.key.portfolio_id:
+                            continue
+                        orders.append(OrderSnapshot(
+                            con_id=tracker.request.con_id,
+                            side=tracker.request.side,
+                            quantity=tracker.request.quantity,
+                            order_type=tracker.request.order_type,
+                            status=tracker.state.status.name,
+                            filled_quantity=tracker.state.filled_quantity,
+                            remaining_quantity=tracker.state.remaining_quantity,
+                        ))
 
-        order_manager = live_session.stack.orders
-        portfolio_manager = live_session.stack.portfolio
-
-        # order_manager = live_session.stack.risk
-
-        pending_orders_count = len(order_manager._pending_orders) if order_manager else 0
+                portfolios.append(PortfolioSnapshot(
+                    portfolio_id=session.key.portfolio_id,
+                    account_id=session.key.account_id,
+                    mode=session.key.mode,
+                    cash=ptf.balance.cash if ptf else None,
+                    stock_value=ptf.balance.stock_market_value if ptf else None,
+                    total_value=ptf.total_value if ptf else None,
+                    unrealized_pnl=ptf.balance.unrealized_pnl if ptf else None,
+                    performance=ptf.performance if ptf else None,
+                    positions=positions,
+                    orders=orders,
+                ))
 
         return KernelSnapshot(
             timestamp=time.time(),
-            system_status=str(self._system_state.status),
-            trading_state=str(self._market_clock._trading_state),
-            market_state=str(self._market_clock._market_state),
-            system_state=str(self._market_clock._system_state),
+            system=system_snap,
+            market=market_snap,
             today_session=today_snap,
-            db_status="connected" if self._db else "disconnected",
-            runtime_threads=runtime_threads,
-            active_sessions=active_sessions,
-            market_streaming=market_streaming,
-
-            ibkr_clients_connected=ibkr_clients_connected,
-            ibkr_orders_tracked=ibkr_orders_tracked,
-            ibkr_last_tick_gap=ibkr_last_tick_gap,
-            ibkr_tick_rate=ibkr_tick_rate,
-            ibkr_subscribed_contracts=ibkr_subscribed_contracts,
+            portfolios=portfolios,
         )
 
     @property
     def snapshot(self) -> Callable[[], KernelSnapshot]:
         return self._snapshot
 
-    # TODO: If `snapshot()` becomes more complex (e.g., reading live threads, queues, or other shared data),
+    # TODO:MEDIUM: If `snapshot()` becomes more complex (e.g., reading live threads, queues, or other shared data),
     # consider adding a small lock (threading.Lock) or an internal cache to ensure that reading the snapshot
     # is atomic and thread-safe. This will prevent race conditions and inconsistent data when the console
     # reads the snapshot concurrently with runtime updates.

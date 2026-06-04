@@ -249,6 +249,10 @@ class ClientManager:
 
     def _setup_master_session(self):
         self.master: "IBKRClient" = self._registry.get_master()
+
+        if not self.master.ib_client.isConnected():
+            raise ConnectionError("IBKR master client not connected")
+
         self.master.ib_client.reqMarketDataType(1)
 
 

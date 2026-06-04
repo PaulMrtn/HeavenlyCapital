@@ -250,19 +250,27 @@ class IBKRGateway(AsyncRuntimeModule):
     # ---- Monitoring ----------------------
 
     @property
-    def streaming_is_active(self):
+    def streaming_is_active(self) -> bool:
+        if self.client_manager is None:
+            return False
         return self.client_manager.streaming_active
 
     @property
     def last_tick_gap(self):
+        if self.client_manager is None:
+            return None
         return self.client_manager.last_tick_gap
 
     @property
-    def tick_rate(self):
+    def tick_rate(self) -> float:
+        if self.client_manager is None:
+            return 0.0
         return self.client_manager.tick_rate
 
     @property
-    def subscribed_contracts(self):
+    def subscribed_contracts(self) -> int:
+        if self.client_manager is None:
+            return 0
         return len(self.client_manager.tickers_registry)
 
     # ---- API ------------------------

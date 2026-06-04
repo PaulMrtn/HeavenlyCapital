@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import threading
+from datetime import datetime
 from enum import Enum, auto
 import time
 from dataclasses import dataclass
 from typing import Optional
+import pytz
+
+
+_NYC_TZ = pytz.timezone("America/New_York")
 
 
 class MarketState(Enum):
@@ -15,11 +20,13 @@ class MarketState(Enum):
     OPEN = auto()
     POST_MARKET = auto()
 
+
 class TradingState(Enum):
     READ_ONLY = auto()
     RISK_ONLY = auto()
     EXECUTION_ENABLED = auto()
     EXECUTION_DISABLED = auto()
+
 
 class MarketPhase(Enum):
     INITIALIZATION = auto()
@@ -27,6 +34,7 @@ class MarketPhase(Enum):
     RUNNING = auto()
     SETTLING = auto()
     SHUTDOWN = auto()
+
 
 @dataclass(frozen=True)
 class TradingChangeState:
@@ -39,6 +47,7 @@ class MarketEventChangeEvent:
     previous: MarketState
     current: MarketState
     timestamp: float
+
 
 @dataclass(frozen=True)
 class MarketPhaseChangeEvent:
@@ -71,9 +80,8 @@ class SystemTimeHeartbeat:
 
     def _run(self):
         while self._running:
-            now = time.time()
             for cb in self._subscribers:
-                cb(now)
+                cb(time.time())
             time.sleep(self._tick_seconds)
 
     def start(self):
@@ -125,11 +133,10 @@ class MarketClock:
     def subscribe_kernel(self, callback):
         self._system_subscribers.append(callback)
 
-
     @staticmethod
     def _compute_market_state(timestamp: float) -> MarketState:
-        lt = time.localtime(timestamp)
-        t = lt.tm_hour + lt.tm_min / 60
+        dt = datetime.fromtimestamp(timestamp, tz=_NYC_TZ)
+        t = dt.hour + dt.minute / 60
 
         if 4 <= t < 9.5:
             return MarketState.PRE_MARKET
@@ -141,8 +148,8 @@ class MarketClock:
 
     @staticmethod
     def _compute_trading_state(timestamp: float) -> TradingState:
-        lt = time.localtime(timestamp)
-        t = lt.tm_hour + lt.tm_min / 60
+        dt = datetime.fromtimestamp(timestamp, tz=_NYC_TZ)
+        t = dt.hour + dt.minute / 60
 
         if 4 <= t < 6.5 or 18 <= t < 20:
             return TradingState.READ_ONLY
@@ -156,8 +163,8 @@ class MarketClock:
 
     @staticmethod
     def _compute_system_event(timestamp: float) -> Optional[MarketPhase]:
-        lt = time.localtime(timestamp)
-        t = lt.tm_hour + lt.tm_min / 60
+        dt = datetime.fromtimestamp(timestamp, tz=_NYC_TZ)
+        t = dt.hour + dt.minute / 60
 
         if 4 <= t < 20:
             return MarketPhase.RUNNING
@@ -167,18 +174,16 @@ class MarketClock:
 
     @staticmethod
     def _compute_step_state(timestamp: float) -> int:
-        lt = time.localtime(timestamp)
-        t = lt.tm_hour * 60 + lt.tm_min
+        dt = datetime.fromtimestamp(timestamp, tz=_NYC_TZ)
+        t = dt.hour * 60 + dt.minute
 
         start = 9 * 60 + 30
         end = 16 * 60
 
         if t < start:
             return 0
-
         if t >= end:
             return 390
-
         return t - start
 
 
@@ -271,7 +276,6 @@ class MarketClock:
 
 
 
-
 class AcceleratedTimeHeartbeat:
     def __init__(
         self,
@@ -280,9 +284,9 @@ class AcceleratedTimeHeartbeat:
         start_timestamp: float | None = None,
     ):
         if day_seconds <= 0:
-            raise ValueError("day_seconds doit être > 0")
+            raise ValueError("day_seconds must be > 0")
         if tick_seconds <= 0:
-            raise ValueError("tick_seconds doit être > 0")
+            raise ValueError("tick_seconds must be > 0")
 
         self._day_seconds = float(day_seconds)
         self._tick_seconds = float(tick_seconds)

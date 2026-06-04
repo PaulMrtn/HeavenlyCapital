@@ -41,6 +41,7 @@ class ExitCode(IntEnum):
     MARKET_SETUP_COMPLETED = 20
     MARKET_CLOSED_TODAY = 30
     ERROR = 40
+    BROKER_UNAVAILABLE = 50
 
 
 class ShutdownScenario(StrEnum):

@@ -20,7 +20,6 @@ class ErrorService(Protocol):
 class NullErrorService:
     def capture(self, error: Exception, **context: Any) -> None:
         return
-
     def report(self, event: ErrorEvent) -> None:
         return
 

@@ -474,7 +474,7 @@ class DataIngestionLayer:
                                             COALESCE(SUM(
                                                              CASE
                                                                  WHEN type = 'TRADE_CREDIT' THEN amount
-                                                                 WHEN type = 'TRADE_decimalEBIT' THEN -amount
+                                                                 WHEN type = 'TRADE_DEBIT' THEN -amount
                                                                  WHEN type = 'COMMISSION' THEN -amount
                                                                  END
                                                      ), 0)                                                    AS ledger_cash,

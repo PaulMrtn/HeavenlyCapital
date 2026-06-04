@@ -206,16 +206,19 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+
+
+
+
+
 # Personnal folder
 /sandbox/
-
 
 #ML Model Picle (artifacts)
 /ml_artifacts/
 
 # DuckDB Database
 /storage/
-
 
 # Research Module
 /src/heavenly_capital/research
