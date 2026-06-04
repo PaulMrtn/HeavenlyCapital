@@ -326,7 +326,7 @@ class Kernel:
 
         if proc == "MARKET_SETUP_RECOVERY":
             self._start_console_if_debug()
-            # await self._run_procedure(self._market_setup_recovery)
+            await self._run_procedure(self._market_setup_recovery)
             return
 
         raise ValueError(f"Unknown procedure: {proc}")
