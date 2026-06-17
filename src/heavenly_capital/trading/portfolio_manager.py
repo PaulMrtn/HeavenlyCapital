@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
+from pathlib import Path
 from threading import Lock
 from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
@@ -19,8 +21,20 @@ if TYPE_CHECKING:
     from heavenly_capital.trading.session_manager import TradingSessionKey
 
 
-UPDATE_INTERVAL = 5
 
+
+## DEBUG MODE ##
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
+
+
+
+UPDATE_INTERVAL = 5
 
 class PortfolioManager(BaseModule):
 
@@ -88,40 +102,34 @@ class PortfolioManager(BaseModule):
 
         self._portfolio = Portfolio.from_snapshot(snapshot)
 
-
     def load_portfolio_orders(self):
+        _log("load_portfolio_orders — début")
+
+        if self._ports.system_state.recovery_mode:
+            _log("recovery_mode actif — return")
+            return
+
         today = self._ports.market_calendar.today()
         portfolio_id = self._key.portfolio_id
+        _log(f"today={today}  portfolio_id={portfolio_id}")
 
-        if self._ports.db_service.reader.check_rebalance_date(portfolio_id, today):
+        check = self._ports.db_service.reader.check_rebalance_date(portfolio_id, today)
+        _log(f"check_rebalance_date → {check}")
+
+        if check:
             self._portfolio_target = self.get_portfolio_target(
                 portfolio_id=portfolio_id,
                 rebalance_date=today
             )
-
-            self._ports.log_service.info(
-                "Portfolio rebalance triggered",
-                extra={
-                    "domain": "STRATEGY",
-                    "event": "portfolio_rebalance_triggered",
-                    "portfolio_id": portfolio_id,
-                    "rebalance_date": today,
-                }
-            )
+            _log(f"portfolio_target={self._portfolio_target}")
 
             orders = self.build_rebalance_orders()
-
-            self._ports.log_service.info(
-                "Rebalance orders generated",
-                extra={
-                    "domain": "STRATEGY",
-                    "event": "rebalance_orders_generated",
-                    "portfolio_id": portfolio_id,
-                    "orders_count": len(orders),
-                }
-            )
+            _log(f"orders générés : {len(orders)}")
 
             self.dispatch(ModuleType.ORDERS, "order_request", orders)
+            _log("dispatch effectué")
+        else:
+            _log("check_rebalance_date → False — pas de rebalance")
 
 
     @property
@@ -390,32 +398,6 @@ class PortfolioManager(BaseModule):
             account_id=order.request.account_id,
             portfolio_id=order.request.portfolio_id
         )
-
-    def authorize_all_current_orders(self) -> None:
-        # WARNING: Temporary testing helper
-        if not self._portfolio or not self._portfolio_target:
-            return
-
-        all_instruments = (
-                set(self._portfolio.positions.keys())
-                | set(self._portfolio_target.weights.keys())
-        )
-
-        for conid in all_instruments:
-            signal = ModelSignal(
-                conid=conid,
-                model_id="mock",
-                model_type="mock",
-                output=ModelOutput(
-                    decision=True,
-                    score=0.9190,
-                    forced=False,
-                    step=200,
-                    timestamp=1774822565)
-            )
-
-            self.authorize_order(signal)
-
 
 
 

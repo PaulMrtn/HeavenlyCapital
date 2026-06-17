@@ -25,6 +25,7 @@ class SystemState:
     status: SystemStatus = SystemStatus.BOOTING
     since: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     detail: str = ""
+    recovery_mode: bool = False
 
     def set_status(self, status: "SystemStatus", detail: str = "") -> None:
         if self.status == status:
@@ -97,9 +98,8 @@ class FullSystemPorts(MarketPorts, DatabasePorts, ObservabilityPorts):
 class SystemPorts:
     market_clock: Any
     market_calendar: Any
-
+    system_state: SystemState
     db_service: DatabasePorts
-
     log_service: Any
     metric_service: Any
     error_service: Any

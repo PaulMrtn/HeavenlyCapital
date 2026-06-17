@@ -185,7 +185,6 @@ CREATE TABLE trading.trade_lot_consumption (
 );
 
 
-
 CREATE TABLE trading.portfolio_ledger (
     id BIGSERIAL PRIMARY KEY,
     account_id CHAR(9) NOT NULL,
@@ -525,6 +524,9 @@ CREATE TABLE trading.first_rate_reference (
     last_trade_date DATE,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+
+
 
 
 

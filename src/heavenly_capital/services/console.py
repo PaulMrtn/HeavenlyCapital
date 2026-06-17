@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import readchar
-import sys
-import io
 import threading
 from datetime import datetime
 import time
@@ -20,18 +18,6 @@ from rich.table import Table
 from heavenly_capital.core.thread import get_thread_manager
 
 
-class _ErrorCapture(io.TextIOBase):
-    def __init__(self, buffer: list):
-        self._buffer = buffer
-
-    def write(self, text: str) -> int:
-        if text.strip():
-            self._buffer.append(text.strip())
-            if len(self._buffer) > 20:
-                self._buffer.pop(0)
-        return len(text)
-
-
 class ConsoleService:
 
     def __init__(self, log_service, snapshot, name: str = "ConsoleUI"):
@@ -43,9 +29,6 @@ class ConsoleService:
         self._portfolio_index: int = 0
         self._index_lock = threading.Lock()
 
-        self._output_buffer = []
-        self._original_stderr = sys.stderr
-
         tm = get_thread_manager()
         tm.register_thread(name=self.name, target=self._run, daemon=True)
 
@@ -55,7 +38,6 @@ class ConsoleService:
         tm.start_thread(self.name)
 
     def stop(self, wait: bool = True):
-        sys.stderr = self._original_stderr
         tm = get_thread_manager()
         tm.stop_thread(self.name, wait=wait)
 
@@ -388,7 +370,7 @@ class ConsoleService:
 
     def _render_terminal_output(self):
         max_outputs = 5
-        outputs = self._output_buffer[-max_outputs:]
+        outputs = []
 
         if not outputs:
             text = ""

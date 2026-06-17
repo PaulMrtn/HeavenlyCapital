@@ -220,5 +220,16 @@ __marimo__/
 # DuckDB Database
 /storage/
 
+# Recovery Snapshot
+/snapshot/
+/src/heavenly_capital/snapshot
+
 # Research Module
 /src/heavenly_capital/research
+
+# Documentation folder
+/docs/
+
+# Logs Folder
+/logs/
+

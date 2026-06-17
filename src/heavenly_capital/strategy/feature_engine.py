@@ -5,10 +5,12 @@ import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
 from itertools import product
+from pathlib import Path
 from queue import Queue
 from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List, Set
 from ib_async import Contract
 import numpy as np
+import pickle
 
 from heavenly_capital.models.runtime import RuntimeModule
 from heavenly_capital.data.bus import EventBus
@@ -21,6 +23,8 @@ if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.models.config import FeatureConfig
 
+
+RECOVERY_DIR = Path(__file__).parent.parent.parent.parent / "snapshot"
 
 MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
     "5s": 10, #TODO:WARNING or max(window) check the params in the table feature_registry
@@ -284,6 +288,18 @@ class FeatureEngine(RuntimeModule):
                 lookback=int(lookback),
             )
 
+    def snapshot_banks(self) -> None:
+        RECOVERY_DIR.mkdir(parents=True, exist_ok=True)
+        path = RECOVERY_DIR / "market_data_banks.pkl"
+        path.write_bytes(pickle.dumps(self._banks))
+
+    def restore_banks(self) -> None:
+        path = RECOVERY_DIR / "market_data_banks.pkl"
+        if not path.exists():
+            return
+        self._banks = pickle.loads(path.read_bytes())
+
+
     @staticmethod
     def _init_freq_state() -> dict[str, FreqState]:
         return {freq: FreqState() for freq in MAXLEN_BY_FREQ}
@@ -440,6 +456,29 @@ class FeatureEngine(RuntimeModule):
             snapshot = self.store.build_snapshot()
             self.out_queue.put(snapshot)
             self._pending_snapshot = False
+
+
+    def get_last_ts(self) -> dict[int, float]:
+        bank_1m = self._banks.get("1m")
+        if not bank_1m:
+            return {}
+        ts_array = bank_1m.ts_end()
+        if len(ts_array) == 0:
+            return {}
+        last_ts = float(ts_array[-1])
+        return {con_id: last_ts for con_id in bank_1m.conIds}
+
+
+    def get_last_closes(self) -> dict[int, float]:
+        bank_1m = self._banks.get("1m")
+        if not bank_1m:
+            return {}
+        result = {}
+        for con_id in bank_1m.conIds:
+            series = bank_1m.series(fields="close", kind="last", conId=con_id)
+            if len(series) > 0 and not np.isnan(series[-1]):
+                result[con_id] = float(series[-1])
+        return result
 
 
 

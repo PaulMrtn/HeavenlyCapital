@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from collections import deque
 
 import time
+from pathlib import Path
 from queue import Queue, Empty
 from typing import Optional, Any, TYPE_CHECKING, Tuple, Dict, List, Deque
 from ib_async import Contract
@@ -18,6 +20,8 @@ if TYPE_CHECKING:
 
 
 # TODO:LOW add this cst
+
+RECOVERY_DIR = Path(__file__).parent.parent.parent.parent / "snapshot"
 
 BASE_SEC = 5
 
@@ -334,6 +338,48 @@ class HistoricDataHub(RuntimeModule):
 
             self.out_bus.publish(event.conId, event)
             self._out_queue.task_done()
+
+
+    # --- Snapshot ---------------------
+    def snapshot_candle_manager(self) -> None:
+        path = RECOVERY_DIR / "candle_manager.pkl"
+        path.write_bytes(pickle.dumps(self._candle_manager))
+
+    def restore_candle_manager(self) -> None:
+        path = RECOVERY_DIR / "candle_manager.pkl"
+        if not path.exists():
+            return
+        self._candle_manager = pickle.loads(path.read_bytes())
+
+    def fill_gap(self, last_ts: dict[int, float], last_closes: dict[int, float], current_ts: float) -> None:
+        for con_id, ts in last_ts.items():
+            gap_minutes = int((current_ts - ts) / 60)
+            if gap_minutes <= 0:
+                continue
+
+            last_close = last_closes.get(con_id, 0.0)
+            if last_close == 0.0:
+                continue
+
+            n_bars = gap_minutes * 12
+
+            for i in range(n_bars):
+                ts_start = ts + i * 5
+                ts_end = ts_start + 5
+
+                fill_bar = OHLC(
+                    open=last_close, high=last_close,
+                    low=last_close, close=last_close,
+                    volume=0.0, tick_count=0,
+                    ts_start=ts_start, ts_end=ts_end
+                )
+
+                self._candle_manager.push_5s(
+                    con_id,
+                    {"last": fill_bar, "bid": fill_bar, "ask": fill_bar}
+                )
+
+
 
 
 

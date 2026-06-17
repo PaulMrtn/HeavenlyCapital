@@ -23,7 +23,7 @@ class MockModel:
             step = state_out.counters.get("step", 0) + 1
             state_out.counters["step"] = step
 
-        decision = random.random() < 0.05
+        decision = random.random() < 0.95
         score = random.random()
         forced = False
         timestamp = int(time.time())

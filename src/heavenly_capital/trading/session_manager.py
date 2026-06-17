@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
+import pickle
 
 from ib_async import Contract
 
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.config import SessionConfig
-from heavenly_capital.models.runtime import RuntimeModule
+from heavenly_capital.models.order import OrderTracker, OrderStatus
+from heavenly_capital.models.runtime import RuntimeModule, ModuleType
 from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.trading_engine import TradingSessionKey, TradingEngine
 from heavenly_capital.monitoring.error_service import HealthCheckError
@@ -24,6 +29,19 @@ if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
 
 
+
+## DEBUG MODE ##
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
+
+
+
+RECOVERY_DIR = Path(__file__).parent.parent.parent.parent / "snapshot"
 
 
 class TradingSession:
@@ -292,6 +310,95 @@ class SessionManager(RuntimeModule):
             None
         )
 
+    # ── Recovery — Staged Orders ──────────────────────────────────────────────────
+
+    def save_staged_orders(self) -> None:
+        all_requests: dict[str, list] = {}
+        for key, session in self.sessions.items():
+            if session.stack and session.stack.orders:
+                pending = session.stack.orders._pending_orders
+                all_requests[key.portfolio_id] = [
+                    tracker.request for tracker in pending.values()
+                ]
+        path = RECOVERY_DIR / "staged_orders.pkl"
+        path.write_bytes(pickle.dumps(all_requests))
+
+
+    async def restore_sessions_staged_orders(self, gateway) -> None:
+
+        # TODO:LOW — restore_sessions_staged_orders refactoring
+        # - Encapsuler la reconstruction des trackers dans une méthode dédiée
+        # - Éviter l'injection directe du gateway dans SessionManager
+        #   → passer par une interface ou un port dédié
+        # - Séparer clairement les responsabilités :
+        #   reconstruction trackers / replay fills / dispatch remaining
+
+        path = RECOVERY_DIR / "staged_orders.pkl"
+        if not path.exists():
+            _log("restore_sessions_staged_orders — pkl introuvable")
+            return
+
+        all_requests: dict[str, list] = pickle.loads(path.read_bytes())
+        today = self._ports.market_calendar.today()
+        _log("restore_sessions_staged_orders — pkl chargé")
+
+        # ── Étape 1 — Reconstruire tous les trackers via stage_orders ──────────
+        # stage_orders appelle _create_tracker → callbacks on_fill/on_commission
+        # correctement attachés pour le replay
+
+        for key, session in self.sessions.items():
+            requests = all_requests.get(key.portfolio_id, [])
+            if not requests:
+                continue
+
+            # S'assurer que les contracts sont disponibles dans OrderManager
+            for request in requests:
+                if request.con_id not in session.stack.orders._contracts:
+                    contract = gateway.contracts.get(request.con_id)
+                    if contract:
+                        session.stack.orders._contracts[request.con_id] = contract
+
+
+                tracker = session.stack.orders._create_tracker(request)
+                gateway._order_registry[str(request.order_id)] = tracker
+                _log(f"  tracker reconstruit : {request.order_id}")
+
+
+        # ── Étape 2 — Rejouer les fills depuis IBKR ────────────────────────────
+        # replay_daily_fills déclenche on_fill/on_commission → persiste en DB
+        await gateway.replay_daily_fills()
+        await asyncio.sleep(2)
+
+
+        # ── Étape 3 — Dispatcher uniquement les ordres restants ────────────────
+        for key, session in self.sessions.items():
+            requests = all_requests.get(key.portfolio_id, [])
+            if not requests:
+                continue
+
+            sent_refs = self._ports.db_service.reader.get_sent_order_refs_today(
+                portfolio_id=key.portfolio_id,
+                today=today
+            )
+            _log(f"portfolio={key.portfolio_id} — orders_ref ({len(sent_refs)})")
+
+            remaining = [r for r in requests if r.order_id not in sent_refs]
+            _log(f"remaining ({len(remaining)}) : {[r.order_id for r in remaining]}")
+
+            if remaining:
+                session.stack.orders.stage_orders(remaining)
+                session.engine.portfolio.dispatch(
+                    ModuleType.ORDERS,
+                    "order_request",
+                    remaining
+                )
+                await asyncio.sleep(0.25)
+                _log(f"dispatch {len(remaining)} ordres recovery")
+
+        _log("restore_sessions_staged_orders ✓")
+
+
+
 
 
 _instance: Optional[SessionManager] = None
@@ -312,3 +419,6 @@ def get_session_manager() -> SessionManager:
 
 # UUID vs Key : Tu génères un self.session_id (UUID), mais tu stockes les sessions par self.key (TradingSessionKey).
 # C'est très bien pour l'idempotence (éviter les doublons de sessions pour un même compte le même jour).
+
+
+

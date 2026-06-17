@@ -8,7 +8,6 @@ from collections import deque
 from typing import Any
 
 
-
 from heavenly_capital.core.thread import get_thread_manager
 
 

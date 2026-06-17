@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any, Optional, Literal, List, Callable
 import time
 import numpy as np # TODO:LOW - import only what we need
+import pickle
 
 class AssetType(StrEnum):
     STK = "STK"

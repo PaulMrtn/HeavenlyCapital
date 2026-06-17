@@ -103,6 +103,7 @@ class DataAccessLayer:
             result = conn.execute(query, {"portfolio_id": portfolio_id})
             return result.mappings().first() is not None
 
+
     def fetch_trading_sessions(self) -> list[dict]:
         sessions_query = """
                          SELECT account_name, account_id, mode, context
@@ -217,6 +218,19 @@ class DataAccessLayer:
         with self._connector.get_connection() as conn:
             result = conn.execute(query, {"portfolio_id": portfolio_id, "today": today}).fetchone()
             return result is not None
+
+    def get_sent_order_refs_today(self, portfolio_id: str, today: date) -> set[str]:
+        query = text("""
+                     SELECT DISTINCT order_ref
+                     FROM trading.orders
+                     WHERE portfolio_id = :portfolio_id
+                       AND DATE(created_at AT TIME ZONE 'America/New_York') = :today
+                       AND status IN ('Submitted', 'PreSubmitted', 'PartiallyFilled', 'Filled')
+                       AND order_ref IS NOT NULL
+                     """)
+        with self._connector.get_connection() as conn:
+            result = conn.execute(query, {"portfolio_id": portfolio_id, "today": today})
+            return {row["order_ref"] for row in result.mappings().all()}
 
 
     def get_account_total_cash(self, account_id: str, currency: str = "USD") -> Optional[Decimal]:
@@ -510,5 +524,25 @@ class DataAccessLayer:
             )
 
             return result.mappings().all()
+
+    def get_last_price_date(self) -> date | None:
+        query = text("""
+                     SELECT MAX(date)
+                     FROM market.prices_daily
+                     """)
+
+        with self._connector.get_connection() as conn:
+            return conn.execute(query).scalar()
+
+
+    def get_norgate_ids(self) -> list[int]:
+        query = text("""
+                     SELECT norgate_id
+                     FROM trading.instruments
+                     WHERE norgate_id IS NOT NULL
+                     """)
+        with self._connector.get_connection() as conn:
+            result = conn.execute(query)
+            return [row["norgate_id"] for row in result.mappings().all()]
 
 

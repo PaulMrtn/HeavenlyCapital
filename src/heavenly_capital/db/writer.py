@@ -1,5 +1,7 @@
 import json
+from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
 from typing import Optional, Dict, Any, TYPE_CHECKING, List
 
 from ib_async import Order, Execution, Trade, CommissionReport
@@ -13,6 +15,20 @@ if TYPE_CHECKING:
     from heavenly_capital.models.account import AccountState
     from heavenly_capital.models.portfolio import Portfolio
     from heavenly_capital.models.session import MarketDaySession
+
+
+
+
+## DEBUG MODE ##
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
+
+
 
 
 class DataIngestionLayer:
@@ -664,7 +680,7 @@ class DataIngestionLayer:
                 }
             )
 
-    def order_exists(self, perm_id: int) -> bool:
+    def order_exists_by_perm_id(self, perm_id: int) -> bool:
         query = text("""
                      SELECT 1
                      FROM trading.orders
@@ -674,9 +690,21 @@ class DataIngestionLayer:
 
         with self._connector.uow() as conn:
             result = conn.execute(query, {"perm_id": perm_id})
-            row = result.mappings().first()
+            return result.mappings().first() is not None
 
-        return row is not None
+
+    def order_exists_by_ref(self, order_ref: str) -> bool:
+        query = text("""
+                     SELECT 1
+                     FROM trading.orders
+                     WHERE order_ref = :order_ref
+                     LIMIT 1
+                     """)
+        with self._connector.uow() as conn:
+            result = conn.execute(query, {"order_ref": order_ref})
+            return result.mappings().first() is not None
+
+
 
     def update_order_status(
             self,
@@ -709,8 +737,7 @@ class DataIngestionLayer:
             )
 
     @staticmethod
-    def insert_execution(conn: "Connection", execution: "Execution", account_id: str, portfolio_id: str,
-                         con_id: int) -> None:
+    def insert_execution(conn, execution, account_id, portfolio_id, con_id) -> bool:
         query = text("""
                      INSERT INTO trading.executions (exec_id, perm_id, account_id, portfolio_id, con_id,
                                                      side, shares, price, execution_time,
@@ -719,26 +746,26 @@ class DataIngestionLayer:
                              :side, :shares, :price, :execution_time,
                              :cum_qty, :avg_price, :last_liquidity, :pending_price_revision)
                      ON CONFLICT (exec_id) DO NOTHING
+                     RETURNING exec_id
                      """)
 
-        conn.execute(
-            query,
-            {
-                "exec_id": execution.execId,
-                "perm_id": execution.permId,
-                "account_id": account_id,
-                "portfolio_id": portfolio_id,
-                "con_id": con_id,
-                "side": execution.side,
-                "shares": execution.shares,
-                "price": execution.price,
-                "execution_time": execution.time,
-                "cum_qty": execution.cumQty,
-                "avg_price": execution.avgPrice,
-                "last_liquidity": execution.lastLiquidity,
-                "pending_price_revision": execution.pendingPriceRevision,
-            }
-        )
+        result = conn.execute(query, {
+            "exec_id": execution.execId,
+            "perm_id": execution.permId,
+            "account_id": account_id,
+            "portfolio_id": portfolio_id,
+            "con_id": con_id,
+            "side": execution.side,
+            "shares": execution.shares,
+            "price": execution.price,
+            "execution_time": execution.time,
+            "cum_qty": execution.cumQty,
+            "avg_price": execution.avgPrice,
+            "last_liquidity": execution.lastLiquidity,
+            "pending_price_revision": execution.pendingPriceRevision,
+        })
+
+        return result.fetchone() is not None
 
 
     def _update_lots(self, conn : "Connection", execution, portfolio_id: str, con_id: int) -> None:
@@ -1127,6 +1154,16 @@ class DataIngestionLayer:
                 "currency": currency,
             })
 
+    def update_perm_id(self, order_ref: str, perm_id: int) -> None:
+        query = text("""
+                     UPDATE trading.orders
+                     SET perm_id    = :perm_id,
+                         updated_at = NOW()
+                     WHERE order_ref = :order_ref
+                     """)
+        with self._connector.uow() as conn:
+            conn.execute(query, {"order_ref": order_ref, "perm_id": perm_id})
+
 
     def update_order_in_db(
             self,
@@ -1139,13 +1176,19 @@ class DataIngestionLayer:
         order = trade.order
         contract = trade.contract
 
-        if not self.order_exists(perm_id):
-            self.insert_order(
-                order=order,
-                portfolio_id=portfolio_id,
-                account_id=account_id,
-                con_id=contract.conId
-            )
+        if not self.order_exists_by_perm_id(perm_id):
+            if order.orderRef and self.order_exists_by_ref(order.orderRef):
+                self.update_perm_id(
+                    order_ref=order.orderRef,
+                    perm_id=perm_id)
+
+            else:
+                self.insert_order(
+                    order=order,
+                    portfolio_id=portfolio_id,
+                    account_id=account_id,
+                    con_id=contract.conId
+                )
 
         self.update_order_status(
             perm_id=perm_id,
@@ -1177,13 +1220,18 @@ class DataIngestionLayer:
             con_id: int
     ):
         with self._connector.uow() as conn:
-            self.insert_execution(
+            inserted = self.insert_execution(
                 conn=conn,
                 execution=execution,
                 account_id=account_id,
                 portfolio_id=portfolio_id,
                 con_id=con_id
             )
+
+            _log(f"  insert_execution : exec_id={execution.execId} inserted={inserted}")
+
+            if not inserted:
+                return
 
             self._update_lots(
                 conn=conn,
@@ -1423,7 +1471,7 @@ class DataIngestionLayer:
 
 
     def persist_prices_daily(self, records: list[dict]) -> None:
-        #TODO:HIGH implémenter un mode REPLACE_SERIES pour reconstruire intégralement une série lors des ajustements (ex: split) afin d’éviter toute incohérence historique.
+        # TODO:LOW - Gérer le cas d'un nouvel asset absent de trading.instruments (KeyError sur le mapping norgate_id → instrument_id)
 
         if not records:
             return
@@ -1492,6 +1540,30 @@ class DataIngestionLayer:
             ]
 
             conn.execute(insert_query, row_data)
+
+
+    def delete_prices_daily(self, norgate_ids: list[int], adjustment_type: str) -> None:
+        query = text("""
+                     DELETE
+                     FROM market.prices_daily
+                     WHERE instrument_id IN (SELECT instrument_id
+                                             FROM trading.instruments
+                                             WHERE norgate_id = ANY (:norgate_ids))
+                       AND adjustment_type = :adjustment_type
+                     """)
+
+        with self._connector.uow() as conn:
+            conn.execute(query, {
+                "norgate_ids": norgate_ids,
+                "adjustment_type": adjustment_type
+            })
+
+    def truncate_universe_membership(self) -> None:
+        query = text("TRUNCATE trading.universe_membership")
+        with self._connector.uow() as conn:
+            conn.execute(query)
+
+
 
 
 

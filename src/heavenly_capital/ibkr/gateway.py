@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import timezone, datetime
+from pathlib import Path
 from typing import Optional, Any, Callable, TYPE_CHECKING
 
 from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder, Fill, CommissionReport
@@ -16,13 +17,25 @@ if TYPE_CHECKING:
     from heavenly_capital.models.config import IBKRConfig
 
 
+
+## DEBUG MODE ##
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
+
+
+
 CLIENTS_CONFIG = [
     {
         "session_name": "SESSION_1", # client_id
         "host": "127.0.0.1",
         "port": 4002,
         "enable": True,
-        "account_id" : "", # ibkr_account
+        "account_id" : "DUO800430",
         "account_type": "PAPER",         # LIVE ou PAPER
         "permission_level": "MASTER"    # MASTER ou STANDARD
     },
@@ -31,7 +44,7 @@ CLIENTS_CONFIG = [
             "host": "127.0.0.1",
             "port": 4003,
             "enable": True,
-            "account_id" : "", # ibkr_account
+            "account_id" : "DUM832619",
             "account_type": "PAPER",
             "permission_level": "STANDARD"
     },
@@ -285,6 +298,53 @@ class IBKRGateway(AsyncRuntimeModule):
     def place_order(self, account_id: str, contract: "Contract", order: "Order") -> None:
         client = self.client_manager.get_client_by_id(account_id)
         client.place_order(contract=contract, order=order)
+
+    async def replay_daily_fills(self) -> None:
+        # TODO: Mixing responsability between ibkr gateway et order compute, handler etc in this fn
+        for client in self.client_manager.all:
+            if not client.ib_client or not client.ib_client.isConnected():
+                continue
+
+            _log(f"replay_daily_fills — {client.account_id}")
+            trades = client.ib_client.trades()
+            _log(f"  {len(trades)} trades trouvés")
+
+            for trade in trades:
+                order_ref = trade.order.orderRef
+                if not order_ref or order_ref not in self._order_registry:
+                    continue
+
+                try:
+                    status = trade.orderStatus.status
+                    tracker = self._order_registry[order_ref]
+                    perm_id = trade.order.permId
+                    trade.order.totalQuantity = tracker.request.quantity
+
+                    if status in ("Submitted", "PreSubmitted", "Filled"):
+                        tracker.state.submit()
+
+                    self._on_order_status(trade)
+
+                    total_filled = sum(fill.execution.shares for fill in trade.fills)
+                    total_value = sum(fill.execution.shares * fill.execution.price for fill in trade.fills)
+                    avg_price = total_value / total_filled if total_filled > 0 else 0.0
+                    remaining = tracker.request.quantity - total_filled
+
+                    self._ports.db_service.writer.update_order_status(
+                        perm_id=perm_id,
+                        status=status,
+                        filled_quantity=total_filled,
+                        remaining_quantity=remaining,
+                        avg_fill_price=avg_price
+                    )
+
+                    for fill in trade.fills:
+                        self._on_fill(trade, fill)
+
+                    _log(f"  replayed : {trade.contract.symbol} status={status} filled={total_filled}")
+
+                except Exception as e:
+                    _log(f"  erreur : {e}")
 
     # ---------------------------------
 

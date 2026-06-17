@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
 
@@ -12,6 +14,18 @@ from heavenly_capital.strategy.artifacts import ModelSignal
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.trading.session_manager import TradingSessionKey, GlobalOrderRouter
+
+
+
+
+## DEBUG MODE ##
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
 
 
 class OrderManager(BaseModule):
@@ -116,10 +130,11 @@ class OrderManager(BaseModule):
 
 
     def stage_orders(self, requests: list["OrderRequest"]):
+        _log(f"stage_orders — {len(requests)} ordres")
         for request in requests:
             tracker = self._create_tracker(request)
             self._pending_orders[request.con_id] = tracker
-
+            _log(f"  staged : con_id={request.con_id}")
 
     def _handle_orders_request(self, orders):
         self.stage_orders(orders)
@@ -130,6 +145,9 @@ class OrderManager(BaseModule):
 
         if con_id is None or con_id not in self._pending_orders:
             return
+
+        _log(f"_process_authorization : con_id={con_id} "
+             f"pending={list(self._pending_orders.keys())}")
 
         if authorized:
             tracker = self._pending_orders.pop(con_id)
@@ -167,7 +185,7 @@ class OrderManager(BaseModule):
 
 # TODO:HIGH - self._market_clock.subscribe_trading() add callback to ensure not in read_only mode (risk_manager, portfolio order idntknw)
 
-
+# TODO:HIGH - OrderManager.pending_con_ids() Ajouter une méthode publique pending_con_ids() -> list[int] dans OrderManager pour éviter l'accès direct à _pending_orders depuis le Kernel.
 
 
 

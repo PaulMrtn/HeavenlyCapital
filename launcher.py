@@ -11,7 +11,7 @@ import pytz
 
 NYC = pytz.timezone("America/New_York")
 MAIN = Path(__file__).parent / "main.py"
-LOG_FILE = Path(__file__).parent / "launcher.log"
+LOG_FILE = Path(__file__).parent / "logs" / "launcher.log"
 
 START_HOUR = 4
 RETRY_DELAY = 60
@@ -69,14 +69,15 @@ def wait_until(target: datetime) -> None:
 
 
 def run_main() -> int:
-    """Lance main.py et retourne l'exit code."""
     log.info(f"Starting {MAIN.name}")
-    result = subprocess.run([sys.executable, str(MAIN)])
+    result = subprocess.run(
+        [sys.executable, str(MAIN)],
+        capture_output=False,  # ← laisser stdout/stderr passer normalement
+    )
     code = result.returncode
     label = EXIT_CODES.get(code, "UNEXPECTED_CRASH")
     log.info(f"Exit code: {code} — {label}")
     return code
-
 
 # ── Circuit Breaker ───────────────────────────────────────────────────────────
 

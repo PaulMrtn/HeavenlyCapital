@@ -2,13 +2,15 @@ import asyncio
 from datetime import datetime
 import threading
 import time
+from pathlib import Path
 from typing import Callable, Coroutine, Optional
 from uuid import uuid4
 
 from heavenly_capital.core.calendar import USMarketsCalendar
 from heavenly_capital.core.clock import (
     MarketClock, AcceleratedTimeHeartbeat,
-    MarketEventChangeEvent, MarketState, TradingChangeState, SystemTimeHeartbeat, _NYC_TZ, )
+    MarketEventChangeEvent, MarketState,
+    TradingChangeState, SystemTimeHeartbeat, _NYC_TZ)
 
 from heavenly_capital.core.thread import get_thread_manager
 from heavenly_capital.models.snapshot import KernelSnapshot, SessionSnapshot, PortfolioSnapshot, PositionSnapshot, \
@@ -35,6 +37,17 @@ from heavenly_capital.monitoring.error_service import NullErrorService, HealthCh
 from heavenly_capital.monitoring.log_service import LogService
 from heavenly_capital.monitoring.metric_service import NullMetricService
 from heavenly_capital.monitoring.notification_service import NullNotificationService
+from heavenly_capital.strategy.artifacts import ModelSignal, ModelOutput
+
+
+## DEBUG MODE ##
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
 
 
 
@@ -91,10 +104,11 @@ class Kernel:
     def _build_time_source(debug_mode: bool) -> AcceleratedTimeHeartbeat | SystemTimeHeartbeat:
         if debug_mode:
             return AcceleratedTimeHeartbeat(
-                day_seconds=180,
-                start_timestamp=datetime(2026, 1, 1, 0, 0, tzinfo=_NYC_TZ).timestamp()
+                day_seconds=180*3,
+                start_timestamp=datetime(2026, 1, 1, 3, 30, tzinfo=_NYC_TZ).timestamp()
             )
         return SystemTimeHeartbeat()
+
 
     def _initialize_market_clock(self, debug_mode: bool) -> None:
         time_source = self._build_time_source(debug_mode)
@@ -105,7 +119,6 @@ class Kernel:
         self._market_clock.subscribe_market(self._log_market_event)
         self._market_clock.subscribe_trading(self._log_trading_event)
 
-        self._market_clock.start()
 
 
 # region Kernel Lifecycle
@@ -113,6 +126,7 @@ class Kernel:
 
         self._debug_mode = debug_mode
         self._initialize_market_clock(debug_mode)
+        self._market_clock.start()
 
         self._log.info(
             "Kernel started",
@@ -267,7 +281,7 @@ class Kernel:
             session_id=uuid4(),
             session_date=today,
             status=SessionStatus.IN_PROGRESS,
-            phase=SessionPhase.STRATEGIC_SETUP, # TODO: WTF
+            phase=SessionPhase.STRATEGIC_SETUP, # TODO: WTF dans le sens par defaut on commence par cette etape cest pas tres clean (si il y a rien dans la db)
             state=SessionState.INITIALIZATION,
             error=False
         )
@@ -292,6 +306,17 @@ class Kernel:
                     procedure="MARKET_SETUP",
                 )
 
+            case (SessionStatus.IN_PROGRESS, True, SessionPhase.MARKET_SETUP):
+                return BootPlan(
+                    decision=BootDecision.BOOT,
+                    procedure="MARKET_SETUP_RECOVERY",
+                )
+
+            case (SessionStatus.IN_PROGRESS, False, SessionPhase.MARKET_SETUP):
+                return BootPlan(
+                    decision=BootDecision.BOOT,
+                    procedure="MARKET_SETUP_RECOVERY",
+                )
 
             case _:
                 raise ValueError(
@@ -421,6 +446,14 @@ class Kernel:
             )
 
         except Exception as e:
+            #TODO:LOW _ Temporary output error handler
+            import traceback
+            error_path = Path(__file__).parent.parent.parent.parent / "logs" / "error.log"
+            with open(error_path, "a") as f:
+                f.write(f"\n{'=' * 60}\n")
+                f.write(f"{datetime.now()}\n")
+                f.write(traceback.format_exc())
+
             self._log.error(
                 str(e),
                 extra={"domain": "SYSTEM", "event": "procedure_failed", "procedure": proc.__name__}
@@ -461,16 +494,58 @@ class Kernel:
 
         await self.initialize_market_setup()
 
-        self._update_session(
-            state=SessionState.STAND_BY)
+        self._update_session(state=SessionState.STAND_BY)
 
         await self._pre_market_event.wait()
 
-        self._update_session(
-            state=SessionState.RUNNING)
+        self._update_session(state=SessionState.RUNNING)
 
         await self.start_market_runtime()
 
+
+    def _fill_market_data_gap(self) -> None:  # ← pas async
+        last_ts = self._modules.feature_manager.get_last_ts()
+        last_closes = self._modules.feature_manager.get_last_closes()
+
+        if not last_ts or not last_closes:
+            return
+
+        self._modules.historic_hub.fill_gap(
+            last_ts=last_ts,
+            last_closes=last_closes,
+            current_ts=time.time()
+        )
+
+
+    async def _market_setup_recovery(self) -> None:
+        self._system_state.recovery_mode = True
+
+        self._log.info(
+            "Recovery mode enabled",
+            extra={"domain": "SYSTEM", "event": "recovery_mode_enabled"})
+
+        self._update_session(
+            error=False,
+            state=SessionState.INITIALIZATION,
+            status=SessionStatus.IN_PROGRESS,
+            phase=SessionPhase.MARKET_SETUP
+        )
+
+        await self.initialize_market_setup()
+
+        self._fill_market_data_gap()
+
+        self._update_session(state=SessionState.STAND_BY)
+
+        if self._market_clock.is_market_open or self._market_clock.is_pre_market:
+            self._pre_market_event.set()
+        else:
+            await self._pre_market_event.wait()
+
+        self._update_session(state=SessionState.RUNNING)
+
+        await self.start_market_runtime()
+        self._system_state.recovery_mode = False
 
     def _restart_after_stop(self) -> None:
         # TODO:LOW - Recovery strategy ?
@@ -491,6 +566,7 @@ class Kernel:
 
     def _build_ports(self) -> SystemPorts:
         return SystemPorts(
+            system_state=self._system_state,
             market_clock=self._market_clock,
             market_calendar=self._market_calendar,
             db_service=self._db,
@@ -498,6 +574,7 @@ class Kernel:
             metric_service=self._metrics,
             error_service=self._error,
             notification_service=self._notif,
+
         )
 
     def _configure_runtime_modules(self) -> None:
@@ -579,7 +656,14 @@ class Kernel:
 
 
     async def initialize_market_data_feeds(self):
-        self._modules.feature_manager.build_market_data_banks()
+
+        if self._system_state.recovery_mode:
+            self._modules.feature_manager.restore_banks()
+            self._modules.historic_hub.restore_candle_manager()
+
+        else:
+            self._modules.feature_manager.build_market_data_banks()
+
         self._modules.feature_manager.subscribe_to_live_candle()
         self._modules.historic_hub.subscribe_to_live_candle()
         self._modules.forecast_manager.setup_models_and_store()
@@ -602,8 +686,13 @@ class Kernel:
         for session in self._modules.session_manager.sessions.values():
             session.load_contracts(contracts)
 
+    def _snapshot_market_data(self) -> None:
+        self._modules.feature_manager.snapshot_banks()
+        self._modules.historic_hub.snapshot_candle_manager()
 
     def _runtime_tick(self, stop_event: threading.Event) -> None:
+        last_snapshot_minute = -1
+
         while not stop_event.is_set():
             now = time.time()
 
@@ -612,6 +701,15 @@ class Kernel:
             self._modules.historic_hub.dispatch_candle_events()
             self._modules.feature_manager.process_candle_events()
             self._modules.forecast_manager.run_predictions()
+
+            current_minute = datetime.fromtimestamp(now, tz=_NYC_TZ).minute
+            if current_minute != last_snapshot_minute:
+                last_snapshot_minute = current_minute
+                tm = get_thread_manager()
+                tm.submit(
+                    "db_writer",
+                    self._snapshot_market_data
+                )
 
 
     async def initialize_market_setup(self) -> None:
@@ -628,17 +726,57 @@ class Kernel:
         await self._modules.ibkr_gateway.client_manager.start()
 
 
+    # TEMPORARY FN
+
+    def _authorize_all_current_orders(self) -> None:
+        """Mock authorization — autorise tous les ordres en attente dans _pending_orders."""
+        for session in self._modules.session_manager.sessions.values():
+            if not session.stack or not session.stack.orders:
+                continue
+
+            pending_con_ids = list(session.stack.orders._pending_orders.keys())
+
+            if not pending_con_ids:
+                continue
+
+            for con_id in pending_con_ids:
+                signal = ModelSignal(
+                    conid=con_id,
+                    model_id="mock",
+                    model_type="mock",
+                    output=ModelOutput(
+                        decision=True,
+                        score=0.9190,
+                        forced=False,
+                        step=200,
+                        timestamp=1774822565
+                    )
+                )
+                session.stack.portfolio.authorize_order(signal)
+
+
     async def start_market_runtime(self) -> None:
         await self._modules.ibkr_gateway.start_streaming()
 
         self._start_market_threads()
-
         # TODO:WARNING Check the order of the following operations ( with TradeState)
         await asyncio.sleep(5)
-        self._modules.session_manager.load_sessions_portfolio_orders()
 
-        for session in self._modules.session_manager.sessions.values():
-            session.stack.portfolio.authorize_all_current_orders()
+        if self._system_state.recovery_mode:
+            _log("recovery_mode — restore_sessions_staged_orders")
+            await self._modules.session_manager.restore_sessions_staged_orders(
+                self._modules.ibkr_gateway
+            )
+
+            await asyncio.sleep(1)
+
+        else:
+            self._modules.session_manager.load_sessions_portfolio_orders()
+            self._modules.session_manager.save_staged_orders()
+
+
+        # WARNING: Temporary testing helper
+        self._authorize_all_current_orders()
 
         await self._modules.ibkr_gateway.client_manager.wait()
 
