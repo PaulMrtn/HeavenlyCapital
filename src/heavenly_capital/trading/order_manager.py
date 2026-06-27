@@ -130,11 +130,9 @@ class OrderManager(BaseModule):
 
 
     def stage_orders(self, requests: list["OrderRequest"]):
-        _log(f"stage_orders — {len(requests)} ordres")
         for request in requests:
             tracker = self._create_tracker(request)
             self._pending_orders[request.con_id] = tracker
-            _log(f"  staged : con_id={request.con_id}")
 
     def _handle_orders_request(self, orders):
         self.stage_orders(orders)
@@ -145,9 +143,6 @@ class OrderManager(BaseModule):
 
         if con_id is None or con_id not in self._pending_orders:
             return
-
-        _log(f"_process_authorization : con_id={con_id} "
-             f"pending={list(self._pending_orders.keys())}")
 
         if authorized:
             tracker = self._pending_orders.pop(con_id)

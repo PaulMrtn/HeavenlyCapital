@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from heavenly_capital.models.config import ForecastConfig
 
 
+
 class ModelRegistry:
 
     def __init__(self, specs: list[ModelSpec]) -> None:
@@ -327,6 +328,7 @@ class ForecastManager(RuntimeModule):
         self._store.initialize_records(self._registry, self._conids)
         self.build_prediction_and_routing()
 
+
     def _route_prediction(self, signal: ModelSignal) -> None:
         portfolio_ids = self._routing_registry.get(
             (signal.conid, signal.model_type)
@@ -401,7 +403,6 @@ class ForecastManager(RuntimeModule):
             )
 
         self.persist_predictions()
-
 
         # print(self._ports.market_clock.step_state)
 

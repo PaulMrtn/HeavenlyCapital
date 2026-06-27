@@ -5,9 +5,12 @@ from dataclasses import dataclass
 from collections import deque
 
 import time
+from datetime import datetime
 from pathlib import Path
 from queue import Queue, Empty
 from typing import Optional, Any, TYPE_CHECKING, Tuple, Dict, List, Deque
+
+import pytz
 from ib_async import Contract
 
 from heavenly_capital.models.runtime import RuntimeModule
@@ -18,6 +21,17 @@ if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.models.config import HistoricHubConfig
 
+
+## DEBUG MODE ##
+
+_NYC_TZ = pytz.timezone("America/New_York")
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
 
 # TODO:LOW add this cst
 
@@ -71,7 +85,7 @@ class CandleResampler:
         self.ts_end = bar.ts_end
         self.seen_count += 1
 
-        if bar.tick_count > 0:
+        if bar.tick_count > 0 or bar.tick_count == -1 :
             if not self.has_data:
                 self.has_data = True
                 self.open = bar.open
@@ -82,6 +96,8 @@ class CandleResampler:
                 self.high = max(self.high, bar.high)
                 self.low = min(self.low, bar.low)
                 self.close = bar.close
+
+        if bar.tick_count > 0:
             self.volume += bar.volume
             self.tick_count += bar.tick_count
 
@@ -101,7 +117,7 @@ class CandleResampler:
             )
         return OHLC(
             open=self.open, high=self.high, low=self.low, close=self.close,
-            volume=self.volume, tick_count=self.tick_count,
+            volume=self.volume, tick_count=self.tick_count if self.tick_count > 0 else -1,
             ts_start=self.ts_start, ts_end=self.ts_end
         )
 
@@ -351,35 +367,59 @@ class HistoricDataHub(RuntimeModule):
             return
         self._candle_manager = pickle.loads(path.read_bytes())
 
-    def fill_gap(self, last_ts: dict[int, float], last_closes: dict[int, float], current_ts: float) -> None:
-        for con_id, ts in last_ts.items():
-            gap_minutes = int((current_ts - ts) / 60)
-            if gap_minutes <= 0:
-                continue
+    def get_resampler_state(self) -> dict[int, dict[str, float]]:
+        state = {}
+        for con_id, kinds in self._candle_manager.resamplers.items():
+            kind_state = {}
+            for kind, cascade in kinds.items():
 
+                if cascade.levels:
+                    label, resampler = cascade.levels[0]
+                    kind_state[kind] = resampler.ts_end if resampler.ts_end > 0 else 0.0
+            state[con_id] = kind_state
+        return state
+
+    def fill_gap(self, last_ts, last_closes, current_ts) -> None:
+        resampler_state = self.get_resampler_state()
+
+        instruments = []
+        for con_id, ts in last_ts.items():
             last_close = last_closes.get(con_id, 0.0)
             if last_close == 0.0:
                 continue
 
-            n_bars = gap_minutes * 12
+            kind_state = resampler_state.get(con_id, {})
+            last_resampler_ts = kind_state.get("last", 0.0)
 
-            for i in range(n_bars):
-                ts_start = ts + i * 5
+            gap_start = max(last_resampler_ts, ts) + 5
+            gap_seconds = int(current_ts - gap_start)
+
+            if gap_seconds <= 0:
+                continue
+
+            n_bars = gap_seconds // 5
+            instruments.append((con_id, gap_start, n_bars, last_close))
+
+        if not instruments:
+            return
+
+        max_bars = max(n for _, _, n, _ in instruments)
+        total_bars = 0
+
+        for i in range(max_bars):
+            for con_id, gap_start, n_bars, last_close in instruments:
+                if i >= n_bars:
+                    continue
+                ts_start = gap_start + i * 5
                 ts_end = ts_start + 5
-
                 fill_bar = OHLC(
                     open=last_close, high=last_close,
                     low=last_close, close=last_close,
-                    volume=0.0, tick_count=0,
+                    volume=0.0, tick_count=-1,
                     ts_start=ts_start, ts_end=ts_end
                 )
-
-                self._candle_manager.push_5s(
-                    con_id,
-                    {"last": fill_bar, "bid": fill_bar, "ask": fill_bar}
-                )
-
-
+                self._in_queue.put((con_id, {"last": fill_bar, "bid": fill_bar, "ask": fill_bar}))
+                total_bars += 1
 
 
 

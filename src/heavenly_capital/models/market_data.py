@@ -3,10 +3,27 @@ from __future__ import annotations
 from collections import namedtuple
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Optional, Literal, List, Callable
+from typing import Any, Optional, Literal, Callable
 import time
 import numpy as np # TODO:LOW - import only what we need
-import pickle
+
+
+## DEBUG MODE ##
+
+import pytz
+from datetime import datetime
+from pathlib import Path
+
+_NYC_TZ = pytz.timezone("America/New_York")
+
+def _log(msg: str) -> None:
+    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{datetime.now()} — {msg}\n")
+
+## DEBUG MODE ##
+
+
 
 class AssetType(StrEnum):
     STK = "STK"
@@ -155,6 +172,8 @@ class MarketDataBank:
         if not conIds:
             raise ValueError("MarketDataBank: conIds must be non-empty")
 
+        self.recovery_mode: bool = False
+
         self.freq = str(freq)
         self.lookback = int(lookback)
 
@@ -223,12 +242,16 @@ class MarketDataBank:
         if col is None:
             return
 
-
         ts_end = float(event.ohlc.ts_end)
-        if self._current_ts_end is not None and ts_end < self._current_ts_end:
-            return
-        if self._current_ts_end is None or ts_end > self._current_ts_end:
-            self._next_row(ts_end, event)
+
+        if self.recovery_mode:
+            if self._current_ts_end is None or ts_end != self._current_ts_end:
+                self._next_row(ts_end, event)
+        else:
+            if self._current_ts_end is not None and ts_end < self._current_ts_end:
+                return
+            if self._current_ts_end is None or ts_end > self._current_ts_end:
+                self._next_row(ts_end, event)
 
 
         r = (self._row_head - 1) % self.lookback  # current logical row index in the ring
@@ -243,6 +266,7 @@ class MarketDataBank:
 
         self._row_fill_count[event.kind][r] += 1
         updated = (self._row_fill_count[event.kind][r] == self.n_assets)
+
         return updated
 
     def ts_end(self) -> np.ndarray:

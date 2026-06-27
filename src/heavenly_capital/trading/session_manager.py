@@ -335,12 +335,10 @@ class SessionManager(RuntimeModule):
 
         path = RECOVERY_DIR / "staged_orders.pkl"
         if not path.exists():
-            _log("restore_sessions_staged_orders — pkl introuvable")
             return
 
         all_requests: dict[str, list] = pickle.loads(path.read_bytes())
         today = self._ports.market_calendar.today()
-        _log("restore_sessions_staged_orders — pkl chargé")
 
         # ── Étape 1 — Reconstruire tous les trackers via stage_orders ──────────
         # stage_orders appelle _create_tracker → callbacks on_fill/on_commission
@@ -361,7 +359,6 @@ class SessionManager(RuntimeModule):
 
                 tracker = session.stack.orders._create_tracker(request)
                 gateway._order_registry[str(request.order_id)] = tracker
-                _log(f"  tracker reconstruit : {request.order_id}")
 
 
         # ── Étape 2 — Rejouer les fills depuis IBKR ────────────────────────────
@@ -380,11 +377,8 @@ class SessionManager(RuntimeModule):
                 portfolio_id=key.portfolio_id,
                 today=today
             )
-            _log(f"portfolio={key.portfolio_id} — orders_ref ({len(sent_refs)})")
 
             remaining = [r for r in requests if r.order_id not in sent_refs]
-            _log(f"remaining ({len(remaining)}) : {[r.order_id for r in remaining]}")
-
             if remaining:
                 session.stack.orders.stage_orders(remaining)
                 session.engine.portfolio.dispatch(
@@ -393,9 +387,7 @@ class SessionManager(RuntimeModule):
                     remaining
                 )
                 await asyncio.sleep(0.25)
-                _log(f"dispatch {len(remaining)} ordres recovery")
 
-        _log("restore_sessions_staged_orders ✓")
 
 
 

@@ -4,10 +4,13 @@ import queue
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, replace, field
+from datetime import datetime
 from itertools import product
 from pathlib import Path
 from queue import Queue
 from typing import Optional, Dict, Any, TYPE_CHECKING, Tuple, List, Set
+
+import pytz
 from ib_async import Contract
 import numpy as np
 import pickle
@@ -24,16 +27,19 @@ if TYPE_CHECKING:
     from heavenly_capital.models.config import FeatureConfig
 
 
+
+
+
 RECOVERY_DIR = Path(__file__).parent.parent.parent.parent / "snapshot"
 
 MAXLEN_BY_FREQ: dict[str, Optional[int]] = {
-    "5s": 10, #TODO:WARNING or max(window) check the params in the table feature_registry
-    "30s": 10,
-    "1m": 10,
-    "5m": 10,
-    "10m": 10,
-    "30m": 10,
-    "1h": 10,
+    "5s": 100, #TODO:WARNING or max(window) check the params in the table feature_registry
+    "30s": 100,
+    "1m": 100,
+    "5m": 100,
+    "10m": 100,
+    "30m": 100,
+    "1h": 100,
 }
 
 
@@ -293,11 +299,49 @@ class FeatureEngine(RuntimeModule):
         path = RECOVERY_DIR / "market_data_banks.pkl"
         path.write_bytes(pickle.dumps(self._banks))
 
+
     def restore_banks(self) -> None:
         path = RECOVERY_DIR / "market_data_banks.pkl"
         if not path.exists():
             return
         self._banks = pickle.loads(path.read_bytes())
+
+    def enable_backfilling(self) -> None:
+        for bank in self._banks.values():
+            bank.recovery_mode = True
+
+    def disable_backfilling(self) -> None:
+        for bank in self._banks.values():
+            bank.recovery_mode = False
+
+    def get_last_ts(self) -> dict[int, float]:
+        bank_1m = self._banks.get("1m")
+        if not bank_1m:
+            return {}
+        ts_array = bank_1m.ts_end()
+        if len(ts_array) == 0:
+            return {}
+        last_ts = float(ts_array[-1])
+        return {con_id: last_ts for con_id in bank_1m.conIds}
+
+
+    def get_last_closes(self) -> dict[int, float]:
+        bank_1m = self._banks.get("1m")
+        if not bank_1m:
+            return {}
+
+        result = {}
+        for con_id in bank_1m.conIds:
+            series = bank_1m.series(fields="close", kind="last", conId=con_id)
+            if len(series) > 0 and not np.isnan(series[-1]):
+                result[con_id] = float(series[-1])
+
+        return result
+
+
+
+
+
 
 
     @staticmethod
@@ -458,27 +502,6 @@ class FeatureEngine(RuntimeModule):
             self._pending_snapshot = False
 
 
-    def get_last_ts(self) -> dict[int, float]:
-        bank_1m = self._banks.get("1m")
-        if not bank_1m:
-            return {}
-        ts_array = bank_1m.ts_end()
-        if len(ts_array) == 0:
-            return {}
-        last_ts = float(ts_array[-1])
-        return {con_id: last_ts for con_id in bank_1m.conIds}
-
-
-    def get_last_closes(self) -> dict[int, float]:
-        bank_1m = self._banks.get("1m")
-        if not bank_1m:
-            return {}
-        result = {}
-        for con_id in bank_1m.conIds:
-            series = bank_1m.series(fields="close", kind="last", conId=con_id)
-            if len(series) > 0 and not np.isnan(series[-1]):
-                result[con_id] = float(series[-1])
-        return result
 
 
 

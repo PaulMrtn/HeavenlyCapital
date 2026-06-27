@@ -103,33 +103,24 @@ class PortfolioManager(BaseModule):
         self._portfolio = Portfolio.from_snapshot(snapshot)
 
     def load_portfolio_orders(self):
-        _log("load_portfolio_orders — début")
-
         if self._ports.system_state.recovery_mode:
-            _log("recovery_mode actif — return")
             return
 
         today = self._ports.market_calendar.today()
         portfolio_id = self._key.portfolio_id
-        _log(f"today={today}  portfolio_id={portfolio_id}")
 
         check = self._ports.db_service.reader.check_rebalance_date(portfolio_id, today)
-        _log(f"check_rebalance_date → {check}")
 
         if check:
             self._portfolio_target = self.get_portfolio_target(
                 portfolio_id=portfolio_id,
                 rebalance_date=today
             )
-            _log(f"portfolio_target={self._portfolio_target}")
 
             orders = self.build_rebalance_orders()
-            _log(f"orders générés : {len(orders)}")
 
             self.dispatch(ModuleType.ORDERS, "order_request", orders)
-            _log("dispatch effectué")
-        else:
-            _log("check_rebalance_date → False — pas de rebalance")
+
 
 
     @property

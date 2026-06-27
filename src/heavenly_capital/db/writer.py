@@ -19,17 +19,6 @@ if TYPE_CHECKING:
 
 
 
-## DEBUG MODE ##
-
-def _log(msg: str) -> None:
-    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
-    with open(LOG_PATH, "a") as f:
-        f.write(f"{datetime.now()} — {msg}\n")
-
-## DEBUG MODE ##
-
-
-
 
 class DataIngestionLayer:
 
@@ -1227,8 +1216,6 @@ class DataIngestionLayer:
                 portfolio_id=portfolio_id,
                 con_id=con_id
             )
-
-            _log(f"  insert_execution : exec_id={execution.execId} inserted={inserted}")
 
             if not inserted:
                 return

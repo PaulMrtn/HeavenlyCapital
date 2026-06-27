@@ -305,10 +305,7 @@ class IBKRGateway(AsyncRuntimeModule):
             if not client.ib_client or not client.ib_client.isConnected():
                 continue
 
-            _log(f"replay_daily_fills — {client.account_id}")
             trades = client.ib_client.trades()
-            _log(f"  {len(trades)} trades trouvés")
-
             for trade in trades:
                 order_ref = trade.order.orderRef
                 if not order_ref or order_ref not in self._order_registry:
@@ -341,10 +338,9 @@ class IBKRGateway(AsyncRuntimeModule):
                     for fill in trade.fills:
                         self._on_fill(trade, fill)
 
-                    _log(f"  replayed : {trade.contract.symbol} status={status} filled={total_filled}")
 
                 except Exception as e:
-                    _log(f"  erreur : {e}")
+                    print(f"  erreur : {e}")
 
     # ---------------------------------
 

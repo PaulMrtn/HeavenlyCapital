@@ -104,8 +104,8 @@ class Kernel:
     def _build_time_source(debug_mode: bool) -> AcceleratedTimeHeartbeat | SystemTimeHeartbeat:
         if debug_mode:
             return AcceleratedTimeHeartbeat(
-                day_seconds=180*3,
-                start_timestamp=datetime(2026, 1, 1, 3, 30, tzinfo=_NYC_TZ).timestamp()
+                day_seconds=180*10,
+                start_timestamp=datetime(2026, 1, 1, 3, 55, tzinfo=_NYC_TZ).timestamp()
             )
         return SystemTimeHeartbeat()
 
@@ -502,19 +502,29 @@ class Kernel:
 
         await self.start_market_runtime()
 
-
-    def _fill_market_data_gap(self) -> None:  # ← pas async
+    def _market_data_recovery(self) -> None:
         last_ts = self._modules.feature_manager.get_last_ts()
         last_closes = self._modules.feature_manager.get_last_closes()
 
         if not last_ts or not last_closes:
             return
 
+        self._modules.feature_manager.enable_backfilling()
+
         self._modules.historic_hub.fill_gap(
             last_ts=last_ts,
             last_closes=last_closes,
             current_ts=time.time()
         )
+
+        self._modules.historic_hub.ingest_candle_5s()
+        self._modules.historic_hub.dispatch_candle_events()
+        self._modules.feature_manager.process_candle_events()
+        self._modules.feature_manager.snapshot_banks()
+        self._modules.historic_hub.snapshot_candle_manager()
+
+        self._modules.feature_manager.disable_backfilling()
+
 
 
     async def _market_setup_recovery(self) -> None:
@@ -533,7 +543,7 @@ class Kernel:
 
         await self.initialize_market_setup()
 
-        self._fill_market_data_gap()
+        self._market_data_recovery()
 
         self._update_session(state=SessionState.STAND_BY)
 
@@ -763,7 +773,6 @@ class Kernel:
         await asyncio.sleep(5)
 
         if self._system_state.recovery_mode:
-            _log("recovery_mode — restore_sessions_staged_orders")
             await self._modules.session_manager.restore_sessions_staged_orders(
                 self._modules.ibkr_gateway
             )
