@@ -502,6 +502,7 @@ class Kernel:
 
         await self.start_market_runtime()
 
+
     def _market_data_recovery(self) -> None:
         last_ts = self._modules.feature_manager.get_last_ts()
         last_closes = self._modules.feature_manager.get_last_closes()
