@@ -529,7 +529,7 @@ class Kernel:
 
 
     async def _market_setup_recovery(self) -> None:
-        self._system_state.recovery_mode = True
+        self._system_state.recovery_mode = True  #TODO:LOW self._system_state.set_status(SystemStatus.RECOVERY_MODE) instead !
 
         self._log.info(
             "Recovery mode enabled",
@@ -556,7 +556,7 @@ class Kernel:
         self._update_session(state=SessionState.RUNNING)
 
         await self.start_market_runtime()
-        self._system_state.recovery_mode = False
+        self._system_state.recovery_mode = False  #TODO:LOW self._system_state.set_status(SystemStatus.RUNNING) instead ?
 
     def _restart_after_stop(self) -> None:
         # TODO:LOW - Recovery strategy ?
