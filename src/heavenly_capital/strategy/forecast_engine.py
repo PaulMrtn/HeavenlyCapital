@@ -10,7 +10,8 @@ from typing import List, Dict, Optional
 
 from heavenly_capital.core.thread import get_thread_manager
 from heavenly_capital.models.runtime import RuntimeModule
-from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState, ModelSignal
+from heavenly_capital.strategy.artifacts import DecisionRecord, ModelOutput, ModelSpec, ModelState, ModelSignal, \
+    ThresholdStore
 from heavenly_capital.data.bus import EventBus
 
 
@@ -148,6 +149,8 @@ class ForecastManager(RuntimeModule):
         self._states: dict[tuple[str, int], Optional[ModelState]] = {}
         self._pool: Optional["ModelPool"] = None
 
+        self._thresholds: Optional["ThresholdStore"] = None
+
         self._config: Optional["ForecastConfig"] = None
         self._ports: Optional["SystemPorts"] = None
 
@@ -210,28 +213,30 @@ class ForecastManager(RuntimeModule):
 
         self._conids = sorted(set(conids))
 
+
     def wire_feature_store(self, queue: Queue) -> None:
         self._in_queue = queue
+
 
     def load_model_registry(self) -> "ModelRegistry":
         rows = self._ports.db_service.reader.get_forecast_models_configs()
         specs = [ModelSpec.from_snapshot(r) for r in rows]
         return ModelRegistry(specs)
 
+
     def get_positions_and_targets(self) -> list[dict]:
         today = self._ports.market_calendar.today()
         return self._ports.db_service.reader.fetch_positions_and_targets(today)
 
+
     def build_prediction_and_routing(self) -> None:
         positions = self.get_positions_and_targets()
-
         grouped_positions = self._group_positions_by_session(positions)
-
         models_by_type = self._group_models_by_type()
-
         self._prediction_plan, self._routing_registry = self._build_plan_and_routing(
             grouped_positions, models_by_type
         )
+
 
     def _group_positions_by_session(self, positions: list[dict]) -> dict[str, list[dict]]:
         grouped = {"LIVE": [], "PAPER": [], "OTHER": []}
@@ -252,6 +257,7 @@ class ForecastManager(RuntimeModule):
 
         return grouped
 
+
     def _group_models_by_type(self) -> dict[str, list[ModelSpec]]:
         model_types_order = ["STOP_LOSS", "SELL", "BUY"]
         grouped = {mt: [] for mt in model_types_order}
@@ -260,6 +266,7 @@ class ForecastManager(RuntimeModule):
             grouped[m.model_type.name].append(m)
 
         return grouped
+
 
     @staticmethod
     def _models_for_position(pos: dict) -> list[str]:
@@ -275,6 +282,7 @@ class ForecastManager(RuntimeModule):
             return ["BUY"]
 
         return []
+
 
     def _build_plan_and_routing(
             self,
@@ -323,10 +331,16 @@ class ForecastManager(RuntimeModule):
     def setup_models_and_store(self) -> None:
         if self._pool is None:
             raise RuntimeError("ModelPool not initialized")
-
         self._pool.load()
+
         self._store.initialize_records(self._registry, self._conids)
         self.build_prediction_and_routing()
+
+        self._load_thresholds()
+
+    def _load_thresholds(self) -> None:
+        rows = self._ports.db_service.reader.fetch_portfolio_thresholds()
+        self._thresholds = ThresholdStore.from_rows(rows)
 
 
     def _route_prediction(self, signal: ModelSignal) -> None:

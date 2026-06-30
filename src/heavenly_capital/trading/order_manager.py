@@ -17,17 +17,6 @@ if TYPE_CHECKING:
 
 
 
-
-## DEBUG MODE ##
-
-def _log(msg: str) -> None:
-    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
-    with open(LOG_PATH, "a") as f:
-        f.write(f"{datetime.now()} — {msg}\n")
-
-## DEBUG MODE ##
-
-
 class OrderManager(BaseModule):
 
     def __init__(self) -> None:
@@ -79,7 +68,7 @@ class OrderManager(BaseModule):
         dispatch: dict[tuple[ModuleType, str], Callable] = {
             (ModuleType.PORTFOLIO, "order_request"): self._handle_orders_request,
             (ModuleType.PORTFOLIO, "authorize_order"): self._process_authorization,
-            (ModuleType.RISK, "order_request"): self._handle_orders_request, #TODO:WARNING dev risk manager own function to handle order request
+            (ModuleType.RISK, "order_request"): self._handle_risk_order_request, #TODO:WARNING dev risk manager own function to handle order request
             (ModuleType.RISK, "authorize_order"): self._process_authorization, #TODO:WARNING dev risk manager own function to handle order request
         }
 
@@ -129,13 +118,19 @@ class OrderManager(BaseModule):
         return tracker
 
 
-    def stage_orders(self, requests: list["OrderRequest"]):
+    def stage_orders(self, requests: list["OrderRequest"]) -> None:
         for request in requests:
             tracker = self._create_tracker(request)
             self._pending_orders[request.con_id] = tracker
 
-    def _handle_orders_request(self, orders):
+    def _handle_orders_request(self, orders: list["OrderRequest"]) -> None:
         self.stage_orders(orders)
+
+    def _handle_risk_order_request(self, orders: list["OrderRequest"]) -> None:
+        for request in orders:
+            tracker = self._create_tracker(request)
+            self.route_order(order=tracker)
+            self.dispatch(ModuleType.PORTFOLIO, "order_tracking", tracker)
 
     def _process_authorization(self, event: "ModelSignal") -> None:
         con_id = event.conid

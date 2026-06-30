@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from decimal import Decimal, ROUND_DOWN
-from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
+from typing import Any, Dict, Optional, TYPE_CHECKING, Callable, Hashable
 from uuid import UUID
 
 from heavenly_capital.core.thread import get_thread_manager
@@ -19,18 +19,6 @@ from heavenly_capital.strategy.artifacts import ModelSignal, ModelOutput
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.trading.session_manager import TradingSessionKey
-
-
-
-
-## DEBUG MODE ##
-
-def _log(msg: str) -> None:
-    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
-    with open(LOG_PATH, "a") as f:
-        f.write(f"{datetime.now()} — {msg}\n")
-
-## DEBUG MODE ##
 
 
 
@@ -70,6 +58,7 @@ class PortfolioManager(BaseModule):
         self._started = True
 
     def stop(self) -> None:
+        # TODO:WARNING : add unsubscribe logic here (self._in_bus.unsubscribe(self._in_token))
         self._started = False
 
     def dispatch(self, target: ModuleType, action: str, data: Any) -> None:
@@ -102,6 +91,18 @@ class PortfolioManager(BaseModule):
 
         self._portfolio = Portfolio.from_snapshot(snapshot)
 
+
+    def sync_existing_positions(self) -> None:
+        if not self._portfolio:
+            return
+        for con_id, position in self._portfolio.positions.items():
+            self.dispatch(ModuleType.RISK, "position_updated", {
+                "con_id": con_id,
+                "avg_cost": float(position.avg_price),
+                "quantity": float(position.quantity)
+            })
+
+
     def load_portfolio_orders(self):
         if self._ports.system_state.recovery_mode:
             return
@@ -122,12 +123,12 @@ class PortfolioManager(BaseModule):
             self.dispatch(ModuleType.ORDERS, "order_request", orders)
 
 
-
     @property
     def portfolio_state(self) -> Optional[Portfolio]:
         if self._portfolio:
             self._mark_to_market()
         return self._portfolio
+
 
     def health_check(self) -> dict[str, Any]:
         return {"is_healthy": True}
@@ -135,6 +136,7 @@ class PortfolioManager(BaseModule):
     def wire_ticker_manager(self, tickers_manager: "TickerManager"):
         self._tickers = tickers_manager
         self._tickers.subscribe(self.refresh_portfolio)
+
 
     def wire_forecast_manager(self, bus: "EventBus"):
         self._in_bus = bus
@@ -151,7 +153,10 @@ class PortfolioManager(BaseModule):
             callback=self._handle_signal
         )
 
-    def _handle_signal(self, portfolio_id, signal: "ModelSignal"):
+    def _handle_signal(self, portfolio_id: Hashable, signal: "ModelSignal"):
+        if signal.model_type == "STOP_LOSS":
+            return
+
         if signal.output.decision:
             self.authorize_order(signal)
 
@@ -365,6 +370,13 @@ class PortfolioManager(BaseModule):
         self._portfolio.balance.cash -= fill_qty * fill_price
         self._portfolio.balance.total_commission += commission
 
+        position = self._portfolio.positions[con_id]
+        self.dispatch(ModuleType.RISK, "position_updated", {
+            "con_id": con_id,
+            "avg_cost": float(position.avg_price),
+            "quantity": float(position.quantity)
+        })
+
     def _process_sell(self, order, con_id, symbol, fill_qty, fill_price, commission, position, **_):
         if not position:
             return
@@ -376,12 +388,23 @@ class PortfolioManager(BaseModule):
         if position.quantity == 0:
             del self._portfolio.positions[con_id]
 
+            self.dispatch(ModuleType.RISK, "position_closed", {
+                "con_id": con_id
+            })
+
         elif position.quantity < 0:
             # TODO:LOW - handle this error with the error service
             raise ValueError(
                 f"Position quantity negative for {symbol} (con_id={con_id}). "
                 f"Tried to sell {fill_qty}, but only {position.quantity + fill_qty} available."
             )
+
+        else :
+            self.dispatch(ModuleType.RISK, "position_updated", {
+                "con_id": con_id,
+                "avg_cost": float(position.avg_price),
+                "quantity": float(position.quantity)
+            })
 
 
     def _update_portfolio_balance(self, order: OrderTracker) -> None:

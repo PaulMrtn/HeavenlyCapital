@@ -338,6 +338,27 @@ CREATE TABLE trading.portfolio_target_weights (
 );
 
 
+CREATE TABLE trading.portfolio_thresholds (
+    portfolio_id  TEXT           NOT NULL,
+    con_id        BIGINT         NOT NULL,
+    threshold_pct NUMERIC(8,6)   NOT NULL
+        CHECK (threshold_pct > 0 AND threshold_pct < 1),
+    updated_at    TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (portfolio_id, con_id),
+
+    FOREIGN KEY (portfolio_id)
+        REFERENCES trading.portfolio_registry(portfolio_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (con_id)
+        REFERENCES trading.contracts(con_id)
+        ON DELETE RESTRICT
+);
+
+
+
+
 
 CREATE TABLE trading.account_margins (
     id SERIAL PRIMARY KEY,
@@ -568,4 +589,6 @@ CREATE TABLE trading.first_rate_reference (
 -- DROP TABLE IF EXISTS trading.logs CASCADE;
 
 -- DROP TABLE IF EXISTS trading.first_rate_mapping CASCADE;
+-- DROP TABLE IF EXISTS trading.portfolio_thresholds CASCADE;
+
 

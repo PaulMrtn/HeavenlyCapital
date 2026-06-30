@@ -137,3 +137,36 @@ class DecisionRecord:
             penalty=output.penalty,
             output_at=time(),
         )
+
+
+
+@dataclass(frozen=True, slots=True)
+class StopLossThreshold:
+    con_id: int
+    portfolio_id: str
+    threshold_pct: float
+
+    @classmethod
+    def from_snapshot(cls, row: dict) -> "StopLossThreshold":
+        return cls(
+            con_id=int(row["con_id"]),
+            portfolio_id=row["portfolio_id"],
+            threshold_pct=float(row["threshold_pct"])
+        )
+
+
+class ThresholdStore:
+    def __init__(self) -> None:
+        self._data: dict[tuple[int, str], StopLossThreshold] = {}  # {(con_id, portfolio_id):StopLossThreshold}
+
+    @classmethod
+    def from_rows(cls, rows: list[dict]) -> "ThresholdStore":
+        store = cls()
+        for row in rows:
+            t = StopLossThreshold.from_snapshot(row)
+            store._data[(t.con_id, t.portfolio_id)] = t
+        return store
+
+    def get_threshold_pct(self, con_id: int, portfolio_id: str) -> Optional[float]:
+        t = self._data.get((con_id, portfolio_id))
+        return t.threshold_pct if t else None

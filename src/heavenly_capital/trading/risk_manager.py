@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING, Callable, Hashable
 from uuid import UUID
 
+from heavenly_capital.data.bus import EventBus
+from heavenly_capital.models.market_data import ReadOnlyTicker
+from heavenly_capital.models.risk import StopLossStore, MonitoredPosition
 from heavenly_capital.models.runtime import BaseModule, ModuleType
-from heavenly_capital.models.risk import RiskSnapshot, RiskState
+from heavenly_capital.strategy.artifacts import ModelSignal
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.trading.session_manager import TradingSessionKey
+
+
 
 
 class RiskManager(BaseModule):
@@ -18,7 +23,10 @@ class RiskManager(BaseModule):
         self._ports: Optional["SystemPorts"] = None
         self._key: Optional["TradingSessionKey"] = None
 
-        self._state: Optional["RiskState"] = None
+        self._in_bus: Optional["EventBus"] = None
+        self._in_token: Optional[int] = None
+
+        self._store : Optional["StopLossStore"] = None
         self._tickers = None
 
         self._configured = False
@@ -36,7 +44,22 @@ class RiskManager(BaseModule):
         self._started = True
 
     def stop(self) -> None:
+        # TODO:WARNING : add unsubscribe logic here (self._in_bus.unsubscribe(self._in_token))
         self._started = False
+
+
+    def health_check(self) -> dict[str, Any]:
+        return {
+            "is_healthy": True,
+        }
+
+
+    def load_thresholds(self) -> None:
+        rows = self._ports.db_service.reader.fetch_portfolio_thresholds(
+            portfolio_id=self._key.portfolio_id
+        )
+        self._store = StopLossStore.from_rows(rows)
+
 
     def dispatch(self, target: ModuleType, action: str, data: Any) -> None:
         payload = {
@@ -44,6 +67,69 @@ class RiskManager(BaseModule):
             "data": data
         }
         self.send(target, payload)
+
+    def receive(self, payload: dict, source: ModuleType) -> None:
+        action: str = payload.get("action", "")
+        data: dict = payload.get("data", {})
+
+        dispatch: dict[tuple[ModuleType, str], Callable] = {
+            (ModuleType.PORTFOLIO, "position_updated"): self._on_position_updated,
+            (ModuleType.PORTFOLIO, "position_closed"): self._on_position_closed,
+        }
+
+        handler = dispatch.get((source, action))
+        if handler:
+            handler(data)
+
+
+    def _on_position_updated(self, data: dict) -> None:
+        if self._store is None:
+            return
+        self._store.on_fill_updated(
+            con_id=data["con_id"],
+            avg_cost=data["avg_cost"],
+            quantity=data["quantity"]
+        )
+
+    def _on_position_closed(self, data: dict) -> None:
+        if self._store is None:
+            return
+        self._store.on_closed(con_id=data["con_id"])
+
+
+    def wire_ticker_manager(self, tickers_manager):
+        self._tickers = tickers_manager
+
+    def wire_forecast_manager(self, bus: "EventBus") -> None:
+        self._in_bus = bus
+        self.subscribe_to_forecast_manager()
+
+    def subscribe_to_forecast_manager(self) -> None:
+        if self._in_token is None and self._in_bus is None:
+            raise RuntimeError("PortfolioManager: input bus not set (call wire_forecast_manager() first)")
+
+        self._in_token =  self._in_bus.subscribe(
+            entity_id=self._key.portfolio_id,
+            callback=self._handle_signal
+        )
+
+    def _handle_signal(self, portfolio_id: Hashable, signal: "ModelSignal") -> None:
+        if signal.model_type != "STOP_LOSS":
+            return
+
+        if signal.output.decision:
+            self._on_stop_loss_signal(signal.conid)
+
+
+    def _on_stop_loss_signal(self, con_id: int) -> None:
+        if self._store is None:
+            return
+
+        if not self._store.is_monitoring(con_id):
+            return
+
+        self._store.on_order_sent(con_id)
+
 
     def authorize_order(self, con_id: int) -> None:
         auth_payload = {
@@ -53,17 +139,57 @@ class RiskManager(BaseModule):
 
         self.dispatch(ModuleType.ORDERS, "authorize_order", auth_payload)
 
+    def _on_price_update(self) -> None:
+        if not self._store or not self._tickers:
+            return
 
-    @property
-    def risk_state(self) -> Optional[RiskSnapshot]:
-        return self._state
+        for pos in self._store.all_monitoring():
+            ticker = self._tickers.get_ticker(pos.con_id)
+            if not ticker:
+                continue
+            self._evaluate_position(pos, ticker)
 
-    # TODO:MEDIUM : add property for each attribut like stop_loss, etc
+    def _evaluate_position(self, pos: "MonitoredPosition", ticker: "ReadOnlyTicker") -> None:
+        prix = ticker.last
+        clock = self._ports.market_clock
 
-    def health_check(self) -> dict[str, Any]:
-        return {
-            "is_healthy": True,
-        }
+        if clock.is_pre_market or clock.is_post_market:
+            if prix <= pos.threshold_abs:
+                self._trigger(pos.con_id, reason='gap_extreme')
+                return
 
-    def wire_ticker_manager(self, tickers_manager):
-        self._tickers = tickers_manager
+
+            # Buffer S-B post/pre market uniquement
+            # TODO:LOW - Finish Buffer S-B post/pre marke Rule case
+            # if pos.threshold_abs - TRESHOLD_BUFFER <= prix < pos.threshold_abs:
+            #     self._trigger(pos.con_id, reason='buffer_breach')
+            #     return
+
+
+        # Force Close 15h55 (step 385 = 15h55)
+        # TODO:LOW - Finish Force Close Rule case
+        # if clock.is_market_open and clock.step_state >= 385:
+        #     distance = (prix - pos.threshold_abs) / prix
+        #     if distance <= FORCE_CLOSE_THRESHOLD:
+        #         self._trigger(pos.con_id, reason='force_close')
+        #         return
+
+
+    def _trigger(self, con_id: int, reason: str) -> None:
+        # 1. Vérification state
+        if not self._store.is_monitoring(con_id):
+            return
+
+        # 2. F2 — V1 toujours True
+        # Future : spread, volume, bid_size...
+
+        # 3. State → PENDING
+        self._store.on_order_sent(con_id)
+
+        # 4. Envoi ordre
+        self.dispatch(ModuleType.ORDERS, "order_request", {
+            "con_id": con_id,
+            "side": "SELL",
+            "quantity": self._store.get(con_id).quantity,
+            "reason": reason
+        })

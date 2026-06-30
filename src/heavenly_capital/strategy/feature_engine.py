@@ -415,6 +415,7 @@ class FeatureEngine(RuntimeModule):
             updated_at=float(event.ohlc.ts_end)
         )
 
+
     def _event_to_features(self, event) -> list[Any]:
         updated = self._update_bank(event)
 

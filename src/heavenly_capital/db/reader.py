@@ -206,6 +206,26 @@ class DataAccessLayer:
             return [dict(row) for row in result.mappings().all()]
 
 
+    def fetch_portfolio_thresholds(self, portfolio_id: str | None = None) -> list[dict]:
+        if portfolio_id:
+            query = text("""
+                         SELECT portfolio_id, con_id, threshold_pct
+                         FROM trading.portfolio_thresholds
+                         WHERE portfolio_id = :portfolio_id
+                         """)
+            params = {"portfolio_id": portfolio_id}
+        else:
+            query = text("""
+                         SELECT portfolio_id, con_id, threshold_pct
+                         FROM trading.portfolio_thresholds
+                         """)
+            params = {}
+
+        with self._connector.get_connection() as conn:
+            result = conn.execute(query, params)
+            return [dict(row) for row in result.mappings().all()]
+
+
     def check_rebalance_date(self, portfolio_id: str, today: datetime) -> bool:
         query = text("""
                      SELECT 1
@@ -218,6 +238,7 @@ class DataAccessLayer:
         with self._connector.get_connection() as conn:
             result = conn.execute(query, {"portfolio_id": portfolio_id, "today": today}).fetchone()
             return result is not None
+
 
     def get_sent_order_refs_today(self, portfolio_id: str, today: date) -> set[str]:
         query = text("""

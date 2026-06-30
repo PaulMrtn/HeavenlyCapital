@@ -30,17 +30,6 @@ if TYPE_CHECKING:
 
 
 
-## DEBUG MODE ##
-
-def _log(msg: str) -> None:
-    LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"
-    with open(LOG_PATH, "a") as f:
-        f.write(f"{datetime.now()} — {msg}\n")
-
-## DEBUG MODE ##
-
-
-
 RECOVERY_DIR = Path(__file__).parent.parent.parent.parent / "snapshot"
 
 
@@ -120,7 +109,7 @@ class TradingSession:
 
     def wire_forecast_signal(self, bus: "EventBus"):
         self.engine.portfolio.wire_forecast_manager(bus)
-        # self.engine.risk.wire_forecast_manager(bus)
+        self.engine.risk.wire_forecast_manager(bus)
 
 
 
@@ -281,6 +270,8 @@ class SessionManager(RuntimeModule):
     def load_sessions_state_from_database(self) -> None:
         for session in self.sessions.values():
             session.engine.portfolio.load_portfolio_state()
+            session.engine.risk.load_thresholds()
+            session.engine.risk.sync_existing_positions()
 
 
     def load_sessions_portfolio_orders(self) -> None:

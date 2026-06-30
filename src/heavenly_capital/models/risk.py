@@ -1,32 +1,92 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import Dict
+from enum import StrEnum
+from typing import Dict, Optional
 
 
-@dataclass(frozen=True)
-class RiskSnapshot:
-    account_id: str
-    stop_loss_pct_by_symbol: Dict[str, Decimal]          # ex: {"AAPL": Decimal("0.05")}
-    stop_loss_price_by_symbol: Dict[str, Decimal]        # ex: {"AAPL": Decimal("175.50")}
+class PositionStatus(StrEnum):
+    MONITORING = "MONITORING"
+    PENDING    = "PENDING"
+    LIQUIDATED = "LIQUIDATED"
 
 
-@dataclass(slots=True)
-class RiskState:
-    account_id: str
-    stop_loss_pct_by_symbol: Dict[str, Decimal] = field(default_factory=dict)
-    stop_loss_price_by_symbol: Dict[str, Decimal] = field(default_factory=dict)
+@dataclass
+class MonitoredPosition:
+    con_id: int
+    threshold_pct: float                  # S% — depuis DB, immuable en session
+    quantity: float          # mis à jour à chaque fill BUY
+    threshold_abs: float = 0.0            # avg_cost * (1 - threshold_pct)
+    status: PositionStatus = PositionStatus.MONITORING
 
     @classmethod
-    def from_snapshot(cls, snapshot: "RiskSnapshot") -> "RiskState":
+    def from_snapshot(cls, row: dict) -> "MonitoredPosition":
         return cls(
-            account_id=snapshot.account_id,
-            stop_loss_pct_by_symbol=dict(snapshot.stop_loss_pct_by_symbol),
-            stop_loss_price_by_symbol=dict(snapshot.stop_loss_price_by_symbol),
+            con_id=int(row["con_id"]),
+            threshold_pct=float(row["threshold_pct"])
         )
 
-    def to_snapshot(self) -> "RiskSnapshot":
-        return RiskSnapshot(
-            account_id=self.account_id,
-            stop_loss_pct_by_symbol=dict(self.stop_loss_pct_by_symbol),
-            stop_loss_price_by_symbol=dict(self.stop_loss_price_by_symbol),
-        )
+    def on_fill_updated(self, avg_cost: float, quantity: float) -> None:
+        self.threshold_abs = avg_cost * (1 - self.threshold_pct)
+        self.quantity = quantity
+        self.status = PositionStatus.MONITORING
+
+    def on_order_sent(self) -> None:
+        self.status = PositionStatus.PENDING
+
+    def on_closed(self) -> None:
+        self.status = PositionStatus.LIQUIDATED
+
+    @property
+    def is_monitoring(self) -> bool:
+        return self.status == PositionStatus.MONITORING
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == PositionStatus.PENDING
+
+    @property
+    def is_liquidated(self) -> bool:
+        return self.status == PositionStatus.LIQUIDATED
+
+
+class StopLossStore:
+
+    def __init__(self) -> None:
+        self._positions: Dict[int, MonitoredPosition] = {}
+
+    @classmethod
+    def from_rows(cls, rows: list[dict]) -> "StopLossStore":
+        store = cls()
+        for row in rows:
+            pos = MonitoredPosition.from_snapshot(row)
+            store._positions[pos.con_id] = pos
+        return store
+
+    def get(self, con_id: int) -> Optional[MonitoredPosition]:
+        return self._positions.get(con_id)
+
+    def on_fill_updated(self, con_id: int, avg_cost: float, quantity: float) -> None:
+        pos = self._positions.get(con_id)
+        if pos:
+            pos.on_fill_updated(avg_cost, quantity)
+
+    def on_order_sent(self, con_id: int) -> None:
+        pos = self._positions.get(con_id)
+        if pos:
+            pos.on_order_sent()
+
+    def on_closed(self, con_id: int) -> None:
+        pos = self._positions.get(con_id)
+        if pos:
+            pos.on_closed()
+
+    def is_monitoring(self, con_id: int) -> bool:
+        pos = self._positions.get(con_id)
+        return pos.is_monitoring if pos else False
+
+    def has_position(self, con_id: int) -> bool:
+        return con_id in self._positions
+
+    def all_monitoring(self) -> list[MonitoredPosition]:
+        return [p for p in self._positions.values() if p.is_monitoring]

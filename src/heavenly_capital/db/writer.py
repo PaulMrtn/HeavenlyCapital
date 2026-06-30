@@ -274,7 +274,8 @@ class DataIngestionLayer:
             portfolio_id: str,
             strategy_id: str,
             rebalance_date: str,  # format 'YYYY-MM-DD'
-            weights: dict[int, float],  # {instrument_id: target_weight}
+            weights: dict[int, float],  # {con_id: target_weight}
+            thresholds: dict[int, float] | None = None,  # {con_id: S%}
             tolerance: float = 0.02
     ) -> None:
 
@@ -301,9 +302,15 @@ class DataIngestionLayer:
                 }
             ).scalar()
 
+            # Erase the past
             conn.execute(
                 text("DELETE FROM trading.portfolio_target_weights WHERE target_id = :target_id"),
                 {"target_id": target_id}
+            )
+
+            conn.execute(
+                text("DELETE FROM trading.portfolio_thresholds WHERE portfolio_id = :portfolio_id"),
+                {"portfolio_id": portfolio_id}
             )
 
             if weights:
@@ -316,6 +323,27 @@ class DataIngestionLayer:
                     [{"target_id": target_id, "con_id": con_id, "target_weight": float(w)}
                      for con_id, w in weights.items()]
                 )
+
+
+            if thresholds:
+                insert_threshold_query = text("""
+                         INSERT INTO trading.portfolio_thresholds (portfolio_id, con_id, threshold_pct, updated_at)
+                         VALUES (:portfolio_id, :con_id, :threshold_pct, NOW())
+                         """)
+
+                conn.execute(
+                    insert_threshold_query,
+                    [{"portfolio_id": portfolio_id, "con_id": con_id, "threshold_pct": float(t)}
+                     for con_id, t in thresholds.items()]
+                )
+
+        # TODO:LOW — désynchronisation possible entre portfolio_thresholds et positions réelles :
+        # si une position est liquidée par le Risk Manager en cours de session (stop loss déclenché),
+        # la ligne correspondante reste dans portfolio_thresholds jusqu'au prochain rebalancement.
+        # Le Risk Manager gère ce cas en mémoire via _states[con_id] = 'liquidated'.
+        # Solution future : écriture depuis le Risk Manager pour supprimer la ligne au moment de la liquidation.
+
+
 
     def _update_margin_account(self, state: "AccountState", currency: str) -> None:
         m = state.margin
