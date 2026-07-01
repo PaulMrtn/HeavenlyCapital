@@ -5,15 +5,15 @@ from uuid import UUID
 
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.market_data import ReadOnlyTicker
-from heavenly_capital.models.risk import StopLossStore, MonitoredPosition
+from heavenly_capital.models.order import OrderRequest
+from heavenly_capital.models.risk import StopLossStore, MonitoredPosition, TriggerReason
 from heavenly_capital.models.runtime import BaseModule, ModuleType
-from heavenly_capital.strategy.artifacts import ModelSignal
+from heavenly_capital.strategy.artifacts import ModelKind
 
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.trading.session_manager import TradingSessionKey
-
-
+    from heavenly_capital.strategy.artifacts import ModelSignal
 
 
 class RiskManager(BaseModule):
@@ -60,7 +60,6 @@ class RiskManager(BaseModule):
         )
         self._store = StopLossStore.from_rows(rows)
 
-
     def dispatch(self, target: ModuleType, action: str, data: Any) -> None:
         payload = {
             "action": action,
@@ -94,11 +93,13 @@ class RiskManager(BaseModule):
     def _on_position_closed(self, data: dict) -> None:
         if self._store is None:
             return
+
         self._store.on_closed(con_id=data["con_id"])
 
 
     def wire_ticker_manager(self, tickers_manager):
         self._tickers = tickers_manager
+        self._tickers.subscribe(self._on_price_update)
 
     def wire_forecast_manager(self, bus: "EventBus") -> None:
         self._in_bus = bus
@@ -106,7 +107,7 @@ class RiskManager(BaseModule):
 
     def subscribe_to_forecast_manager(self) -> None:
         if self._in_token is None and self._in_bus is None:
-            raise RuntimeError("PortfolioManager: input bus not set (call wire_forecast_manager() first)")
+            raise RuntimeError("RiskManager: input bus not set (call wire_forecast_manager() first)")
 
         self._in_token =  self._in_bus.subscribe(
             entity_id=self._key.portfolio_id,
@@ -114,7 +115,11 @@ class RiskManager(BaseModule):
         )
 
     def _handle_signal(self, portfolio_id: Hashable, signal: "ModelSignal") -> None:
-        if signal.model_type != "STOP_LOSS":
+        if signal.model_type != ModelKind.STOP_LOSS:
+            return
+
+        clock = self._ports.market_clock
+        if not clock.is_market_open:
             return
 
         if signal.output.decision:
@@ -124,14 +129,25 @@ class RiskManager(BaseModule):
     def _on_stop_loss_signal(self, con_id: int) -> None:
         if self._store is None:
             return
-
         if not self._store.is_monitoring(con_id):
             return
 
-        self._store.on_order_sent(con_id)
+        self._ports.log_service.info(
+            "Risk ML signal received",
+            extra={
+                "domain": "RISK",
+                "event": "ml_signal",
+                "portfolio_id": self._key.portfolio_id,
+                "account_id": self._key.account_id,
+                "con_id": con_id,
+            }
+        )
+
+        self._trigger_execution(con_id, reason=TriggerReason.ML_SIGNAL)
 
 
     def authorize_order(self, con_id: int) -> None:
+        # TODO:LOW — inutilisé, internaliser dans RiskManager._authorize_execution
         auth_payload = {
             "con_id": con_id,
             "authorized":True
@@ -149,20 +165,21 @@ class RiskManager(BaseModule):
                 continue
             self._evaluate_position(pos, ticker)
 
+
     def _evaluate_position(self, pos: "MonitoredPosition", ticker: "ReadOnlyTicker") -> None:
-        prix = ticker.last
+        last_price = ticker.last
         clock = self._ports.market_clock
 
         if clock.is_pre_market or clock.is_post_market:
-            if prix <= pos.threshold_abs:
-                self._trigger(pos.con_id, reason='gap_extreme')
+            if last_price <= pos.threshold_abs:
+                self._trigger_execution(pos.con_id, reason=TriggerReason.HIT_THRESHOLD)
                 return
 
 
             # Buffer S-B post/pre market uniquement
             # TODO:LOW - Finish Buffer S-B post/pre marke Rule case
             # if pos.threshold_abs - TRESHOLD_BUFFER <= prix < pos.threshold_abs:
-            #     self._trigger(pos.con_id, reason='buffer_breach')
+            #     self._trigger_execution(pos.con_id, reason=TriggerReason.BUFFER_BREACH)
             #     return
 
 
@@ -171,25 +188,55 @@ class RiskManager(BaseModule):
         # if clock.is_market_open and clock.step_state >= 385:
         #     distance = (prix - pos.threshold_abs) / prix
         #     if distance <= FORCE_CLOSE_THRESHOLD:
-        #         self._trigger(pos.con_id, reason='force_close')
+        #         self._trigger_execution(pos.con_id, reason=TriggerReason.FORCE_CLOSE)
         #         return
 
 
-    def _trigger(self, con_id: int, reason: str) -> None:
-        # 1. Vérification state
+    def _authorize_execution(self, con_id: int) -> bool:
+        # V1 : toujours autorisé
+        # TODO:LOW — future : vérifier spread/bid_size/ask_size avant exécution
+        return True
+
+
+    def _trigger_execution(self, con_id: int, reason: str) -> None:
         if not self._store.is_monitoring(con_id):
             return
 
-        # 2. F2 — V1 toujours True
-        # Future : spread, volume, bid_size...
+        pos = self._store.get(con_id)
+        if pos is None:
+            return
 
-        # 3. State → PENDING
+        if not self._authorize_execution(con_id):
+            return
+
         self._store.on_order_sent(con_id)
 
-        # 4. Envoi ordre
-        self.dispatch(ModuleType.ORDERS, "order_request", {
-            "con_id": con_id,
-            "side": "SELL",
-            "quantity": self._store.get(con_id).quantity,
-            "reason": reason
-        })
+        order = OrderRequest.create(
+            account_id=self._key.account_id,
+            portfolio_id=self._key.portfolio_id,
+            con_id=con_id,
+            side="SELL",
+            quantity=pos.quantity,
+            order_type="MKT",
+        )
+
+        self._ports.log_service.info(
+            "Risk trigger executed",
+            extra={
+                "domain": "RISK",
+                "event": "trigger_executed",
+                "portfolio_id": self._key.portfolio_id,
+                "account_id": self._key.account_id,
+                "con_id": con_id,
+                "reason": reason,
+                "threshold_abs": round(pos.threshold_abs, 4),
+            }
+        )
+
+        self.dispatch(ModuleType.ORDERS, "order_request", order)
+
+
+
+# TODO:MEDIUM — mesurer la latence de _on_price_update sur plusieurs portfolios en parallèle.
+# Vérifier que le callback à 0.5s ne s'accumule pas si le traitement dépasse l'intervalle,
+# et que l'exécution reste isolée par portfolio (pas de blocage cross-portfolio).

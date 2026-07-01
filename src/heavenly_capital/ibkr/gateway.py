@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import timezone, datetime
-from pathlib import Path
-from typing import Optional, Any, Callable, TYPE_CHECKING
 
+from typing import Optional, Any, Callable, TYPE_CHECKING
+from datetime import timezone
 from ib_async import Contract, Ticker, Trade, Order, MarketOrder, LimitOrder, Fill, CommissionReport
 
 from heavenly_capital.models.runtime import AsyncRuntimeModule
@@ -19,6 +18,9 @@ if TYPE_CHECKING:
 
 
 ## DEBUG MODE ##
+
+from datetime import datetime
+from pathlib import Path
 
 def _log(msg: str) -> None:
     LOG_PATH = Path(__file__).parent.parent.parent.parent / "logs" / "console.log"

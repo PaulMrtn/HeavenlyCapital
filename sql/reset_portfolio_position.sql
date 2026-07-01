@@ -5,8 +5,9 @@
 DO $$
 DECLARE
     v_portfolio_id  TEXT    := 'portfolio_01';
-    v_date          DATE    := '2026-06-17';
-    v_initial_cash  NUMERIC := 498282.41;
+    v_date          DATE    := '2026-06-30';
+    v_initial_cash  NUMERIC :=  425083.64;
+
 
 BEGIN
 

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
-from pathlib import Path
 from threading import Lock
 from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable, Hashable
@@ -95,6 +93,7 @@ class PortfolioManager(BaseModule):
     def sync_existing_positions(self) -> None:
         if not self._portfolio:
             return
+
         for con_id, position in self._portfolio.positions.items():
             self.dispatch(ModuleType.RISK, "position_updated", {
                 "con_id": con_id,
@@ -284,7 +283,6 @@ class PortfolioManager(BaseModule):
             position.mark_to_market(market_data)
 
 
-
     def update_portfolio_in_db_async(self, portfolio):
         tm = get_thread_manager()
 
@@ -371,6 +369,7 @@ class PortfolioManager(BaseModule):
         self._portfolio.balance.total_commission += commission
 
         position = self._portfolio.positions[con_id]
+
         self.dispatch(ModuleType.RISK, "position_updated", {
             "con_id": con_id,
             "avg_cost": float(position.avg_price),

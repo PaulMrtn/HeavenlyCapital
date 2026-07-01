@@ -16,14 +16,17 @@ class PermissionLevel(Enum):
     MASTER = "MASTER"
     STANDARD = "STANDARD"
 
+
 class AccountType(Enum):
     LIVE = "LIVE"
     PAPER = "PAPER"
+
 
 class ClientState(Enum):
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
     STOPPED = "STOPPED"
+
 
 @dataclass
 class ClientStatus:
@@ -31,7 +34,6 @@ class ClientStatus:
     session_name: str
     account_type: AccountType
     permission_level: PermissionLevel
-
 
 
 class IBKRSessionRegistry:

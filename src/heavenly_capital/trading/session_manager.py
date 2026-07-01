@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4, UUID
@@ -11,7 +10,6 @@ from ib_async import Contract
 
 from heavenly_capital.data.bus import EventBus
 from heavenly_capital.models.config import SessionConfig
-from heavenly_capital.models.order import OrderTracker, OrderStatus
 from heavenly_capital.models.runtime import RuntimeModule, ModuleType
 from heavenly_capital.models.market_data import TickerManager
 from heavenly_capital.models.trading_engine import TradingSessionKey, TradingEngine
@@ -93,12 +91,10 @@ class TradingSession:
             risk=risk
         )
 
-
     def health_check(self) -> dict[str, Any]:
         return {
             "is_healthy": True,
         }
-
 
     def load_contracts(self, contracts: dict[str, "Contract"]) -> None:
         self.engine.orders.load_contracts(contracts)
@@ -271,7 +267,7 @@ class SessionManager(RuntimeModule):
         for session in self.sessions.values():
             session.engine.portfolio.load_portfolio_state()
             session.engine.risk.load_thresholds()
-            session.engine.risk.sync_existing_positions()
+            session.engine.portfolio.sync_existing_positions()
 
 
     def load_sessions_portfolio_orders(self) -> None:

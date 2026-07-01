@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING, Callable
 from uuid import UUID
 
@@ -14,7 +12,6 @@ from heavenly_capital.strategy.artifacts import ModelSignal
 if TYPE_CHECKING:
     from heavenly_capital.core.kernel import SystemPorts
     from heavenly_capital.trading.session_manager import TradingSessionKey, GlobalOrderRouter
-
 
 
 class OrderManager(BaseModule):
@@ -68,8 +65,8 @@ class OrderManager(BaseModule):
         dispatch: dict[tuple[ModuleType, str], Callable] = {
             (ModuleType.PORTFOLIO, "order_request"): self._handle_orders_request,
             (ModuleType.PORTFOLIO, "authorize_order"): self._process_authorization,
-            (ModuleType.RISK, "order_request"): self._handle_risk_order_request, #TODO:WARNING dev risk manager own function to handle order request
-            (ModuleType.RISK, "authorize_order"): self._process_authorization, #TODO:WARNING dev risk manager own function to handle order request
+            (ModuleType.RISK, "order_request"): self._handle_risk_order_request,
+            (ModuleType.RISK, "authorize_order"): self._process_authorization, #TODO:LOW unused, to del ?
         }
 
         handler = dispatch.get((source, action))
@@ -126,11 +123,10 @@ class OrderManager(BaseModule):
     def _handle_orders_request(self, orders: list["OrderRequest"]) -> None:
         self.stage_orders(orders)
 
-    def _handle_risk_order_request(self, orders: list["OrderRequest"]) -> None:
-        for request in orders:
-            tracker = self._create_tracker(request)
-            self.route_order(order=tracker)
-            self.dispatch(ModuleType.PORTFOLIO, "order_tracking", tracker)
+    def _handle_risk_order_request(self, order: "OrderRequest") -> None:
+        tracker = self._create_tracker(order)
+        self.route_order(order=tracker)
+        self.dispatch(ModuleType.PORTFOLIO, "order_tracking", tracker)
 
     def _process_authorization(self, event: "ModelSignal") -> None:
         con_id = event.conid

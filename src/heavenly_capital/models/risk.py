@@ -1,23 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Dict, Optional
 
 
+
 class PositionStatus(StrEnum):
+    INACTIVE = "INACTIVE"
     MONITORING = "MONITORING"
     PENDING    = "PENDING"
     LIQUIDATED = "LIQUIDATED"
+
+
+class TriggerReason(StrEnum):
+    ML_SIGNAL      = "ML_SIGNAL"      # Règle 1 — signal ML STOP_LOSS
+    HIT_THRESHOLD  = "HIT_THRESHOLD"   # Règle 3b — prix sous S en post/pre market
+    FORCE_CLOSE    = "FORCE_CLOSE"    # Règle 2 — 15h55, distance trop faible
+    BUFFER_BREACH  = "BUFFER_BREACH"   # Règle 3 — entrée zone buffer S-B
+
 
 
 @dataclass
 class MonitoredPosition:
     con_id: int
     threshold_pct: float                  # S% — depuis DB, immuable en session
-    quantity: float          # mis à jour à chaque fill BUY
+    quantity: Optional[float] = None    # mis à jour à chaque fill BUY
     threshold_abs: float = 0.0            # avg_cost * (1 - threshold_pct)
-    status: PositionStatus = PositionStatus.MONITORING
+    status: PositionStatus = PositionStatus.INACTIVE
 
     @classmethod
     def from_snapshot(cls, row: dict) -> "MonitoredPosition":

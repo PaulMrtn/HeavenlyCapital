@@ -5,14 +5,12 @@ from typing import Any, Dict
 from heavenly_capital.models.runtime import ModuleRouter, ModuleType, BaseModule
 
 
-
 @dataclass(frozen=True)
 class TradingSessionKey:
     session_date: date
     account_id: str
     portfolio_id: str
     mode: str
-
 
 
 class TradingEngine(ModuleRouter):
